@@ -81,7 +81,7 @@ seconds) or the moment you click somewhere else.
 
 ## Hidden icons in a panel
 
-Hidden icons don't have to slide back into the bar. Turn on Panel and they open as tiles in a panel under the menu bar, and the bar stays put. Each tile is a picture of the real icon, and a click opens that icon's real menu. Settings › Panel has the switch, with Menu bar as the default and Row as the same tiles in one strip. It's the feature people asked for most (#26), new in 0.3.2.
+Hidden icons don't have to slide back into the bar. Turn on Panel and they open as tiles in a panel under the menu bar, and the bar stays put. Each tile is a picture of the real icon, and a click opens that icon's real menu. Settings › Panel has the switch, with Menu bar as the default and Row as the same tiles in one strip. It's the big new feature in 0.3.2 (#26).
 
 - **Always Hidden sits behind a fold.** Click the fold at the end of the panel to open it.
 - **Type to find.** Start typing and press Return. The top match's menu opens, and Esc closes the panel.
@@ -95,8 +95,8 @@ Hidden icons don't have to slide back into the bar. Turn on Panel and they open 
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: light)" srcset="docs/assets/screenshot-panel-light.png">
-    <img src="docs/assets/screenshot-panel.png" alt="Panel pane: the Menu bar, Panel and Row choice for where hidden icons open, a live preview of the panel, and the columns, fold style, Always Hidden, show names, closed apps and separator options" width="640">
+    <source media="(prefers-color-scheme: light)" srcset="https://pelmet.fif7y.com/assets/settings-panel-light.png">
+    <img src="https://pelmet.fif7y.com/assets/settings-panel-dark.png" alt="Panel pane: the Menu bar, Panel and Row choice for where hidden icons open, a live preview of the panel, and the columns, fold style, Always Hidden, show names, closed apps and separator options" width="640">
   </picture><br>
   <sub>Where hidden icons open, and how the panel looks.</sub>
 </p>
