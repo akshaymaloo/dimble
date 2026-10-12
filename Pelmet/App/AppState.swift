@@ -673,6 +673,7 @@ final class AppState {
             showRules = ShowRules { [engine] items in
                 Task { await engine.setRuleShown(items) }
             }
+            showRules?.update(settings.showRules)
             transitions.warmAfterBoot(from: launchSnapshot)
             // Launch baseline: the band monitor only applies display behavior
             // on crossings, so the display Pelmet launches under gets its
@@ -1680,6 +1681,7 @@ final class AppState {
             registeredSearchHotkey = settings.searchHotkey
         }
         syncItemHotkeys()
+        showRules?.update(settings.showRules)
         // Newly created separators and toggled-on extras get hosted wherever
         // macOS pleases (the order hint when it is fresh, the hidden side
         // when not): through the Apply door like any own item entering the
@@ -2641,6 +2643,19 @@ final class AppState {
         guard let frame = frames[id.sectionKey] else { return false }
         let wantsLeft = settings.sectionModel.section(of: id) != .visible
         return wantsLeft ? frame.midX > chevron.midX : frame.midX < chevron.midX
+    }
+
+    /// The icon has a place on the bar right now: live in the snapshot, or
+    /// concealed (it drops out of AX then), or seen a moment ago (the same
+    /// grace the editor's board gives a tile in a gap). False for one of
+    /// Apple's switched off in System Settings › Menu Bar. True while nothing
+    /// has been read yet, so a missing icon is never claimed on a guess.
+    func isInMenuBar(_ id: ItemID) -> Bool {
+        guard let snapshot else { return true }
+        let key = id.sectionKey
+        if snapshot.items.contains(where: { $0.id.sectionKey == key })
+            || snapshot.concealed.contains(where: { $0.sectionKey == key }) { return true }
+        return Date.now.timeIntervalSince(lastSeenAt[key] ?? .distantPast) < Self.storedTileGrace
     }
 
     // (Alias healing removed: the model keys on ItemID.sectionKey — bundle-

@@ -219,6 +219,18 @@ public extension ExtraKind {
     }
 }
 
+public extension ExtraKind {
+    /// The kinds whose rule is "Show when it matters" (Settings › Menu Bar):
+    /// on the bar only while the thing they watch is happening, in whatever
+    /// section they sit. A launcher's rule is its own row's.
+    var showsWhenItMatters: Bool {
+        switch self {
+        case .mediaControls, .focus, .timeMachine: true
+        default: false
+        }
+    }
+}
+
 /// How a Pelmet item draws its glyph: the SF Symbol still, or (media
 /// controls only) natively drawn bars that wave while audio plays and
 /// settle when it pauses. Nil on old blobs = static; other kinds ignore it.
@@ -430,6 +442,10 @@ public struct SettingsStore: Codable, Equatable, Sendable {
     /// for the collateral-hidden system extras, plus user shortcut buttons.
     public var extraItems: [ExtraItemSpec] = []
 
+    /// Battery and Wi-Fi coming back on their own (#86). Pelmet's own items
+    /// keep their rule on their spec.
+    public var showRules = ShowRuleSettings()
+
     public var sectionModel = SectionModel()
     /// Order changes drawn in the editor and not yet applied to the bar
     /// (docs/CORE-SETS.md M1). Cleared by Apply or Discard.
@@ -476,6 +492,7 @@ public struct SettingsStore: Codable, Equatable, Sendable {
         case clockClickOpensNotificationCenter, notificationCenterHotkey
         case orderEdits
         case hiddenIconsIn, panel
+        case showRules
     }
 
     public init(from decoder: Decoder) throws {
@@ -518,6 +535,7 @@ public struct SettingsStore: Codable, Equatable, Sendable {
         orderEdits = field(OrderEdits.self, .orderEdits, defaults.orderEdits)
         hiddenIconsIn = field(RevealTarget.self, .hiddenIconsIn, defaults.hiddenIconsIn)
         panel = field(PanelOptions.self, .panel, defaults.panel)
+        showRules = field(ShowRuleSettings.self, .showRules, defaults.showRules)
     }
 
     // MARK: - Persistence
