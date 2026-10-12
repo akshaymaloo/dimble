@@ -23,6 +23,9 @@ enum SettingsIndex {
         func behavior(_ id: String, _ title: String, _ keywords: [String]) -> SettingsIndexEntry {
             SettingsIndexEntry(id: id, title: title, tab: .behavior, keywords: keywords)
         }
+        func menuBar(_ id: String, _ title: String, _ keywords: [String]) -> SettingsIndexEntry {
+            SettingsIndexEntry(id: id, title: title, tab: .menuBar, keywords: keywords)
+        }
         func panel(_ id: String, _ title: String, _ keywords: [String]) -> SettingsIndexEntry {
             SettingsIndexEntry(id: id, title: title, tab: .panel, keywords: keywords)
         }
@@ -63,10 +66,11 @@ enum SettingsIndex {
                      ["auto hide", "conceal", "timer", "delay", "seconds", "close"]),
             behavior("rehideElsewhere", String(localized: "Rehide when clicking elsewhere"),
                      ["click outside", "dismiss", "conceal"]),
-            behavior("systemExtras", String(localized: "System extras"),
-                     ["now playing", "camera", "airdrop", "focus", "timer", "collateral"]),
             behavior("clockClick", String(localized: "Clicking the clock opens Notification Center"),
                      ["notification center", "clock", "calendar", "shortcut"]),
+
+            menuBar("systemExtras", String(localized: "System extras"),
+                    ["now playing", "camera", "airdrop", "focus", "timer", "collateral"]),
 
             panel("hiddenIconsIn", String(localized: "Show hidden icons in"),
                   ["panel", "grid", "row", "notch", "overflow", "dropdown", "tray", "layout"]),

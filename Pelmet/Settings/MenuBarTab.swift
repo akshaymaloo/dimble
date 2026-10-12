@@ -49,25 +49,28 @@ struct ApplyBarButton: View {
                     .help("Forget the pending order changes; the editor shows the bar as it is")
             }
             // Same chip family as General's permission row (de-box, tinted
-            // capsule): green while there is something to apply, so a
-            // change in the editor visibly asks for the click; grey and
-            // inert when the bar already matches.
-            let title: Text = appState.applying ? Text("Applying…")
-                : failed ? Text("Retry")
-                : count > 0 ? Text("Apply (\(count))")
-                : Text("Apply")
-            let tint: Color = failed ? .orange : pending ? .green : .secondary
-            TintChipButton(
-                text: title,
-                icon: Image(systemName: failed ? "arrow.clockwise" : "wand.and.stars"),
-                tint: tint
-            ) {
-                appState.applyOrderEdits()
+            // capsule). Only there while there is something to apply (or a
+            // pass running): green, so a change in the editor visibly asks
+            // for the click. A bar that already matches shows none.
+            if appState.applying || pending {
+                let title: Text = appState.applying ? Text("Applying…")
+                    : failed ? Text("Retry")
+                    : count > 0 ? Text("Apply (\(count))")
+                    : Text("Apply")
+                let tint: Color = failed ? .orange : pending ? .green : .secondary
+                TintChipButton(
+                    text: title,
+                    icon: Image(systemName: failed ? "arrow.clockwise" : "wand.and.stars"),
+                    tint: tint
+                ) {
+                    appState.applyOrderEdits()
+                }
+                .disabled(appState.applying || !pending)
+                .transition(.opacity)
+                .help("Move the bar to match the editor: your order, and every icon on its section's side of the chevron. Each icon is dragged once with the cursor hidden; nothing moves until you press this.")
             }
-            .disabled(appState.applying || !pending)
-            .animation(.easeOut(duration: 0.2), value: pending)
-            .help("Move the bar to match the editor: your order, and every icon on its section's side of the chevron. Each icon is dragged once with the cursor hidden; nothing moves until you press this.")
         }
+        .animation(.easeOut(duration: 0.2), value: appState.applying || pending)
     }
 }
 
@@ -83,12 +86,16 @@ struct OverflowHint: View {
         let count = appState.overflowNoticeCount
         Group {
             if count > 0 {
-                Label("\(count) behind «", systemImage: "rectangle.compress.vertical")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .help("Your menu bar is full: \(count) icons sit behind macOS's « until there's room. Pelmet leaves them where they are.")
-                    .transition(.opacity)
+                Label {
+                    count == 1 ? Text("1 icon doesn't fit") : Text("\(count) icons don't fit")
+                } icon: {
+                    Image(systemName: "rectangle.compress.vertical")
+                }
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .help("Your menu bar is full: \(count) icons sit behind macOS's « until there's room. Pelmet leaves them where they are.")
+                .transition(.opacity)
             }
         }
         .animation(.easeOut(duration: 0.2), value: count > 0)
@@ -98,7 +105,7 @@ struct OverflowHint: View {
 /// One header for every card below the editor: title and action on one
 /// line, a single short caption underneath. Hierarchy comes from type
 /// size and the caption's own line, not from cramming both into a row.
-private struct CardHeader<Trailing: View>: View {
+struct CardHeader<Trailing: View>: View {
     let symbol: String
     let title: LocalizedStringKey
     let caption: LocalizedStringKey
@@ -194,6 +201,8 @@ struct MenuBarTab: View {
                 AppLaunchersStrip()
 
                 PelmetItemsStrip()
+
+                ShowWhenCard()
         }
         .animation(.spring(duration: 0.3), value: appState.settings.sectionModel)
         .environment(dragSession)
@@ -276,6 +285,11 @@ private struct EditorSectionView: View {
 
     private var coordinateSpace: String { "pelmet.strip.\(section.rawValue)" }
 
+    /// The strip's soft fill; a tile's corner mark rings itself in the same.
+    static func fillOpacity(section: PelmetCore.Section, isTarget: Bool) -> Double {
+        isTarget ? 0.8 : (section == .visible ? 0.35 : 0.55)
+    }
+
     var body: some View {
         let tiles = self.tiles
         let placedSlots = slots(tiles)
@@ -329,7 +343,7 @@ private struct EditorSectionView: View {
             .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(.quaternary.opacity(isTarget ? 0.8 : (section == .visible ? 0.35 : 0.55)))
+                    .fill(.quaternary.opacity(Self.fillOpacity(section: section, isTarget: isTarget)))
             )
             .coordinateSpace(name: coordinateSpace)
             .onDrop(of: [.text], delegate: StripDropDelegate(
@@ -431,6 +445,8 @@ private struct ItemTile: View {
     @State private var cardWork: Task<Void, Never>?
     /// A separator tile's options (style, opacity or width, Remove).
     @State private var optionsShown = false
+    /// The popover of a tile with a "Show when it matters" rule.
+    @State private var ruleShown = false
 
     /// This tile's separator, when it is one: specs are keyed by the
     /// ItemID they mint, so match on the section key.
@@ -442,6 +458,11 @@ private struct ItemTile: View {
     }
 
     private var displayName: String { ItemNaming.displayName(for: item) }
+
+    /// This tile's "Show when it matters" rule, when it has one.
+    private var showWhen: ShowWhenRule? {
+        ShowWhenSubject(item.id).map { ShowWhenRule(subject: $0, appState: appState) }
+    }
 
     private var isSystemIcon: Bool {
         MenuBarPolicy.systemItem(for: item.id) != nil
@@ -489,11 +510,28 @@ private struct ItemTile: View {
         item.id.bundleID == PelmetBundle.systemUIServerID
     }
 
-    /// The enumerator's un-localized title ("Siri, TimeMachine") — what the
-    /// glyph is keyed on, since the display name is translated.
-    private var rawExtraTitle: String {
-        if case .status(_, let title) = item.id.parsed { return title }
-        return ""
+    /// The panel's right-click menu on a tile, drawn here: the presses, the
+    /// moves between sections (a drawn edit, Apply moves the bar), the app.
+    @ViewBuilder private var tileMenu: some View {
+        Button(ItemMenuActions.openMenuTitle) { appState.openItemMenu(item.id) }
+        Button(ItemMenuActions.showInBarTitle) {
+            ItemMenuActions.showInBar(item.id, appState: appState, source: "editor")
+        }
+        let targets = ItemMenuActions.moveTargets(of: item.id, appState: appState)
+        if !targets.isEmpty {
+            Divider()
+            ForEach(targets, id: \.self) { target in
+                Button(ItemMenuActions.moveTitle(target)) {
+                    appState.moveItem(item.id, to: target, before: nil)
+                }
+            }
+        }
+        if let app = ItemMenuActions.app(for: item, title: displayName), ItemMenuActions.isRunning(app.bundleID) {
+            Divider()
+            Button(ItemMenuActions.quitTitle(app.name)) {
+                ItemMenuActions.quit(app.bundleID, source: "editor")
+            }
+        }
     }
 
     /// The bar item swallowed Pelmet's drags three placements running; it
@@ -530,26 +568,7 @@ private struct ItemTile: View {
     var body: some View {
         VStack(spacing: 3) {
             ZStack(alignment: .topTrailing) {
-                Group {
-                    if isPinnedBySystem, drawsOwnPinnedGlyph {
-                        // What the bar hands over for these is a blank
-                        // rounded square that read as a broken tile. Draw
-                        // Apple's own mark instead, ahead of the capture —
-                        // the tile shows the real thing.
-                        Image(nsImage: ExtraGlyph.pinnedAppleExtra(rawTitle: rawExtraTitle))
-                            .resizable()
-                            .scaledToFit()
-                            .foregroundStyle(.secondary)
-                    } else if let icon = ItemImageCache.icon(for: item.id) {
-                        Image(nsImage: icon)
-                            .resizable()
-                            .scaledToFit()
-                    } else {
-                        Image(systemName: "app.dashed")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .frame(width: 20, height: 20)
+                TileGlyph(id: item.id, drawsPinnedGlyph: isPinnedBySystem && drawsOwnPinnedGlyph)
                 // Pinned tiles don't move, so they sit back: a flatter fill
                 // and no lift, against the raised tiles you CAN drag.
                 .opacity(isPinnedBySystem && !hovered ? 0.55 : 1)
@@ -623,6 +642,15 @@ private struct ItemTile: View {
                         .help("System icon — Pelmet places it; whether it exists in the bar is set in System Settings › Control Center")
                 }
             }
+            // The top-right holds the Apple glyph, so a rule's mark takes the
+            // top-left.
+            .overlay(alignment: .topLeading) {
+                if showWhen?.isActive == true {
+                    RuleMark(stripFill: EditorSectionView.fillOpacity(section: section, isTarget: session.target?.section == section))
+                        .offset(x: -5, y: -5)
+                        .allowsHitTesting(false)
+                }
+            }
             Text(displayName)
                 .font(.system(size: 9))
                 .foregroundStyle(hovered ? .secondary : .tertiary)
@@ -664,7 +692,16 @@ private struct ItemTile: View {
             }
         }
         .onTapGesture {
-            if separatorIndex != nil { optionsShown = true }
+            if separatorIndex != nil {
+                optionsShown = true
+            } else if showWhen != nil {
+                ruleShown = true
+            }
+        }
+        .popover(isPresented: $ruleShown, arrowEdge: .bottom) {
+            if let rule = showWhen {
+                TileRulePopover(id: item.id, name: displayName, rule: rule)
+            }
         }
         .popover(isPresented: $optionsShown, arrowEdge: .bottom) {
             @Bindable var state = appState
@@ -691,10 +728,12 @@ private struct ItemTile: View {
             hovered = false
             cardShown = false
             optionsShown = false
+            ruleShown = false
             session.begin(.item(item.id, home: section, homeIndex: index))
             return NSItemProvider(object: item.id.rawValue as NSString)
         }
         .contextMenu {
+            if separatorIndex == nil { tileMenu }
             if separatorIndex != nil {
                 Button("Remove separator") {
                     let id = appState.settings.separators[separatorIndex!].id
@@ -702,6 +741,7 @@ private struct ItemTile: View {
                 }
             }
             if isUnhideable || isSuperseded, let bundle = item.id.bundleID {
+                Divider()
                 if hasLauncher {
                     Text("Launcher added — now turn this icon off in \(displayName)'s settings")
                 } else {
@@ -712,6 +752,64 @@ private struct ItemTile: View {
                 Link("Why can't Pelmet hide this?", destination: PelmetLinks.faqAppLaunchers)
             }
         }
+    }
+}
+
+/// An icon's picture as the editor and its popovers draw it, 20pt.
+struct TileGlyph: View {
+    let id: ItemID
+    /// SystemUIServer's pinned pair has no capturable icon: Apple's own mark
+    /// is drawn instead.
+    var drawsPinnedGlyph = false
+
+    /// The enumerator's un-localized title ("Siri, TimeMachine") — what the
+    /// glyph is keyed on, since the display name is translated.
+    private var rawExtraTitle: String {
+        if case .status(_, let title) = id.parsed { return title }
+        return ""
+    }
+
+    var body: some View {
+        Group {
+            if drawsPinnedGlyph {
+                // What the bar hands over for these is a blank rounded
+                // square that read as a broken tile. Draw Apple's own mark
+                // instead, ahead of the capture: the tile shows the real
+                // thing.
+                Image(nsImage: ExtraGlyph.pinnedAppleExtra(rawTitle: rawExtraTitle))
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(.secondary)
+            } else if let icon = ItemImageCache.icon(for: id) {
+                Image(nsImage: icon)
+                    .resizable()
+                    .scaledToFit()
+            } else {
+                Image(systemName: "app.dashed")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(width: 20, height: 20)
+    }
+}
+
+/// The mark on a tile whose "Show when it matters" rule is on: a bolt in the
+/// accent, ringed in the strip's own fill so it cuts out of the tile.
+private struct RuleMark: View {
+    /// The opacity of the strip's soft fill behind the tile.
+    let stripFill: Double
+
+    var body: some View {
+        Image(systemName: "bolt.fill")
+            .font(.system(size: 7, weight: .bold))
+            .foregroundStyle(.white)
+            .frame(width: 13, height: 13)
+            .background(Circle().fill(PelmetAccent.accent))
+            .padding(2)
+            .background(
+                Circle().fill(.background)
+                    .overlay(Circle().fill(.quaternary.opacity(stripFill)))
+            )
     }
 }
 
@@ -865,19 +963,6 @@ private struct PelmetItemsStrip: View {
         )
     }
 
-    /// When an activity-driven singleton kind sits in the bar (media
-    /// controls, Time Machine, Focus).
-    private func ruleBinding(_ kind: ExtraKind) -> Binding<ExtraShowRule> {
-        Binding(
-            get: { appState.settings.extraItems.first { $0.kind == kind }?.resolvedShowRule ?? kind.defaultShowRule },
-            set: { rule in
-                guard let index = appState.settings.extraItems.firstIndex(where: { $0.kind == kind }) else { return }
-                appState.settings.extraItems[index].showRule = rule
-                appState.settingsChanged()
-            }
-        )
-    }
-
     private func toggleKind(_ kind: ExtraKind, on: Bool) {
         if on, !hasKind(kind) {
             appState.addExtra(ExtraItemSpec(kind: kind))
@@ -906,7 +991,7 @@ private struct PelmetItemsStrip: View {
                         }
                     }
                 } label: {
-                    AddTrigger(title: "Shortcut", menuChevron: false)
+                    AddTrigger(title: "Shortcut button", menuChevron: false)
                 }
                 .menuStyle(.borderlessButton)
                 .fixedSize()
@@ -920,11 +1005,10 @@ private struct PelmetItemsStrip: View {
 
             VStack(alignment: .leading, spacing: 12) {
                 PelmetItemRow(
-                    symbol: "playpause.fill", title: "Media controls",
+                    symbol: ShowWhenSubject.media.symbol, title: ShowWhenSubject.media.title,
                     caption: "Play, pause and switch tracks without leaving the bar.",
                     isOn: hasKind(.mediaControls),
-                    style: styleBinding(.mediaControls),
-                    rule: ruleBinding(.mediaControls)
+                    style: styleBinding(.mediaControls)
                 ) { toggleKind(.mediaControls, on: $0) }
                 PelmetItemRow(
                     symbol: "video.fill", title: "Camera & mic indicator",
@@ -944,16 +1028,14 @@ private struct PelmetItemsStrip: View {
                     isOn: hasKind(.timer)
                 ) { toggleKind(.timer, on: $0) }
                 PelmetItemRow(
-                    symbol: "moon.fill", title: "Focus",
+                    symbol: ShowWhenSubject.focus.symbol, title: ShowWhenSubject.focus.title,
                     caption: "See which Focus is on and switch it in a click.",
-                    isOn: hasKind(.focus),
-                    rule: ruleBinding(.focus)
+                    isOn: hasKind(.focus)
                 ) { toggleKind(.focus, on: $0) }
                 PelmetItemRow(
-                    symbol: ExtraGlyph.timeMachineSymbol, title: "Time Machine",
+                    symbol: ShowWhenSubject.timeMachine.symbol, title: ShowWhenSubject.timeMachine.title,
                     caption: "Your last backup at a glance, back up now. Replaces Apple's while it's on.",
-                    isOn: hasKind(.timeMachine),
-                    rule: ruleBinding(.timeMachine)
+                    isOn: hasKind(.timeMachine)
                 ) { toggleKind(.timeMachine, on: $0) }
                 PelmetItemRow(
                     symbol: "", image: ExtraGlyph.airdrop, title: "AirDrop",
@@ -990,7 +1072,86 @@ private struct PelmetItemsStrip: View {
                 }
             }
             .pelmetCardSurface()
+
+            systemExtras
         }
+    }
+
+    /// Apple's Now Playing, camera controls, AirDrop, Focus and Timer hide
+    /// whenever any icon is concealed. The choice of what the revealed bar
+    /// does with them only exists while no Pelmet item stands in for one:
+    /// once one does, Apple's stay hidden whatever the choice says, so the row
+    /// gives way to a line saying so.
+    @ViewBuilder private var systemExtras: some View {
+        if appState.settings.replacesCollateralExtras {
+            Text("Pelmet's items stand in for Apple's Now Playing, camera controls, AirDrop, Focus and Timer, so Apple's stay hidden.")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+                .settingAnchor("systemExtras")
+        } else {
+            SettingRow(
+                title: "Now Playing, camera controls, AirDrop, Focus, Timer",
+                caption: "macOS hides these whenever any icons are concealed — they can only appear while the whole bar is revealed."
+            ) {
+                PelmetMenuPicker(
+                    selection: Binding(
+                        get: { appState.settings.hideSystemExtras },
+                        set: {
+                            appState.settings.hideSystemExtras = $0
+                            appState.settingsChanged()
+                        }
+                    ),
+                    options: [
+                        (true, LocalizedStringKey("Always hidden")),
+                        (false, LocalizedStringKey("Show while revealed")),
+                    ]
+                )
+            }
+            .pelmetCardSurface()
+            .settingAnchor("systemExtras")
+        }
+    }
+}
+
+/// One row of an item card: icon, name with its line of detail under it, and
+/// whatever controls close the row. The Pelmet items and the "Show when it
+/// matters" rows share it.
+struct ItemRowShell<Detail: View, Trailing: View>: View {
+    let symbol: String
+    /// A drawn glyph in place of the symbol (AirDrop's mark).
+    var image: NSImage? = nil
+    let title: LocalizedStringKey
+    @ViewBuilder let detail: () -> Detail
+    @ViewBuilder let trailing: () -> Trailing
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Group {
+                if let image {
+                    Image(nsImage: image).renderingMode(.template)
+                } else {
+                    Image(systemName: symbol)
+                }
+            }
+            .frame(width: 18)
+            .foregroundStyle(.secondary)
+            // The title holds its line; the detail under it is what wraps.
+            // Italian captions run 105 chars against a 440pt card.
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.callout)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                detail()
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 8)
+            trailing()
+        }
+        .padding(.vertical, 2)
     }
 }
 
@@ -1004,34 +1165,12 @@ private struct PelmetItemRow: View {
     /// Static or animated glyph (media controls only), offered once the
     /// item is on — the same in-row borderless menu the launcher rows use.
     var style: Binding<ExtraStyle>? = nil
-    /// Shows when active or always (media, Time Machine, Focus), same
-    /// menu, same moment.
-    var rule: Binding<ExtraShowRule>? = nil
     let onToggle: (Bool) -> Void
 
     var body: some View {
-        HStack(spacing: 8) {
-            Group {
-                if let image {
-                    Image(nsImage: image).renderingMode(.template)
-                } else {
-                    Image(systemName: symbol)
-                }
-            }
-            .frame(width: 18)
-            .foregroundStyle(.secondary)
-            // The title holds its line; the caption is what wraps. Italian
-            // captions run 105 chars against a 440pt card, and without this
-            // the title wrapped mid-phrase beside its own caption.
-            Text(title)
-                .font(.callout)
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
+        ItemRowShell(symbol: symbol, image: image, title: title) {
             Text(caption)
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 8)
+        } trailing: {
             if isOn, let style {
                 PelmetMenuPicker(
                     selection: style,
@@ -1039,19 +1178,11 @@ private struct PelmetItemRow: View {
                     borderless: true
                 )
             }
-            if isOn, let rule {
-                PelmetMenuPicker(
-                    selection: rule,
-                    options: [(.whenActive, "When active"), (.always, "Always")],
-                    borderless: true
-                )
-            }
             Toggle("", isOn: Binding(get: { isOn }, set: onToggle))
                 .toggleStyle(.switch)
-                .controlSize(.mini)
+                .controlSize(.small)
                 .labelsHidden()
         }
-        .padding(.vertical, 2)
     }
 }
 

@@ -2645,6 +2645,19 @@ final class AppState {
         return wantsLeft ? frame.midX > chevron.midX : frame.midX < chevron.midX
     }
 
+    /// The icon has a place on the bar right now: live in the snapshot, or
+    /// concealed (it drops out of AX then), or seen a moment ago (the same
+    /// grace the editor's board gives a tile in a gap). False for one of
+    /// Apple's switched off in System Settings › Menu Bar. True while nothing
+    /// has been read yet, so a missing icon is never claimed on a guess.
+    func isInMenuBar(_ id: ItemID) -> Bool {
+        guard let snapshot else { return true }
+        let key = id.sectionKey
+        if snapshot.items.contains(where: { $0.id.sectionKey == key })
+            || snapshot.concealed.contains(where: { $0.sectionKey == key }) { return true }
+        return Date.now.timeIntervalSince(lastSeenAt[key] ?? .distantPast) < Self.storedTileGrace
+    }
+
     // (Alias healing removed: the model keys on ItemID.sectionKey — bundle-
     // level for third parties — so AX title drift can no longer strand
     // assignments or order entries under stale tags.)
