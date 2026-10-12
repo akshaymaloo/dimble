@@ -519,7 +519,8 @@ struct PelmetMenuPicker<Value: Hashable>: View {
     /// that sits inside a card row rather than beside a setting.
     var borderless = false
     /// Borderless only: the label in the brand accent, for a value that
-    /// belongs to the switch beside it (the hover delay).
+    /// belongs to the switch beside it (the hover delay, a show rule's
+    /// condition).
     var accent = false
 
     private var currentLabel: LocalizedStringKey {

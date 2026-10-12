@@ -240,27 +240,15 @@ private struct ShowWhenRow: View {
         }
     }
 
-    /// A choice of conditions is a menu in the accent colour; a single one is
-    /// just said.
+    /// A choice of conditions is the settings' accent menu (the hover delay's
+    /// recipe); a single one is just said.
     @ViewBuilder private var condition: some View {
         if rule.subject.conditions.count > 1 {
-            // PelmetMenuPicker's borderless menu is secondary grey and has no
-            // accent variant; this is the same menu in the accent.
-            Menu {
-                ForEach(rule.subject.conditions, id: \.self) { condition in
-                    Toggle(condition.label, isOn: Binding(
-                        get: { rule.condition == condition },
-                        set: { if $0 { rule.setCondition(condition) } }
-                    ))
-                }
-            } label: {
-                Text(rule.condition.label)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            }
-            .menuStyle(.borderlessButton)
-            .font(.caption)
-            .foregroundStyle(PelmetAccent.accent)
+            PelmetMenuPicker(
+                selection: Binding(get: { rule.condition }, set: { rule.setCondition($0) }),
+                options: rule.subject.conditions.map { ($0, $0.label) },
+                borderless: true, accent: true
+            )
         } else {
             Text(rule.condition.label)
                 .font(.caption)
