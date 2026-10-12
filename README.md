@@ -12,10 +12,10 @@
 </p>
 
 Pelmet hides the icons you don't need until you do. Hover, click or press a
-shortcut and they slide back in. Small on purpose (three sections, an editor,
-⌘-drag in the bar) and native all the way down. macOS does the hiding. Built
-for the menu bar Apple rebuilt in macOS 27. Free, open source, no account,
-no analytics.
+shortcut and they slide back in, or open in a panel. Small on purpose (three
+sections, an editor, ⌘-drag in the bar) and native all the way down. macOS does
+the hiding. Built for the menu bar Apple rebuilt in macOS 27. Free, open source,
+no account, no analytics.
 
 > [!TIP]
 > **Beta channel.** Fixes and new features land there first, a stable release
@@ -77,6 +77,28 @@ seconds) or the moment you click somewhere else.
     <img src="docs/assets/screenshot-settings.png" alt="Behavior pane: Instant/Smooth/Fade animation cards with a live preview, the icon spacing slider, reveal on hover with a stepped delay slider, click and double-click reveals, auto-rehide after a stepped delay, system extras and the Notification Center shortcut" width="640">
   </picture><br>
   <sub>Your rules for revealing, and for putting everything back.</sub>
+</p>
+
+## Hidden icons in a panel
+
+Hidden icons don't have to slide back into the bar. Turn on Panel and they open as tiles in a panel under the menu bar, and the bar stays put. Each tile is a picture of the real icon, and a click opens that icon's real menu. Settings › Panel has the switch, with Menu bar as the default and Row as the same tiles in one strip. It's the feature people asked for most (#26), new in 0.3.2.
+
+- **Always Hidden sits behind a fold.** Click the fold at the end of the panel to open it.
+- **Type to find.** Start typing and press Return. The top match's menu opens, and Esc closes the panel.
+- **Drag tiles around.** Reorder a tile in its section, or drop it on another one. Drag it up onto the bar to show it there.
+- **⌘-drag from the bar.** Drop an icon on the panel and it's filed in the section under the pointer.
+
+<p align="center">
+  <img src="https://pelmet.fif7y.com/assets/panel.gif" alt="The hidden icons in a panel: a hover opens the panel under the menu bar, a click on the +3 fold opens Always Hidden, typing ta narrows it to Tailscale, Return closes the panel and Tailscale's menu drops from its own icon" width="640"><br>
+  <sub>Hover, open the fold, type "ta", Return. Tailscale's menu drops from its own icon.</sub>
+</p>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/screenshot-panel-light.png">
+    <img src="docs/assets/screenshot-panel.png" alt="Panel pane: the Menu bar, Panel and Row choice for where hidden icons open, a live preview of the panel, and the columns, fold style, Always Hidden, show names, closed apps and separator options" width="640">
+  </picture><br>
+  <sub>Where hidden icons open, and how the panel looks.</sub>
 </p>
 
 ## Search the menu bar
