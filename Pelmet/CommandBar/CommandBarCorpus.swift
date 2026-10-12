@@ -105,19 +105,11 @@ enum CommandBarCorpus {
                     section: section
                 )
                 var entry = CommandBarEntry(candidate: candidate, action: .item(key), glyph: drawsGlyphs ? glyph(for: item) : noGlyph)
-                if let bundle = item.id.bundleID, isThirdParty(bundle) {
-                    entry.app = (bundle, app ?? title)
-                }
+                entry.app = ItemMenuActions.app(for: item, title: title)
                 out.append(entry)
             }
         }
         return out
-    }
-
-    /// An app the user installed: Open and Quit mean something for it. Apple's
-    /// hosts (Control Center, the clock) and Pelmet's own items are not.
-    private static func isThirdParty(_ bundle: String) -> Bool {
-        !bundle.hasPrefix("com.apple.") && !PelmetBundle.ownIDs.contains(bundle)
     }
 
     /// Apple's items carry their identity in the title segment

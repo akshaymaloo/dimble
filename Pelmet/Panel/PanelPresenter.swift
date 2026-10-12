@@ -1592,27 +1592,22 @@ final class PanelPresenter: RevealPresenter {
         switch tile {
         case .item(let key):
             var rows: [PanelMenuRow] = [
-                .action(String(localized: "Open Menu")) { [weak self] in self?.press(tile) },
+                .action(ItemMenuActions.openMenuTitle) { [weak self] in self?.press(tile) },
                 .action(String(localized: "Open Right-Click Menu")) { [weak appState] in
                     PelmetLog.log("panel: right-click \(key.rawValue)")
                     appState?.concealNow()
                     appState?.openItemMenu(key, button: .secondary)
                 },
-                .action(String(localized: "Show in Menu Bar")) { [weak appState] in
-                    PelmetLog.log("panel: show \(key.rawValue) in the bar")
-                    appState?.showItemInBar(key)
+                .action(ItemMenuActions.showInBarTitle) { [weak appState] in
+                    guard let appState else { return }
+                    ItemMenuActions.showInBar(key, appState: appState, source: "panel")
                 },
             ]
-            // The clock and Control Center stay where macOS pins them.
-            if !appState.isImmovable(key) {
+            let targets = ItemMenuActions.moveTargets(of: key, appState: appState)
+            if !targets.isEmpty {
                 rows.append(.divider)
-                let current = appState.settings.sectionModel.section(of: key)
-                for (section, title) in [
-                    (PelmetCore.Section.visible, String(localized: "Move to Visible")),
-                    (.hidden, String(localized: "Move to Hidden")),
-                    (.alwaysHidden, String(localized: "Move to Always Hidden")),
-                ] where section != current {
-                    rows.append(.action(title) { [weak appState] in
+                for section in targets {
+                    rows.append(.action(ItemMenuActions.moveTitle(section)) { [weak appState] in
                         PelmetLog.log("panel: move \(key.rawValue) to \(section.rawValue)")
                         appState?.concealNow()
                         appState?.moveItemNow(key, to: section)
@@ -1620,12 +1615,11 @@ final class PanelPresenter: RevealPresenter {
                 }
             }
             let app = corpus.first { if case .item(let id) = $0.action { id == key } else { false } }?.app
-            if let app, !NSRunningApplication.runningApplications(withBundleIdentifier: app.bundleID).isEmpty {
+            if let app, ItemMenuActions.isRunning(app.bundleID) {
                 rows.append(.divider)
-                rows.append(.action(String(localized: "Quit \(app.name)")) { [weak appState] in
-                    PelmetLog.log("panel: quit \(app.bundleID)")
+                rows.append(.action(ItemMenuActions.quitTitle(app.name)) { [weak appState] in
                     appState?.concealNow()
-                    for running in NSRunningApplication.runningApplications(withBundleIdentifier: app.bundleID) { running.terminate() }
+                    ItemMenuActions.quit(app.bundleID, source: "panel")
                 })
             }
             return rows
