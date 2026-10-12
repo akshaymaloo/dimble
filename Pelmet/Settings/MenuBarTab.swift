@@ -419,7 +419,7 @@ private struct SlotPlaceholder: View {
                         .strokeBorder(.tint.opacity(0.7), style: StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
                 )
                 .frame(width: 34, height: 34)
-            Text(" ")
+            Text(verbatim: " ")
                 .font(.system(size: 9))
         }
         .transition(.scale(scale: 0.6).combined(with: .opacity))
@@ -1113,7 +1113,7 @@ private struct PelmetItemsStrip: View {
         } else {
             SettingRow(
                 title: "Now Playing, camera controls, AirDrop, Focus, Timer",
-                caption: "macOS hides these whenever any icons are concealed — they can only appear while the whole bar is revealed."
+                caption: "macOS hides these whenever any icons are concealed. They can only appear while the whole bar is revealed."
             ) {
                 PelmetMenuPicker(
                     selection: Binding(

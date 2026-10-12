@@ -1091,7 +1091,7 @@ final class AppState {
             other.map { $0.keyCode == spec.keyCode && $0.modifiers == spec.modifiers } ?? false
         }
         if same(settings.hotkey) { return .pelmet(String(localized: "Show Hidden Items")) }
-        if same(settings.alwaysHiddenHotkey) { return .pelmet(String(localized: "Show Always-Hidden Too")) }
+        if same(settings.alwaysHiddenHotkey) { return .pelmet(String(localized: "Show Always Hidden Too")) }
         if same(settings.searchHotkey) { return .pelmet(String(localized: "Search the menu bar")) }
         if same(settings.settingsHotkey) { return .pelmet(String(localized: "Open Settings")) }
         if same(activeNotificationCenterHotkey) { return .pelmet(String(localized: "Open Notification Center")) }
