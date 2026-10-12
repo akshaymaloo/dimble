@@ -430,6 +430,10 @@ public struct SettingsStore: Codable, Equatable, Sendable {
     /// for the collateral-hidden system extras, plus user shortcut buttons.
     public var extraItems: [ExtraItemSpec] = []
 
+    /// Battery and Wi-Fi coming back on their own (#86). Pelmet's own items
+    /// keep their rule on their spec.
+    public var showRules = ShowRuleSettings()
+
     public var sectionModel = SectionModel()
     /// Order changes drawn in the editor and not yet applied to the bar
     /// (docs/CORE-SETS.md M1). Cleared by Apply or Discard.
@@ -476,6 +480,7 @@ public struct SettingsStore: Codable, Equatable, Sendable {
         case clockClickOpensNotificationCenter, notificationCenterHotkey
         case orderEdits
         case hiddenIconsIn, panel
+        case showRules
     }
 
     public init(from decoder: Decoder) throws {
@@ -518,6 +523,7 @@ public struct SettingsStore: Codable, Equatable, Sendable {
         orderEdits = field(OrderEdits.self, .orderEdits, defaults.orderEdits)
         hiddenIconsIn = field(RevealTarget.self, .hiddenIconsIn, defaults.hiddenIconsIn)
         panel = field(PanelOptions.self, .panel, defaults.panel)
+        showRules = field(ShowRuleSettings.self, .showRules, defaults.showRules)
     }
 
     // MARK: - Persistence
