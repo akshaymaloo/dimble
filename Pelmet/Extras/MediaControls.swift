@@ -465,10 +465,10 @@ final class ExtrasManager {
                 lastTimerActive = active
             case .timeMachine:
                 updateTimeMachineGlyph(item, spec: spec)
+                let running = timeMachine?.status.running ?? false
                 // "When active": only while a backup runs, the running edge
                 // placed like a while-running launcher.
                 if spec.resolvedShowRule == .whenActive {
-                    let running = timeMachine?.status.running ?? false
                     let sectionVisible = visible
                     visible = visible && running
                     let itemID = Self.itemID(for: spec)
@@ -481,8 +481,14 @@ final class ExtrasManager {
                     } else if !running, lastBackupRunning {
                         appState?.cancelOwnItemPlacement(itemID)
                     }
-                    lastBackupRunning = running
                 }
+                // #86: a backup in progress shows it whatever its section,
+                // like a Focus that is on.
+                if running, ShowRules.Rule.backingUp.isOn { visible = true }
+                if running != lastBackupRunning, ShowRules.Rule.backingUp.isOn {
+                    PelmetLog.log("rule: \(running ? "backup running, Time Machine shows" : "backup done, Time Machine follows its section")")
+                }
+                lastBackupRunning = running
             case .focus:
                 // An indicator like the camera pill: a Focus that is on shows
                 // whatever the section says (Apple's own does, and one that
@@ -1041,7 +1047,8 @@ final class ExtrasManager {
     private func timeMachineChanged() {
         let running = timeMachine?.status.running ?? false
         if running != lastBackupRunning,
-           specs.values.contains(where: { $0.kind == .timeMachine && $0.resolvedShowRule == .whenActive }) {
+           ShowRules.Rule.backingUp.isOn
+            || specs.values.contains(where: { $0.kind == .timeMachine && $0.resolvedShowRule == .whenActive }) {
             applyCurrent()  // the visibility edge
             return
         }
