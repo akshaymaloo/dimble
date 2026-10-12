@@ -105,6 +105,20 @@ struct PicturePassBatchesTests {
         #expect(drawn.solid[id("c")] == f(1100))
     }
 
+    @Test func iconsStackedAtTheNativeChevronAreNeverCropped() {
+        // #81 (2026-10-12): a full MacBook Air bar, the first round's walk.
+        // Icons behind the « all end at its edge (779), each cut was the «.
+        let frames = [
+            (key: id("a"), frame: CGRect(x: 757, y: 0, width: 22, height: 24)),
+            (key: id("b"), frame: CGRect(x: 729, y: 0, width: 50, height: 24)),
+            (key: id("c"), frame: CGRect(x: 735, y: 0, width: 44, height: 24)),
+            (key: id("d"), frame: CGRect(x: 790, y: 0, width: 30, height: 24)),
+        ]
+        let drawn = PicturePassBatches.drawn(wanted: [id("a"), id("b"), id("c"), id("d")], frames: frames)
+        #expect(drawn.phantoms == [id("a"), id("b"), id("c")])
+        #expect(Set(drawn.solid.keys) == [id("d")])
+    }
+
     @Test func aFollowUpIgnoresFramesItDidNotAskFor() {
         let frames = [(key: id("a"), frame: f(900)), (key: id("b"), frame: f(900)), (key: id("c"), frame: f(1000))]
         let drawn = PicturePassBatches.drawn(wanted: [id("c")], frames: frames)

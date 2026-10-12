@@ -1318,7 +1318,18 @@ extension TransitionCoordinator {
         PelmetLog.log("pass: revealed at \(ms())ms (\(drawn.count) drawn, \(onPrimary.count) on the primary bar)")
 
         var pictures: [ItemID: ItemPictures.Picture]? = drawn.isEmpty ? nil : [:]
-        let shown = onPrimary.compactMap { item in item.frame.map { (key: item.id.sectionKey, frame: $0) } }
+        // Only what the bar draws clear: an icon the native « holds reports
+        // a frame stacked on the others behind it, and a cut of it is the «
+        // (#81, every tile a chevron on a full MacBook Air bar). The rounds
+        // below give those the room to themselves.
+        let primaryFrames = snap.items.compactMap { item in
+            item.frame.flatMap { MenuBarGeometry.isInPrimaryBand($0, primaryMaxX: primaryMaxX) ? (key: item.id.sectionKey, frame: $0) : nil }
+        }
+        let first = PicturePassBatches.drawn(wanted: Set(onPrimary.map(\.id.sectionKey)), frames: primaryFrames)
+        if !first.phantoms.isEmpty {
+            PelmetLog.log("pass: \(first.phantoms.count) behind the «, not cropped")
+        }
+        let shown = primaryFrames.filter { first.solid[$0.key] == $0.frame }
         if !shown.isEmpty {
             for (key, picture) in await filmAndCut(shown, empty: empty, dump: dump, ms: ms) {
                 pictures?[key] = picture

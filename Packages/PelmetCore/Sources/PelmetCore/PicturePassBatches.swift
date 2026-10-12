@@ -2,9 +2,9 @@
 // The pure side of the picture pass's follow-up batches (docs/PANEL-PLAN.md
 // §8): which wanted items a follow-up is for, which drawn frames a follow-up
 // may crop, what stops one, and when another round is worth its time. The
-// pass itself (reveals, strips, covers) lives in TransitionCoordinator, and
-// its first round does not use any of this to crop: follow-ups are a narrow
-// fallback. Locked by PicturePassBatchesTests.
+// pass itself (reveals, strips, covers) lives in TransitionCoordinator. Its
+// first round crops through `drawn` too (#81: a phantom's cut is the «), and
+// follow-ups are a narrow fallback. Locked by PicturePassBatchesTests.
 
 import CoreGraphics
 import Foundation
