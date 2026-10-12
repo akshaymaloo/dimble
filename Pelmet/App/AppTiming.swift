@@ -164,6 +164,17 @@ enum AppTiming {
     /// shielded drag rather than a pass that never starts.
     static let applyIdleGap: TimeInterval = 1.5
     static let applyIdleMaxWait: TimeInterval = 8
+    /// The same wait in a quiet pass, which goes on shielded after it.
+    static let quietApplyIdleMaxWait: TimeInterval = 0.5
+    /// The cover a panel drop's Apply holds over the bar (docs/PANEL-PLAN.md):
+    /// it stays up for the whole pass, not the 2.5s of a reveal. Passes took
+    /// 0.9–2.8s, plus the idle wait above and the « round trip; it lifts on
+    /// its own when the pass ends, and this is only the ceiling for a pass
+    /// that hangs.
+    static let quietApplyCoverCeiling: TimeInterval = 25
+    /// The dropped tile's ghost fades for 0.12s over the bar: the cover's
+    /// picture is taken after that.
+    static let quietApplyGhostFade: Duration = .milliseconds(150)
     /// Keep sections grouped (docs/CORE-SETS.md, #80): the check waits this
     /// long after the last snapshot or roster change, so a reflow, a drop
     /// animation or a burst of registrations settles before anything is

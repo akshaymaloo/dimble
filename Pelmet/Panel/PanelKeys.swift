@@ -45,8 +45,9 @@ enum PanelKey {
     }
 
     /// `query` with `typed` added, or nil when the key types nothing: a
-    /// function key, a space before any letter.
-    static func query(_ query: String, typing typed: String) -> String? {
+    /// function key, a space before any letter. Nonisolated: the typing tap
+    /// asks from its own thread.
+    nonisolated static func query(_ query: String, typing typed: String) -> String? {
         guard !typed.isEmpty,
               // Function keys type private-use characters.
               typed.unicodeScalars.allSatisfy({ !CharacterSet.controlCharacters.contains($0) && !(0xF700...0xF8FF).contains($0.value) }),

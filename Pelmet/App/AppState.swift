@@ -1731,15 +1731,17 @@ final class AppState {
     /// visible one (2026-10-04), so it is drawn at the chevron side of its
     /// new section and applied at once. Edits the editor already holds stay
     /// the person's to apply: then the move only joins them.
-    func moveItemNow(_ id: ItemID, to section: PelmetCore.Section) {
+    func moveItemNow(_ id: ItemID, to section: PelmetCore.Section, quiet: Bool = false) {
         let before = section == .visible ? editorItems(in: .visible).first { $0.id != id }?.id : nil
-        moveItemNow(id, to: section, before: before)
+        moveItemNow(id, to: section, before: before, quiet: quiet)
     }
 
     /// The same move with a place in its section: in front of `before` (nil is
     /// the end, nearest the chevron for Hidden and Always Hidden). A drop from
     /// the panel lands where it was aimed (reorder in the panel, 2026-10-12).
-    func moveItemNow(_ id: ItemID, to section: PelmetCore.Section, before: ItemID?) {
+    /// `quiet`: a drop on the open panel, whose Apply leaves the panel up and
+    /// the bar under its cover (`applyOrderEdits`).
+    func moveItemNow(_ id: ItemID, to section: PelmetCore.Section, before: ItemID?, quiet: Bool = false) {
         let othersPending = applyPending
         let accepted = !applying
         moveItem(id, to: section, before: before)
@@ -1748,7 +1750,7 @@ final class AppState {
             PelmetLog.log("editor: move of \(id.rawValue) joins pending edits, not applied")
             return
         }
-        applyOrderEdits()
+        applyOrderEdits(quiet: quiet)
     }
 
     /// The panel draws a section in the order the bar had at the last reveal
@@ -1808,7 +1810,7 @@ final class AppState {
                 return
             }
             PelmetLog.log("panel: bar drop \(id.rawValue) → \(section.rawValue)")
-            moveItemNow(id, to: section)
+            moveItemNow(id, to: section, quiet: true)
         }
     }
 
@@ -2115,42 +2117,65 @@ final class AppState {
     /// The Apply button: reveal what needs measuring, plan, drag each move
     /// through the one shielded door, verify, report. Failed moves keep the
     /// edits pending so the button offers Retry.
-    func applyOrderEdits() {
+    ///
+    /// `quiet`: a drop on the open panel started it. The panel stays up and
+    /// the bar stays under a cover from before the reveal until it is
+    /// concealed again, so none of the pass shows (`holdBarForApply`). Any
+    /// other Apply closes the panel and shows the bar, as it always has, and
+    /// so does a quiet one that could not hold the bar or did not finish clean.
+    func applyOrderEdits(quiet: Bool = false) {
         guard !applying, applyPending else { return }
         applying = true
         applyReport = nil
         PelmetLog.log("apply: starting")
         Task {
-            let report = await ApplyPass.run(appState: self)
-            PelmetLog.log("apply: done applied=\(report.applied.count) failed=\(report.failed.count) skipped=\(report.skipped.count)")
-            // An edit whose item the pass could not reach (behind the «)
-            // is not done either: it stays pending like a failed move.
-            let unreachable = report.skipped.filter { $0.why == .notOnScreen }.map(\.item)
-            if report.failed.isEmpty, unreachable.isEmpty {
-                settings.orderEdits = OrderEdits()
-                settings.save()
-            } else if report.failed.isEmpty {
-                var edits = settings.orderEdits
-                for (section, drawn) in edits.order where !drawn.contains(where: unreachable.contains) {
-                    edits.clearOrder(for: section)
-                }
-                for id in report.applied { edits.previousSection.removeValue(forKey: id.sectionKey) }
-                settings.orderEdits = edits
-                settings.save()
+            var held: ApplyReport?
+            if quiet, panelShowsReveal, isRevealed, panelPresenter.isOpen {
+                held = await transitions.holdBarForApply(
+                    revealing: [.hidden, .alwaysHidden],
+                    run: { await runApplyPass() },
+                    lifted: { self.panelPresenter.quietApplyEnded() })
             }
-            // Seed future fresh registrations with the order just laid down —
-            // after ANY move, not only a clean pass: a Camera moved at 18:35
-            // went back to its old slot on relaunch because every later pass
-            // failed on another item and never reseeded (2026-09-20).
-            if !report.applied.isEmpty {
-                await engine.writeOrderHint()
-            }
+            let report: ApplyReport
+            if let held { report = held } else { report = await runApplyPass() }
             applyReport = report
             applying = false
-            if !settingsWindowVisible {
+            // The bar is concealed and the panel is open on a clean quiet
+            // pass; a failed one ends the way an Apply does, with both away.
+            let clean = report.failed.isEmpty && report.skipped.allSatisfy { $0.why != .notOnScreen }
+            if (held == nil || !clean), !settingsWindowVisible {
                 applyPointerDisplayPolicyAfterDismissal()
             }
         }
+    }
+
+    /// The pass and what follows it: the edits it settled, the order hint.
+    private func runApplyPass() async -> ApplyReport {
+        let report = await ApplyPass.run(appState: self)
+        PelmetLog.log("apply: done applied=\(report.applied.count) failed=\(report.failed.count) skipped=\(report.skipped.count)")
+        // An edit whose item the pass could not reach (behind the «)
+        // is not done either: it stays pending like a failed move.
+        let unreachable = report.skipped.filter { $0.why == .notOnScreen }.map(\.item)
+        if report.failed.isEmpty, unreachable.isEmpty {
+            settings.orderEdits = OrderEdits()
+            settings.save()
+        } else if report.failed.isEmpty {
+            var edits = settings.orderEdits
+            for (section, drawn) in edits.order where !drawn.contains(where: unreachable.contains) {
+                edits.clearOrder(for: section)
+            }
+            for id in report.applied { edits.previousSection.removeValue(forKey: id.sectionKey) }
+            settings.orderEdits = edits
+            settings.save()
+        }
+        // Seed future fresh registrations with the order just laid down —
+        // after ANY move, not only a clean pass: a Camera moved at 18:35
+        // went back to its old slot on relaunch because every later pass
+        // failed on another item and never reseeded (2026-09-20).
+        if !report.applied.isEmpty {
+            await engine.writeOrderHint()
+        }
+        return report
     }
 
     // MARK: - Keep sections grouped (docs/CORE-SETS.md, #80)
@@ -2854,8 +2879,16 @@ final class AppState {
 
     private func noteOverflow(in snap: EngineSnapshot) {
         let primaryMaxX = NSScreen.screens.first?.frame.maxX ?? .greatestFiniteMagnitude
+        // Only what the bar draws now: an icon just put away lingers in the
+        // walk (Pelmet's own extras collapse in place for 0.7s) on top of its
+        // neighbours, and read as one behind the « it put Siri and Shortcuts
+        // in "Didn't fit" after a picture pass (2026-10-12).
+        let out = currentRevealedSections
+        let model = settings.sectionModel
         let framed = snap.items.filter { item in
             guard let f = item.frame, f.width > 4 else { return false }
+            let section = model.section(of: item.id.sectionKey)
+            guard section == .visible || out.contains(section) else { return false }
             return PlacementGeometry.isPrimary(f, screenMaxX: primaryMaxX)
         }
         let trappedItems = PlacementGeometry.overflowTrapped(framed.map { $0.frame! }).map { framed[$0].id }

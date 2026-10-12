@@ -277,8 +277,8 @@ enum ApplyPass {
         CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: CGEventType(rawValue: ~0)!)
     }
 
-    private static func waitForIdlePointer() async {
-        let deadline = Date.now.addingTimeInterval(AppTiming.applyIdleMaxWait)
+    private static func waitForIdlePointer(upTo wait: TimeInterval = AppTiming.applyIdleMaxWait) async {
+        let deadline = Date.now.addingTimeInterval(wait)
         while Date.now < deadline {
             if secondsSincePointerActivity() >= AppTiming.applyIdleGap { return }
             try? await Task.sleep(for: .milliseconds(100))
@@ -475,7 +475,11 @@ enum ApplyPass {
                 return report
             }
         } else {
-            await waitForIdlePointer()
+            // A quiet pass (a drop on the panel) runs under a cover, and the
+            // pointer is the user's, still on the panel: 8s of waiting for it
+            // to rest held the bar frozen for 10s (2026-10-12).
+            await waitForIdlePointer(upTo: appState.transitions.quietApplyInFlight
+                ? AppTiming.quietApplyIdleMaxWait : AppTiming.applyIdleMaxWait)
         }
         let holdsSettings = appState.settingsWindowVisible
         if holdsSettings { SettingsWindowController.shared.holdAboveDrag() }

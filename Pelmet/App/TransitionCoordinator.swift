@@ -73,6 +73,9 @@ final class TransitionCoordinator {
     /// A picture pass has the bar revealed under its cover. See
     /// `awaitPicturePass`.
     private(set) var passInFlight = false
+    /// The pass in flight is a quiet Apply (`holdBarForApply`): seconds of
+    /// drags, not a picture pass's one.
+    private(set) var quietApplyInFlight = false
     /// A reveal or a press arrived while the pass ran and is waiting for it
     /// (`passWaiterArrived`). The follow-up rounds check it before each
     /// round and stop: the user's bar comes first.
@@ -215,7 +218,11 @@ final class TransitionCoordinator {
         guard passInFlight else { return }
         passWaiterArrived()
         let started = Date()
-        let limit = AppTiming.picturePassWait + AppTiming.picturePassBatch
+        // A quiet Apply runs as long as its drags, and gave up at 4.5s let a
+        // Show in Menu Bar reveal over them; its cover's ceiling bounds it.
+        let limit = quietApplyInFlight
+            ? AppTiming.quietApplyCoverCeiling
+            : AppTiming.picturePassWait + AppTiming.picturePassBatch
         while passInFlight, Date().timeIntervalSince(started) < limit {
             try? await Task.sleep(for: .milliseconds(15))
         }
@@ -1429,6 +1436,80 @@ extension TransitionCoordinator {
             passInFlight = false
         }
         return pictures
+    }
+
+    /// An Apply a panel drop started, with the panel left open: the bar goes
+    /// out under a cover like a picture pass's, the pass runs (`body`: the
+    /// drags and their verifying), the bar is concealed again, and only then
+    /// does the cover lift, on the bar as it rests. Nothing of the pass shows,
+    /// and the rehide machine never hears of it: it still says the panel is
+    /// revealed, so nothing closes the panel for the bar's reveal.
+    ///
+    /// Nil, with `body` not run, when the bar is not free or no cover could be
+    /// raised: the caller then runs the pass as an Apply always has. A
+    /// reveal, a press or a picture pass that arrives meanwhile waits for the
+    /// cover to be off (`passInFlight`), as it does for a picture pass.
+    /// `lifted` runs once the cover is off.
+    func holdBarForApply<T>(
+        revealing sections: Set<PelmetCore.Section>,
+        run body: () async -> T,
+        lifted: @escaping @MainActor () -> Void
+    ) async -> T? {
+        guard let appState else { return nil }
+        // A picture pass has the bar (the panel's first open): wait it out.
+        await awaitPicturePass()
+        guard !passInFlight, appState.currentRevealedSections.isEmpty else {
+            PelmetLog.log("apply: quiet pass skipped, the bar is busy")
+            return nil
+        }
+        // Held until the cover is off the bar: another reveal starting under
+        // it would film the cover as the bar.
+        passInFlight = true
+        quietApplyInFlight = true
+        passHasWaiter = false
+        pressBegan()
+        let start = Date()
+        func ms() -> Int { Int(Date().timeIntervalSince(start) * 1000) }
+        // The ghost of the tile just dropped is still fading over the bar.
+        try? await Task.sleep(for: AppTiming.quietApplyGhostFade)
+        guard let cover = await beginBarCover(label: "apply", safety: AppTiming.quietApplyCoverCeiling) else {
+            PelmetLog.log("apply: quiet pass skipped, no cover")
+            pressEnded()
+            passInFlight = false
+            quietApplyInFlight = false
+            return nil
+        }
+        PelmetLog.log("apply: quiet (panel drop), cover held at \(ms())ms")
+        // Pelmet's own items follow the bar, as in a picture pass.
+        appState.picturePassSections = sections
+        await engine.reveal(sections)
+        try? await Task.sleep(for: AppTiming.tidyRevealWait)
+        let result = await body()
+        // The order the bar has now is the one the panel draws next.
+        // Only the order: read as the app's snapshot, the whole bar out at
+        // once put a full bar's worth behind the « in "Didn't fit" (2026-10-12).
+        let drawn = await engine.snapshot()
+        appState.recordDrawnOrder(drawn, revealed: sections)
+        appState.picturePassSections = nil
+        await engine.conceal()
+        PelmetLog.log("apply: quiet pass concealed at \(ms())ms")
+        // The lift below waits for the bar to settle, which can outlast what
+        // is left of the ceiling after a long pass.
+        cover.keepUp(for: AppTiming.clockBlinkCoverDeadline + 2)
+        endBarCover(cover, label: "apply") { [weak self] in
+            guard let self else { return }
+            self.pressEnded()
+            self.passInFlight = false
+            self.quietApplyInFlight = false
+            PelmetLog.log("apply: quiet cover lifted at \(ms())ms")
+            // The bar as it is now, the put-away icons gone from the walk.
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.appState?.updateSnapshot(await self.engine.freshSnapshot())
+                lifted()
+            }
+        }
+        return result
     }
 
     /// A strip filmed over `items` as the bar draws them, each one cut out

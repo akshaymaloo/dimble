@@ -106,6 +106,10 @@ final class PanelPresenter: RevealPresenter {
     private var columnsTip: String?
     private var tipTask: Task<Void, Never>?
     private var keyMonitor: Any?
+    /// The first key typed with the pointer on a hover-opened panel, swallowed
+    /// before the app in front has it; armed only while such a panel is up.
+    private lazy var typingTap = HoverTypingTap { [weak self] typed in self?.typedOverHoverPanel(typed) }
+    private var typingGrace: Task<Void, Never>?
     private var launcherIcons: [String: NSImage] = [:]
     /// Waiting on the pass under way, the preview's redraw among them.
     private var passWaiters: [@MainActor () -> Void] = []
@@ -241,9 +245,75 @@ final class PanelPresenter: RevealPresenter {
     func makeDeliberate() {
         guard isOpen, openedByHover else { return }
         openedByHover = false
+        disarmTyping()
         window?.makeKey()
         installKeyMonitor()
         PelmetLog.log("panel: made deliberate, key=\(window?.isKeyWindow == true)")
+    }
+
+    // MARK: - Typing over a hover panel
+
+    /// Where the typing tap listens: the glass at rest, in screen points.
+    private var glassZone: NSRect? {
+        guard let window, let placed else { return nil }
+        return NSRect(x: placed.minX + window.leadingMargin, y: placed.minY,
+                      width: placed.width - window.leadingMargin, height: placed.height)
+    }
+
+    private func armTyping() {
+        guard isOpen, openedByHover, let zone = glassZone else { return }
+        typingTap.arm(zone: zone)
+    }
+
+    private func updateTypingZone() {
+        guard openedByHover, let zone = glassZone else { return }
+        typingTap.update(zone: zone)
+    }
+
+    private func disarmTyping() {
+        typingGrace?.cancel()
+        typingGrace = nil
+        typingTap.disarm()
+    }
+
+    /// The tap swallowed the first printable key typed with the pointer on
+    /// the panel: the panel is the typist's now, and the search starts with it.
+    private func typedOverHoverPanel(_ typed: String) {
+        guard isOpen else { return }
+        if openedByHover {
+            makeDeliberate()
+            PelmetLog.log("panel: typed over the hover panel, search \"\(typed)\"")
+            // The window server may not have moved focus here yet: for a
+            // moment longer the tap keeps the keys that follow, in order.
+            if let zone = glassZone, typingTap.arm(zone: zone, keepingPresses: true) {
+                typingGrace = Task { @MainActor [weak self] in
+                    try? await Task.sleep(for: .milliseconds(300))
+                    guard let self, !Task.isCancelled else { return }
+                    self.typingGrace = nil
+                    self.typingTap.disarm()
+                }
+            }
+        }
+        guard let new = PanelKey.query(query, typing: typed) else { return }
+        setQuery(new)
+    }
+
+    /// A panel drop's Apply is over and its cover is off the bar: the tiles
+    /// it moved may have no picture yet, taken now from a bar nothing covers
+    /// (the pass itself never films, `holdBarForApply` holds the bar).
+    /// "Didn't fit" as the bar was before a pass: mid-Apply the whole bar is
+    /// out at once and its walks put a full bar's worth behind the «.
+    private var didntFitAtRest: [ItemID] = []
+
+    private func didntFit(_ appState: AppState) -> [ItemID] {
+        if !appState.applying { didntFitAtRest = appState.overflowTrappedItems }
+        return didntFitAtRest
+    }
+
+    func quietApplyEnded() {
+        guard isOpen, tileDrag == nil else { return }
+        let shown = refresh()
+        picturePassIfNeeded(shown.missing)
     }
 
     // MARK: - Window
@@ -324,8 +394,11 @@ final class PanelPresenter: RevealPresenter {
         // Keys only for a panel opened on purpose: a hover passing by must
         // not take the typing from the app in front.
         if takeKey {
+            disarmTyping()
             window.makeKey()
             installKeyMonitor()
+        } else {
+            armTyping()
         }
     }
 
@@ -338,6 +411,7 @@ final class PanelPresenter: RevealPresenter {
         generation += 1
         let mine = generation
         removeKeyMonitor()
+        disarmTyping()
         PelmetLog.log("panel: closed")
         guard let window else { return }
         // Up for the length of its fade: a click on it must not land, and a
@@ -433,6 +507,7 @@ final class PanelPresenter: RevealPresenter {
         resizedAt = CACurrentMediaTime()
         placed = frame
         window.place(frame, glassHeight: height)
+        updateTypingZone()
     }
 
     private func stopGlass() {
@@ -563,6 +638,7 @@ final class PanelPresenter: RevealPresenter {
     /// same on every display.
     private func place(_ size: CGSize) {
         guard let window, let target = targetScreen() else { return }
+        defer { updateTypingZone() }
         let margin = GlassPanel.edgeMargin
         var right = target.frame.maxX - margin
         if let chevron = drawnChevron() {
@@ -789,7 +865,7 @@ final class PanelPresenter: RevealPresenter {
             roster: appState.settings.sectionModel.roster,
             items: items.map(\.id),
             drawnOrder: appState.lastDrawnOrder,
-            didntFit: appState.overflowTrappedItems,
+            didntFit: didntFit(appState),
             // Closed apps off: out of the panel at rest, a search still finds them.
             launchers: options.showsClosedApps || !query.isEmpty ? launchers : [],
             options: options,
@@ -1337,10 +1413,12 @@ final class PanelPresenter: RevealPresenter {
             PelmetLog.log("panel: drop \(drag.key.rawValue) → \(landing.section.rawValue)"
                 + (landing.aimed ? " before=\(landing.before?.rawValue ?? "end")" : ""))
             drag.ghost.release()
+            // Quiet: the panel stays open on the new order while the pass
+            // runs, and the bar stays under its cover (applyOrderEdits).
             if landing.aimed {
-                appState.moveItemNow(drag.key, to: landing.section, before: landing.before)
+                appState.moveItemNow(drag.key, to: landing.section, before: landing.before, quiet: true)
             } else {
-                appState.moveItemNow(drag.key, to: landing.section)
+                appState.moveItemNow(drag.key, to: landing.section, quiet: true)
             }
             if isOpen { refresh() }
         } else {
