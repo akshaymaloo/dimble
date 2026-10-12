@@ -88,6 +88,10 @@ public actor AgentBarEngine: MenuBarEngine {
     /// an item out from under the menu it opened. Released by
     /// `conceal(items:)`.
     private var revealedItems: Set<ItemID> = []
+    /// Items a show rule keeps on the bar while its condition holds (#86:
+    /// Battery while on battery). Apart from `revealedItems`, so a press
+    /// releasing the same item never takes it off the bar.
+    private var ruleShownItems: Set<ItemID> = []
     /// Steady-assertion mode: hold an assertion even when nothing is
     /// concealable (allowlist = every observed bundle). Keeps macOS's
     /// collateral-hidden extras (Now Playing, camera pill, AirDrop, Focus)
@@ -211,6 +215,16 @@ public actor AgentBarEngine: MenuBarEngine {
     /// The items revealed on their own right now: a press's, or a picture
     /// pass's follow-up round.
     public func itemsRevealedOnTheirOwn() -> Set<ItemID> { revealedItems }
+
+    /// The items show rules want on the bar right now. Sections stay as
+    /// they are, like an item-only reveal.
+    public func setRuleShown(_ items: Set<ItemID>) async {
+        guard items != ruleShownItems else { return }
+        ruleShownItems = items
+        companionMuted = true
+        await converge()
+        companionMuted = false
+    }
 
     public func conceal() async {
         // Nothing revealed but items: no section changes, the extras stay.
@@ -397,7 +411,7 @@ public actor AgentBarEngine: MenuBarEngine {
             carriedConcealed: lastSnapshot?.concealed ?? [],
             runningBundles: runningBundles,
             revealedSections: revealedSections,
-            revealedItems: revealedItems,
+            revealedItems: revealedItems.union(ruleShownItems),
             steadyExtras: steadyExtras,
             exemptBundles: Self.identityExemptBundles
         )

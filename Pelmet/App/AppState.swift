@@ -114,6 +114,7 @@ final class AppState {
     /// macOS draws active. nil until the first click after launch.
     var lastMouseDownDisplay: CGDirectDisplayID? { clockRelay?.lastMouseDownDisplay }
     private var hotkey: HotkeyManager?
+    private var showRules: ShowRules?
     private var eventTask: Task<Void, Never>?
     @ObservationIgnored private lazy var accessibility = AccessibilityMonitor { [weak self] granted in
         self?.accessibilityChanged(granted)
@@ -661,6 +662,9 @@ final class AppState {
             updateSnapshot(await engine.snapshot())
             // Startup state: everything the model says is hidden, is hidden.
             dispatch(rehide.handle(.concealRequested))
+            showRules = ShowRules { [engine] items in
+                Task { await engine.setRuleShown(items) }
+            }
             transitions.warmAfterBoot(from: launchSnapshot)
             // Launch baseline: the band monitor only applies display behavior
             // on crossings, so the display Pelmet launches under gets its
