@@ -225,7 +225,7 @@ final class PelmetStatusItem {
     static func contextMenu(appState: AppState) -> NSMenu {
         let menu = NSMenu()
         let toggle = NSMenuItem(
-            title: appState.isRevealed ? String(localized: "Hide Items") : String(localized: "Show Hidden Items"),
+            title: appState.sectionsRevealed ? String(localized: "Hide Items") : String(localized: "Show Hidden Items"),
             action: #selector(AppMenuTarget.toggle), keyEquivalent: ""
         )
         let showAll = NSMenuItem(

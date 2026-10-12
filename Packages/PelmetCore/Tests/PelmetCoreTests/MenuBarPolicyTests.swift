@@ -103,6 +103,21 @@ struct MenuBarPolicyTests {
         MenuBarPolicy.resetSystemAgentsForTesting()
     }
 
+    /// Show in Menu Bar brings an item out on its own only where the engine can:
+    /// apps, Apple hosts with items of their own, the allowlisted system items.
+    /// Pelmet's own items hide by their own visibility, so their section opens.
+    @Test func showInMenuBarRevealsAlonePerBundleExceptPelmetsOwn() {
+        #expect(MenuBarPolicy.canRevealAlone(.status(bundle: "com.example.App", title: "Item-0")))
+        #expect(MenuBarPolicy.canRevealAlone(.status(bundle: "com.apple.weather.menu", title: "Weather")))
+        #expect(MenuBarPolicy.canRevealAlone(menuExtra("sound")))
+        #expect(MenuBarPolicy.canRevealAlone(menuExtra("controlcenter")))
+        #expect(!MenuBarPolicy.canRevealAlone(.status(bundle: PelmetBundle.fallbackID, title: "Siri")))
+        #expect(!MenuBarPolicy.canRevealAlone(.status(bundle: PelmetBundle.hiddenHostID, title: "Separator")))
+        #expect(!MenuBarPolicy.canRevealAlone(.status(bundle: PelmetBundle.alwaysHiddenHostID, title: "Separator")))
+        // An agent item with no allowlist entry has nothing the engine could bring out.
+        #expect(!MenuBarPolicy.canRevealAlone(menuExtra("nothing-known")))
+    }
+
     @Test func kerberosMenuExtraIsSectionManageable() {
         let item = ItemID.status(bundle: "com.apple.KerberosMenuExtra", title: "Item-0")
         #expect(MenuBarPolicy.isSectionManageable(item))

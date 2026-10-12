@@ -213,6 +213,13 @@ public actor AgentBarEngine: MenuBarEngine {
     public func itemsRevealedOnTheirOwn() -> Set<ItemID> { revealedItems }
 
     public func conceal() async {
+        await conceal(releasing: [])
+    }
+
+    /// `conceal()` that also takes back icons Show in Menu Bar brought out on
+    /// their own, in one swap instead of two.
+    public func conceal(releasing items: Set<ItemID>) async {
+        revealedItems.subtract(items)
         // Nothing revealed but items: no section changes, the extras stay.
         companionMuted = revealedSections.isEmpty && !revealedItems.isEmpty
         revealedSections = []

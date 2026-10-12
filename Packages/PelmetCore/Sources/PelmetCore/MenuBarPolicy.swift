@@ -210,6 +210,16 @@ public enum MenuBarPolicy {
         return systemItem(for: id) != nil
     }
 
+    /// The engine can bring this item out on its own (`reveal(items:)`): an
+    /// app's icon, an Apple host's, a system item on the allowlist. Its whole
+    /// bundle comes with it, since hiding is per bundle. Pelmet's own items
+    /// hide by their own visibility, not the assertion, so only their section
+    /// shows them.
+    public static func canRevealAlone(_ id: ItemID) -> Bool {
+        guard let bundle = id.bundleID, !PelmetBundle.ownIDs.contains(bundle) else { return false }
+        return isSectionManageable(id)
+    }
+
     /// True when a bar ⌘-drag of this item may change its section: third-party
     /// items, Apple hosts with items of their own, Pelmet's own
     /// extras/separators, and the core system extras the assertion can

@@ -473,7 +473,9 @@ final class TransitionCoordinator {
         }
     }
 
-    func performConceal(trace: PerfTrace) {
+    /// `released`: icons Show in Menu Bar had out on their own. They go back
+    /// in the same swap, and the hold they put on the idle picture ends here.
+    func performConceal(trace: PerfTrace, releasing released: Set<ItemID> = []) {
         Task {
             guard let appState else { return }
             await awaitPreviousLift()
@@ -518,8 +520,8 @@ final class TransitionCoordinator {
                 }
             }
             trace.mark("cover", detail: "\(emptyBar.isEmpty ? "none" : "precaptured")\(strip != nil ? ", strip captured live" : "")")
-            PelmetLog.log("effect conceal → engine (anim=\(style.rawValue), cover=\(cover != nil), strip=\(strip != nil))")
-            await engine.conceal()
+            PelmetLog.log("effect conceal → engine (anim=\(style.rawValue), cover=\(cover != nil), strip=\(strip != nil)\(released.isEmpty ? "" : ", releasing \(released.map(\.rawValue).sorted())"))")
+            await engine.conceal(releasing: released)
             trace.mark("engine")
             trace.note(await engine.lastConvergeTiming)
             // The strip's move starts the moment the swap has landed — the
@@ -554,7 +556,88 @@ final class TransitionCoordinator {
             onConcealSettled?()
             trace.mark("settled")
             if cover == nil { trace.finish("uncovered") }
+            if !released.isEmpty { pressEnded() }
             scheduleRevealCoverPrecapture()
+        }
+    }
+
+    /// Show in Menu Bar: these icons come out on their own, their sections
+    /// stay concealed. The press relay's reveal: a picture of the empty bar
+    /// hides the agent's slide-in and lifts on the icon at rest, so one icon
+    /// appears in its spot instead of a section sliding in. `settles`: the
+    /// rehide machine is waiting on this reveal (false when the icon joins a
+    /// bar that is already revealed).
+    func performItemsReveal(_ keys: Set<ItemID>, settles: Bool, trace: PerfTrace) {
+        passWaiterArrived()
+        Task {
+            guard let appState else { return }
+            await awaitPicturePass()
+            await awaitPreviousLift()
+            // Released while this waited (a click elsewhere, a conceal): the
+            // icon must not come out behind the conceal that took it back.
+            let live = keys.intersection(appState.itemsInBar)
+            guard !live.isEmpty else {
+                PelmetLog.log("effect reveal items — released before it started, nothing to bring out")
+                if settles { onRevealSettled?() }
+                trace.finish("skipped")
+                return
+            }
+            let cover = await beginBarCover(label: "show")
+            trace.mark("cover", detail: cover == nil ? "none" : "up")
+            PelmetLog.log("effect reveal items \(live.map(\.rawValue).sorted()) → engine (cover=\(cover != nil))")
+            await engine.reveal(items: live)
+            trace.mark("engine")
+            trace.note(await engine.lastConvergeTiming)
+            appState.updateSnapshot(await engine.snapshot())
+            if let cover {
+                // Same hold as a section's entrance: swap-quiet, then the
+                // agent's slide and the reflow beneath are over.
+                let liftAt = Date().addingTimeInterval(AppTiming.entranceCoverHold)
+                liftsInFlight += 1
+                Task { @MainActor in
+                    await appState.waitUntilQuiesced(interval: 0.15, deadline: 2, poll: .milliseconds(30))
+                    let remaining = liftAt.timeIntervalSinceNow
+                    if remaining > 0 { try? await Task.sleep(for: .seconds(remaining)) }
+                    cover.dismiss()
+                    liftsInFlight -= 1
+                    trace.finish("lift")
+                }
+            }
+            PelmetLog.log("effect reveal items settled")
+            if settles { onRevealSettled?() }
+            trace.mark("settled")
+            if cover == nil { trace.finish("uncovered") }
+        }
+    }
+
+    /// The other half: the icons go back alone, under the empty bar's
+    /// picture as the press relay puts one back. Ends the hold that
+    /// `AppState.showItemInBar` put on the idle picture while they were out.
+    func performItemsConceal(_ keys: Set<ItemID>, settles: Bool, trace: PerfTrace) {
+        Task {
+            guard let appState else { return }
+            await awaitPreviousLift()
+            let cover = await beginBarCover(label: "show")
+            trace.mark("cover", detail: cover == nil ? "none" : "up")
+            PelmetLog.log("effect conceal items \(keys.map(\.rawValue).sorted()) → engine (cover=\(cover != nil))")
+            await engine.conceal(items: keys)
+            trace.mark("engine")
+            trace.note(await engine.lastConvergeTiming)
+            appState.updateSnapshot(await engine.snapshot())
+            PelmetLog.log("effect conceal items settled")
+            if settles { onConcealSettled?() }
+            trace.mark("settled")
+            if let cover {
+                liftsInFlight += 1
+                endBarCover(cover, label: "show") { [weak self] in
+                    self?.liftsInFlight -= 1
+                    self?.pressEnded()
+                    trace.finish("lift")
+                }
+            } else {
+                pressEnded()
+                trace.finish("uncovered")
+            }
         }
     }
 
@@ -1244,6 +1327,12 @@ extension TransitionCoordinator {
         func ms() -> Int { Int(Date().timeIntervalSince(start) * 1000) }
         guard appState.currentRevealedSections.isEmpty else {
             PelmetLog.log("pass: bar is revealed, skipped")
+            return nil
+        }
+        // An icon Show in Menu Bar has out is on the "empty" bar the pass
+        // films its crops against.
+        guard appState.itemsInBar.isEmpty else {
+            PelmetLog.log("pass: an icon is out on the bar, skipped")
             return nil
         }
         guard !passInFlight else {

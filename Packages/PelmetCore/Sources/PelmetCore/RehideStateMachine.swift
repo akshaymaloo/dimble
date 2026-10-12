@@ -18,10 +18,15 @@ public enum RevealReason: Hashable, Sendable {
     /// The user started a ⌘-drag in the bar: the hidden run is only a drop
     /// target while it is on screen.
     case barDrag
-    /// The user asked to see one item in the real bar: a press on one of
-    /// Pelmet's own extras, ⌘↩ in Search. A panel can't show that, so routing
-    /// always picks the bar. The machine treats it like `.hotkey`: the
-    /// pointer never entered the bar either.
+    /// The user asked to see one item in the real bar: Show in Menu Bar, a
+    /// press on one of Pelmet's own extras, ⌘↩ in Search. A panel can't show
+    /// that, so routing always picks the bar. The machine treats it like
+    /// `.hotkey`: the pointer never entered the bar either.
+    ///
+    /// Asked with NO sections, it is an item that comes out on its own: the
+    /// machine then reads `.revealed(sections: [], .itemInBar)`, which owns
+    /// when the icon goes back (countdown, pointer, click elsewhere) while the
+    /// bar stays collapsed as far as every section is concerned.
     case itemInBar
 }
 
@@ -116,6 +121,14 @@ public struct RehideStateMachine: Equatable, Sendable {
             let kept = (reason == .hover && requested != .hover) ? requested : reason
             state = .revealed(sections: current, reason: kept)
             return armIfNeeded(reason: kept, now: now)
+
+        case (.revealed(let current, _), .toggleRequested(let sections, let reason))
+            where current.isEmpty && !sections.isEmpty:
+            // Only single icons are out (Show in Menu Bar): the bar reads as
+            // collapsed, so the chevron or the hotkey opens the section
+            // instead of putting the icons away. They go back with it.
+            state = .transitioning(target: .reveal(sections, reason), queued: nil)
+            return [.cancelTimer, .reveal(sections)]
 
         case (.revealed, .toggleRequested):
             state = .transitioning(target: .conceal, queued: nil)

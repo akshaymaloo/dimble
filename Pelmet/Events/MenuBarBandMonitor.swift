@@ -212,7 +212,7 @@ final class MenuBarBandMonitor {
                 // Panel mode). A deliberate reveal: the countdown re-arms at
                 // the drop (below) and the band gate holds it while the
                 // pointer is still up here.
-                if !appState.isRevealed {
+                if !appState.sectionsRevealed {
                     appState.reveal([.hidden], reason: .barDrag)
                 }
             }
@@ -584,7 +584,7 @@ final class MenuBarBandMonitor {
                 if appState.settings.revealTriggers.doubleClickForAlwaysHidden {
                     appState.reveal([.hidden, .alwaysHidden], reason: .doubleClick)
                 }
-            } else if appState.isRevealed, appState.settings.revealTriggers.doubleClickForAlwaysHidden {
+            } else if appState.sectionsRevealed, appState.settings.revealTriggers.doubleClickForAlwaysHidden {
                 // Revealed bar (hover got there first, the usual case): a
                 // plain click conceals, but a double's FIRST click landed
                 // here too and collapsed the bar 170ms before the second
@@ -596,7 +596,7 @@ final class MenuBarBandMonitor {
                 let interval = NSEvent.doubleClickInterval
                 pendingConceal = Task { @MainActor [weak appState] in
                     try? await Task.sleep(for: .seconds(interval))
-                    guard !Task.isCancelled, let appState, appState.isRevealed else { return }
+                    guard !Task.isCancelled, let appState, appState.sectionsRevealed else { return }
                     PelmetLog.log("band: deferred single-click conceal fired")
                     appState.toggle(reason: .click)
                 }

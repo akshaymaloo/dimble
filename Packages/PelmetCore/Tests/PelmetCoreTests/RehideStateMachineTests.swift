@@ -196,6 +196,88 @@ import Testing
         #expect(machine.handle(.transitionSettled, now: now) == [.armTimer(now.addingTimeInterval(5))])
     }
 
+    /// Show in Menu Bar for one icon: no section is asked for, the machine
+    /// still owns when it goes back.
+    @Test func itemAloneRevealsNoSectionAndOwnsItsLifetime() {
+        var machine = RehideStateMachine(policy: .init(autoRehide: true, delay: 5))
+        #expect(machine.handle(.revealRequested([], .itemInBar), now: now) == [.reveal([])])
+        #expect(machine.state == .transitioning(target: .reveal([], .itemInBar), queued: nil))
+        #expect(machine.handle(.transitionSettled, now: now) == [.armTimer(now.addingTimeInterval(5))])
+        #expect(machine.state == .revealed(sections: [], reason: .itemInBar))
+        // The countdown, the pointer and a click elsewhere end it like a section's.
+        #expect(machine.handle(.pointerReturned, now: now) == [.cancelTimer])
+        #expect(machine.handle(.pointerLeft, now: now) == [.armTimer(now.addingTimeInterval(5))])
+        #expect(machine.handle(.trigger(.pointerLeftBand), now: now) == [.cancelTimer, .conceal])
+        #expect(machine.state == .transitioning(target: .conceal, queued: nil))
+        #expect(machine.handle(.transitionSettled, now: now) == [.none])
+        #expect(machine.state == .concealed)
+    }
+
+    @Test func itemAloneAtInstantRehideGivesTimeToReach() {
+        var machine = RehideStateMachine(policy: .init(autoRehide: true, delay: 0))
+        _ = machine.handle(.revealRequested([], .itemInBar), now: now)
+        #expect(machine.handle(.transitionSettled, now: now)
+            == [.armTimer(now.addingTimeInterval(RehideStateMachine.itemInBarReach))])
+        // Instant: the pointer leaving the bar puts it back at once.
+        #expect(machine.handle(.pointerLeft, now: now) == [.armTimer(now)])
+    }
+
+    @Test func clickElsewhereHidesAnItemAloneOnlyWhenTheSettingSaysSo() {
+        var machine = RehideStateMachine(policy: .init(autoRehide: true, delay: 5, rehideOnClickElsewhere: false))
+        _ = machine.handle(.revealRequested([], .itemInBar), now: now)
+        _ = machine.handle(.transitionSettled, now: now)
+        #expect(machine.handle(.trigger(.clickedElsewhere), now: now) == [.none])
+        machine.policy.rehideOnClickElsewhere = true
+        #expect(machine.handle(.trigger(.clickedElsewhere), now: now) == [.cancelTimer, .conceal])
+    }
+
+    /// The bar reads as collapsed with one icon out: the chevron, the hotkey
+    /// or a click on empty bar opens the section, the icon stays with it.
+    @Test func toggleOnAnItemAloneOpensTheSection() {
+        var machine = RehideStateMachine(policy: .init(autoRehide: true, delay: 5))
+        _ = machine.handle(.revealRequested([], .itemInBar), now: now)
+        _ = machine.handle(.transitionSettled, now: now)
+        #expect(machine.handle(.toggleRequested([.hidden], .click), now: now) == [.cancelTimer, .reveal([.hidden])])
+        _ = machine.handle(.transitionSettled, now: now)
+        #expect(machine.state == .revealed(sections: [.hidden], reason: .click))
+        // A section that is out toggles shut as ever.
+        #expect(machine.handle(.toggleRequested([.hidden], .click), now: now) == [.cancelTimer, .conceal])
+    }
+
+    @Test func aSectionRevealWidensAnItemAloneAndTakesOverItsReason() {
+        var machine = RehideStateMachine(policy: .init(autoRehide: true, delay: 5))
+        _ = machine.handle(.revealRequested([], .itemInBar), now: now)
+        _ = machine.handle(.transitionSettled, now: now)
+        #expect(machine.handle(.revealRequested([.hidden, .alwaysHidden], .doubleClick), now: now)
+            == [.cancelTimer, .reveal([.hidden, .alwaysHidden])])
+        _ = machine.handle(.transitionSettled, now: now)
+        #expect(machine.state == .revealed(sections: [.hidden, .alwaysHidden], reason: .doubleClick))
+    }
+
+    /// A second pick while the first icon is out: no new transition, the
+    /// countdown starts over for both.
+    @Test func anotherItemAloneRestartsTheCountdown() {
+        var machine = RehideStateMachine(policy: .init(autoRehide: true, delay: 5))
+        _ = machine.handle(.revealRequested([], .itemInBar), now: now)
+        _ = machine.handle(.transitionSettled, now: now)
+        let later = now.addingTimeInterval(3)
+        #expect(machine.handle(.revealRequested([], .itemInBar), now: later) == [.armTimer(later.addingTimeInterval(5))])
+        #expect(machine.state == .revealed(sections: [], reason: .itemInBar))
+    }
+
+    /// The panel closes first for an icon shown on the bar; the icon then
+    /// comes out alone behind it.
+    @Test func itemAloneAfterAConcealWaitsForItToSettle() {
+        var machine = RehideStateMachine(policy: .init(autoRehide: true, delay: 5))
+        _ = machine.handle(.revealRequested([.hidden], .click), now: now)
+        _ = machine.handle(.transitionSettled, now: now)
+        #expect(machine.handle(.concealRequested, now: now) == [.cancelTimer, .conceal])
+        #expect(machine.handle(.revealRequested([], .itemInBar), now: now) == [.none])
+        #expect(machine.handle(.transitionSettled, now: now) == [.reveal([])])
+        #expect(machine.handle(.transitionSettled, now: now) == [.armTimer(now.addingTimeInterval(5))])
+        #expect(machine.state == .revealed(sections: [], reason: .itemInBar))
+    }
+
     /// A configured delay still applies to a hotkey reveal.
     @Test func hotkeyRevealWithDelayArmsTheDelay() {
         var machine = RehideStateMachine(policy: .init(autoRehide: true, delay: 5))

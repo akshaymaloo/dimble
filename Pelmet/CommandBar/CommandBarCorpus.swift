@@ -215,7 +215,7 @@ enum CommandBarCorpus {
             command(.animation(style), "\(animation) ▸ \(name)", pick("wand.and.stars", "sparkles"),
                     ["reveal", "transition", "style", "speed"])
         }
-        let revealed = appState.isRevealed
+        let revealed = appState.sectionsRevealed
         return [
             command(.toggleHidden,
                     revealed ? String(localized: "Hide Items") : String(localized: "Show Hidden Items"),

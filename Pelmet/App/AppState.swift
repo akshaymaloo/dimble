@@ -98,6 +98,12 @@ final class AppState {
     /// Keeps icons on their section's side of the chevron (see SectionGrouper).
     @ObservationIgnored private(set) lazy var grouper = SectionGrouper(appState: self)
     private var rehide = RehideStateMachine()
+    /// Icons Show in Menu Bar brought out on their own, their sections still
+    /// concealed. The rehide machine owns when they go back: `.revealed` with
+    /// no sections is this state, and every conceal takes the set back
+    /// (`takeItemsInBar`). While it is not empty a hold sits on the idle
+    /// picture (`TransitionCoordinator.pressBegan`), as for a press.
+    @ObservationIgnored private(set) var itemsInBar: Set<ItemID> = []
     private var rehideTimer: Timer?
     /// One "rehide: deferred" line per armed countdown, not one per re-arm.
     private var rehideDeferLogged = false
@@ -794,15 +800,24 @@ final class AppState {
         press.open(id, button: button)
     }
 
-    /// Show an item in the bar without clicking it: its section opens the
-    /// way the hotkey opens it (Always Hidden with Hidden, as the Always
-    /// Hidden shortcut does), and the rehide machine takes it from there.
-    /// Its own reason, so a panel setting never swallows the reveal.
+    /// Show an item in the bar without clicking it. The icon comes out alone,
+    /// in its own spot, and goes back on the rules a section reveal follows
+    /// (the rehide machine's countdown, pointer and click elsewhere). Pelmet's
+    /// own items hide by their own visibility, so the engine can't bring one
+    /// out alone: their section opens the way the hotkey opens it (Always
+    /// Hidden with Hidden, as the Always Hidden shortcut does). Its own
+    /// reason, so a panel setting never swallows the reveal.
     func showItemInBar(_ id: ItemID) {
         let key = id.sectionKey
         let section = settings.sectionModel.section(of: key)
         guard section != .visible else {
             PelmetLog.log("press: show \(key.rawValue) — already in the visible section")
+            return
+        }
+        // An Apply pass owns the bar's frames; the section reveal queues
+        // behind it as it always did.
+        if MenuBarPolicy.canRevealAlone(key), !applying {
+            bringItemOut(key, section: section, waited: false)
             return
         }
         let wanted: Set<PelmetCore.Section> = section == .alwaysHidden ? [.hidden, .alwaysHidden] : [.hidden]
@@ -812,6 +827,56 @@ final class AppState {
         }
         PelmetLog.log("press: show \(key.rawValue) — revealing \(wanted.map(\.rawValue).sorted())")
         reveal(wanted.union(currentRevealedSections), reason: .itemInBar)
+    }
+
+    /// `waited`: this already waited out a reveal in flight once.
+    private func bringItemOut(_ key: ItemID, section: PelmetCore.Section, waited: Bool) {
+        guard !currentRevealedSections.contains(section), !itemsInBar.contains(key) else {
+            PelmetLog.log("press: show \(key.rawValue) — already out")
+            return
+        }
+        // A reveal on its way lands first: the icon then joins it, or is
+        // already part of it.
+        if !waited, case .transitioning(target: .reveal, _) = rehide.state {
+            Task {
+                let by = Date().addingTimeInterval(AppTiming.pressTransitionWait)
+                while isTransitioning, Date() < by { try? await Task.sleep(for: .milliseconds(30)) }
+                bringItemOut(key, section: section, waited: true)
+            }
+            return
+        }
+        // The panel is up and this is for the real bar: it closes first, and
+        // takes no icon with it (the key joins the set after its conceal).
+        if panelShowsReveal, case .revealed = rehide.state {
+            dispatch(rehide.handle(.concealRequested))
+        }
+        PelmetLog.log("press: show \(key.rawValue) — on its own, \(section.rawValue) stays concealed")
+        if itemsInBar.isEmpty { transitions.pressBegan() }
+        itemsInBar.insert(key)
+        switch rehide.state {
+        case .revealed:
+            // The bar is out already (sections, or another icon): this icon
+            // joins it with no transition of the machine's, and the
+            // countdown starts over for all of it.
+            dispatch(rehide.handle(.revealRequested([], .itemInBar)))
+            transitions.performItemsReveal([key], settles: false, trace: PerfTrace(kind: "reveal", reason: .itemInBar))
+        case .transitioning(target: .reveal, _):
+            // Still on its way after the wait: the machine would read this
+            // as covered and drop it, so the icon is brought out directly.
+            transitions.performItemsReveal([key], settles: false, trace: PerfTrace(kind: "reveal", reason: .itemInBar))
+        default:
+            // Concealed or concealing: the machine reveals no section and
+            // settles once the icon is out.
+            reveal([], reason: .itemInBar)
+        }
+    }
+
+    /// The icons Show in Menu Bar has out, handed to whoever puts them back.
+    /// Every one that takes a non-empty set ends the hold it left on the idle
+    /// picture (`TransitionCoordinator.pressEnded`).
+    private func takeItemsInBar() -> Set<ItemID> {
+        defer { itemsInBar = [] }
+        return itemsInBar
     }
 
     // MARK: - Pelmet's own extras
@@ -934,7 +999,8 @@ final class AppState {
     /// then relaunch. The distributed notification `app.fif7y.Pelmet.debug.openMenu`
     /// opens the menu of the item its object names (a section key or a bundle
     /// id; userInfo `button` = "secondary" for the right click), for testing
-    /// the press without any UI. Not observed unless the flag is set.
+    /// the press without any UI. userInfo `action` = "show" runs Show in Menu
+    /// Bar on it instead. Not observed unless the flag is set.
     private func observeDebugOpenMenu() {
         guard UserDefaults.standard.bool(forKey: "pelmet.debug.openMenu") else { return }
         debugOpenMenuObserver = DistributedNotificationCenter.default().addObserver(
@@ -942,14 +1008,15 @@ final class AppState {
         ) { [weak self] note in
             let name = note.object as? String
             let secondary = note.userInfo?["button"] as? String == "secondary"
-            MainActor.assumeIsolated { self?.debugOpenMenu(matching: name, secondary: secondary) }
+            let show = note.userInfo?["action"] as? String == "show"
+            MainActor.assumeIsolated { self?.debugOpenMenu(matching: name, secondary: secondary, show: show) }
         }
         PelmetLog.log("press: debug trigger on — app.fif7y.Pelmet.debug.openMenu")
     }
 
     @ObservationIgnored private var debugOpenMenuObserver: NSObjectProtocol?
 
-    private func debugOpenMenu(matching name: String?, secondary: Bool) {
+    private func debugOpenMenu(matching name: String?, secondary: Bool, show: Bool = false) {
         guard let name, !name.isEmpty else {
             PelmetLog.log("press: debug — no item named in the notification's object")
             return
@@ -963,7 +1030,11 @@ final class AppState {
             return
         }
         if matches.count > 1 { PelmetLog.log("press: debug — \(matches.count) items match \(name), taking \(id.rawValue)") }
-        openItemMenu(id, button: secondary ? .secondary : .primary)
+        if show {
+            showItemInBar(id)
+        } else {
+            openItemMenu(id, button: secondary ? .secondary : .primary)
+        }
     }
 
     func concealNow() {
@@ -988,8 +1059,16 @@ final class AppState {
         dispatch(rehide.handle(.pointerLeft))
     }
 
+    /// Anything is out: a section, or only icons Show in Menu Bar brought out.
     var isRevealed: Bool {
         if case .revealed = rehide.state { return true }
+        return false
+    }
+
+    /// A section is out. Icons alone don't count: the bar still reads as
+    /// collapsed, and the chevron, a hover or a click opens the section.
+    var sectionsRevealed: Bool {
+        if case .revealed(let sections, _) = rehide.state { return !sections.isEmpty }
         return false
     }
 
@@ -998,10 +1077,11 @@ final class AppState {
 
     /// Revealed OR heading there — what the chevron should show.
     private var isRevealedOrRevealing: Bool {
+        // Icons out on their own leave the chevron collapsed: no section is.
         switch rehide.state {
-        case .revealed: return true
-        case .transitioning(_, queued: .reveal): return true
-        case .transitioning(target: .reveal, queued: nil): return true
+        case .revealed(let sections, _): return !sections.isEmpty
+        case .transitioning(_, queued: .reveal(let sections, _)): return !sections.isEmpty
+        case .transitioning(target: .reveal(let sections, _), queued: nil): return !sections.isEmpty
         default: return false
         }
     }
@@ -2562,6 +2642,11 @@ final class AppState {
             switch effect {
             case .none:
                 break
+            case .reveal(let sections) where sections.isEmpty:
+                // Show in Menu Bar: icons out on their own, no section moves.
+                // `revealPresenter` stays as it is: nothing is presented, so
+                // a later reveal still routes by its own reason.
+                transitions.performItemsReveal(itemsInBar, settles: true, trace: PerfTrace(kind: "reveal", reason: .itemInBar))
             case .reveal(let sections):
                 var reason: RevealReason?
                 if case .transitioning(target: .reveal(_, let r), _) = rehide.state { reason = r }
@@ -2581,12 +2666,24 @@ final class AppState {
                 presenter.reveal(sections, reason: reason, trace: trace)
             case .conceal:
                 let trace = PerfTrace(kind: "conceal", reason: nil)
+                // Icons Show in Menu Bar had out go back with whatever else
+                // goes, or alone when no section was presented.
+                let items = takeItemsInBar()
                 // The presenter that showed the reveal takes it down; with
                 // none up (a conceal at boot, or before any reveal) the bar
                 // is where the engine's conceal lands.
-                let presenter = revealPresenter ?? barPresenter
+                let shown = revealPresenter
                 revealPresenter = nil
-                presenter.conceal(trace: trace)
+                if shown == nil, !items.isEmpty {
+                    transitions.performItemsConceal(items, settles: true, trace: trace)
+                } else if let shown, shown !== barPresenter {
+                    shown.conceal(trace: trace)
+                    if !items.isEmpty {
+                        transitions.performItemsConceal(items, settles: false, trace: PerfTrace(kind: "conceal", reason: .itemInBar))
+                    }
+                } else {
+                    transitions.performConceal(trace: trace, releasing: items)
+                }
             case .armTimer(let deadline):
                 rehideDeferLogged = false
                 scheduleRehideTimer(at: deadline)
