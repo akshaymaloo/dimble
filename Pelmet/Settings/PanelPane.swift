@@ -39,10 +39,16 @@ struct PanelPane: View {
             }
         }
         .onChange(of: appState.settingsFocusRow, initial: true) { _, row in
-            // Search found a row this mode doesn't draw: land on the picker
-            // that brings it.
-            guard let row, Self.modeRows[row].map({ !$0.contains(target) }) == true else { return }
-            appState.settingsFocusRow = "hiddenIconsIn"
+            guard let row else { return }
+            if Self.modeRows[row].map({ !$0.contains(target) }) == true {
+                // Search found a row this mode doesn't draw: land on the
+                // picker that brings it.
+                appState.settingsFocusRow = "hiddenIconsIn"
+            } else if row == "panelFold", appState.settings.panel.alwaysHidden == .hidden {
+                // "Opens from" isn't drawn with Always Hidden off: land on
+                // the menu that brings it.
+                appState.settingsFocusRow = "panelAlwaysHidden"
+            }
         }
     }
 
@@ -76,16 +82,6 @@ struct PanelPane: View {
                     PelmetMenuPicker(selection: binding(\.columns), options: columnChoices(options.columns))
                 }
                 .settingAnchor("panelColumns")
-                // Dimmed, not removed, with Always Hidden off: gone, it would
-                // pull the Always Hidden picker up from under the pointer.
-                SettingRow(title: "Fold", caption: "What you click to open Always Hidden.") {
-                    PelmetSegments(selection: binding(\.alwaysHiddenFold), options: [
-                        (.tile, "Tile"), (.count, "Chip"), (.handle, "Handle"),
-                    ], compact: true)
-                }
-                .disabled(options.alwaysHidden == .hidden)
-                .opacity(options.alwaysHidden == .hidden ? 0.45 : 1)
-                .settingAnchor("panelFold")
             }
             SettingRow(title: "Always Hidden", caption: alwaysHiddenCaption(options.alwaysHidden)) {
                 PelmetMenuPicker(selection: binding(\.alwaysHidden), options: [
@@ -93,6 +89,17 @@ struct PanelPane: View {
                 ])
             }
             .settingAnchor("panelAlwaysHidden")
+            // Under its menu, so it comes and goes without moving the menu
+            // from under the pointer. The row draws no fold.
+            if target == .panel, options.alwaysHidden != .hidden {
+                SettingRow(title: "Opens from") {
+                    PelmetSegments(selection: binding(\.alwaysHiddenFold), options: [
+                        (.tile, "Tile"), (.count, "Chip"), (.handle, "Handle"),
+                    ], compact: true)
+                }
+                .padding(.leading, 16)
+                .settingAnchor("panelFold")
+            }
             if target == .panel {
                 SettingToggleRow(title: "Show names", caption: "Names under each icon. Off fits more in a row.",
                                  isOn: binding(\.showsNames))
@@ -111,13 +118,19 @@ struct PanelPane: View {
         }
     }
 
-    /// The row draws no fold: its right-click menu shows them.
+    /// The row draws no fold: its right-click menu shows them. With Always
+    /// Hidden off, its shortcut is the way in (with the icon off, the only
+    /// one), so the caption names it, unless it was turned off too.
     private func alwaysHiddenCaption(_ mode: PanelOptions.AlwaysHiddenMode) -> LocalizedStringKey {
+        let spec = appState.settings.alwaysHiddenHotkey ?? .alwaysHiddenDefault
+        let shortcut = spec.isOff ? "" : spec.display
         switch (target, mode) {
-        case (.row, .hidden): "Out of the row. ⌥-click the chevron or search to reach them."
-        case (.row, _): "Out of the row until you turn them on in its right-click menu."
-        case (_, .hidden): "Out of the panel. ⌥-click the chevron or search to reach them."
-        default: "The fold at the end of the panel."
+        case (.row, .hidden):
+            return shortcut.isEmpty ? "Out of the row." : "Out of the row. Press \(shortcut) to reach them."
+        case (.row, _): return "Out of the row until you turn them on in its right-click menu."
+        case (_, .hidden):
+            return shortcut.isEmpty ? "Out of the panel." : "Out of the panel. Press \(shortcut) to reach them."
+        default: return "At the end of the panel, behind a fold."
         }
     }
 

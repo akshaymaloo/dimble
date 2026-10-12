@@ -1,7 +1,7 @@
 // SearchPane.swift
 // Settings › Search: the command bar's shortcut and the command bar itself
-// to try, what it finds and the keys it takes, every alias and icon shortcut
-// in one list, and its history. The list reads the command bar's own corpus,
+// to try (its keys in a line under it), what it finds, every alias and icon
+// shortcut in one list, and its history. The list reads the command bar's own corpus,
 // so names, icons and order are the ones search shows (bar order, Hidden
 // first).
 
@@ -38,19 +38,13 @@ struct SearchPane: View {
                     .settingAnchor("searchDemo")
             }
             finds
-            keys
             aliases
             SettingsCard(title: "History") {
                 SettingRow(
                     title: "Search learns what you open",
                     caption: "Icons you pick move up, and a search you repeat goes straight to your last answer. It stays on this Mac."
-                ) { EmptyView() }
-                SettingRow(
-                    title: "Reset Search History",
-                    caption: searchPicks == 0
-                        ? "Nothing to reset yet. Pelmet learns from the icons you open with Search."
-                        : "Forgets which icons you open and what you typed to find them. Shortcuts and aliases stay."
                 ) {
+                    // Text, not the restore glyph: this clears data.
                     Button("Reset") {
                         appState.commandBar.resetHistory()
                         appState.searchDemo.refresh()
@@ -117,31 +111,6 @@ struct SearchPane: View {
     private static func probe(_ name: String) -> String {
         let word = (name.split(separator: " ").first.map(String.init) ?? name).lowercased()
         return word.count <= 6 ? word : String(word.prefix(5))
-    }
-
-    // MARK: - Keys
-
-    private var keys: some View {
-        SettingsCard(title: "Keys") {
-            keyRow("↩", "Open the icon's menu")
-            keyRow("⌘↩", "Show the icon in the menu bar instead")
-            keyRow("⇥", "Finish the name it suggests")
-            keyRow("↑ ↓", "Move through the results")
-            keyRow("⌘K", "More for the selected icon: move it, give it an alias or a shortcut, quit its app")
-            keyRow("⌘,", "Open Settings")
-            keyRow("⎋", "Go back a step, then close")
-        }
-    }
-
-    private func keyRow(_ keys: String, _ action: LocalizedStringKey) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            // The recorder's chip type: modifier glyphs at menu size.
-            Text(verbatim: keys)
-                .font(.system(size: 13, weight: .medium))
-                .kerning(1.5)
-                .frame(width: 44, alignment: .leading)
-            Text(action)
-        }
     }
 
     // MARK: - Aliases and shortcuts
@@ -258,9 +227,41 @@ private struct SearchDemoStage: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            SearchKeyLine()
+        }
+    }
+}
+
+/// The command bar's keys as small key caps, each with what it does. One
+/// line, wrapping when the pane is narrow. These are the keys
+/// `CommandBarController.handleKey` takes.
+private struct SearchKeyLine: View {
+    var body: some View {
+        FlowLayout(spacing: 12) {
+            key("↩", "open")
+            key("⌘↩", "show in menu bar")
+            key("⇥", "finish")
+            key("⌘K", "more")
+            key("⎋", "back")
         }
     }
 
+    private func key(_ keys: String, _ action: LocalizedStringKey) -> some View {
+        HStack(spacing: 5) {
+            // The recorder's chip, at caption size.
+            Text(verbatim: keys)
+                .font(.system(size: 11, weight: .medium))
+                .kerning(1)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(RoundedRectangle(cornerRadius: 5).fill(.primary.opacity(0.08)))
+            Text(action)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .fixedSize()
+        .accessibilityElement(children: .combine)
+    }
 }
 
 /// Two soft blooms on a plain ground, enough for the glass to show: the
