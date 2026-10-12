@@ -228,10 +228,12 @@ final class PelmetStatusItem {
             title: appState.sectionsRevealed ? String(localized: "Hide Items") : String(localized: "Show Hidden Items"),
             action: #selector(AppMenuTarget.toggle), keyEquivalent: ""
         )
+        Self.showShortcut(appState.settings.hotkey, on: toggle)
         let showAll = NSMenuItem(
             title: String(localized: "Show Always-Hidden Too"),
             action: #selector(AppMenuTarget.showAll), keyEquivalent: ""
         )
+        Self.showShortcut(appState.settings.alwaysHiddenHotkey, on: showAll)
         let search = NSMenuItem(
             title: String(localized: "Search…"),
             action: #selector(AppMenuTarget.search), keyEquivalent: ""
@@ -280,7 +282,12 @@ final class PelmetStatusItem {
             targets.addItem(item)
         }
         shownIn.submenu = targets
-        var items: [NSMenuItem] = [toggle, showAll, .separator(), animation, shownIn, search, settings, .separator(), quit]
+        // Text only: icons on every row read heavy (2026-10-12), and AppKit
+        // adds a gear to a "Settings…" item on its own. Only the update and
+        // Accessibility rows below keep theirs, they carry a state.
+        settings.preferredImageVisibility = .hidden
+        // Search leads: a left click already shows and hides.
+        var items: [NSMenuItem] = [search, .separator(), toggle, showAll, .separator(), animation, shownIn, settings, .separator(), quit]
         // Same line in every right-click (chevron, separators, empty bar),
         // right under Settings: the About chip is the only other trace once
         // the banner is gone.
@@ -291,6 +298,8 @@ final class PelmetStatusItem {
             )
             update.image = NSImage(systemSymbolName: "arrow.down.circle.fill", accessibilityDescription: nil)?
                 .withSymbolConfiguration(.init(paletteColors: [.systemGreen]))
+            // macOS 27 hides menu images unless the item asks.
+            update.preferredImageVisibility = .visible
             items.insert(update, at: items.firstIndex(of: settings)! + 1)
         }
         if !appState.accessibilityGranted {
@@ -301,6 +310,7 @@ final class PelmetStatusItem {
             )
             grant.image = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: nil)?
                 .withSymbolConfiguration(.init(paletteColors: [.systemOrange]))
+            grant.preferredImageVisibility = .visible
             items.insert(contentsOf: [grant, .separator()], at: 0)
         }
         for menuItem in items where !menuItem.isSeparatorItem {
