@@ -12,6 +12,7 @@ import PelmetEngine
 enum ItemMenuActions {
     static var openMenuTitle: String { String(localized: "Open Menu") }
     static var showInBarTitle: String { String(localized: "Show in Menu Bar") }
+    static var aliasTitle: String { String(localized: "Alias and Shortcut…") }
 
     static func quitTitle(_ appName: String) -> String { String(localized: "Quit \(appName)") }
 
@@ -35,6 +36,19 @@ enum ItemMenuActions {
     static func showInBar(_ key: ItemID, appState: AppState, source: String) {
         PelmetLog.log("\(source): show \(key.rawValue) in the bar")
         appState.showItemInBar(key)
+    }
+
+    /// Whether Search can alias this icon: every one it lists, which leaves
+    /// out Pelmet's separators and chevron.
+    static func canAlias(_ id: ItemID) -> Bool {
+        !id.isPelmetSeparator && !id.isPelmetChevron
+    }
+
+    /// Alias and Shortcut…: Settings › Search with the icon listed and its
+    /// alias field ready. `source` names the surface in the log.
+    static func editAlias(_ key: ItemID, appState: AppState, source: String) {
+        PelmetLog.log("\(source): alias and shortcut for \(key.rawValue)")
+        appState.openAliasAndShortcut(for: key)
     }
 
     /// An app the person installed: Open and Quit mean something for it.

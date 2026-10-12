@@ -53,6 +53,12 @@ final class AppState {
     /// One-shot: the setting row (`SettingsIndex` id) Settings should scroll
     /// to and mark. Set by `openSettings(tab:row:)`, cleared by the view.
     var settingsFocusRow: String?
+    /// Icons "Alias and Shortcut…" sent to Settings › Search (section keys).
+    /// The pane's list of icons without an alias yet is its own state, so it
+    /// takes these when they arrive and clears them.
+    var pendingAliasItems: [String] = []
+    /// The icon whose alias field takes the focus once its row shows.
+    var aliasFocusItem: String?
     /// Bumped when the command bar saves or resets its history, so the
     /// Settings row that offers the reset knows whether there is any.
     var searchHistoryRevision = 0
@@ -1247,6 +1253,15 @@ final class AppState {
     func openSettings(tab: SettingsTab = .general, row: String? = nil) {
         settingsFocusRow = row
         SettingsWindowController.shared.show(appState: self, tab: tab)
+    }
+
+    /// "Alias and Shortcut…" on an icon: Settings › Search lists it, scrolls
+    /// to it and puts the cursor in its alias field.
+    func openAliasAndShortcut(for id: ItemID) {
+        let key = id.sectionKey.rawValue
+        if !pendingAliasItems.contains(key) { pendingAliasItems.append(key) }
+        aliasFocusItem = key
+        openSettings(tab: .search, row: SearchPane.rowAnchor(for: key))
     }
 
     func refreshAccessibility() {

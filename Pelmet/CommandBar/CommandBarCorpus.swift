@@ -90,7 +90,7 @@ enum CommandBarCorpus {
         var out: [CommandBarEntry] = []
         for section in [PelmetCore.Section.hidden, .alwaysHidden, .visible] {
             for item in appState.editorItems(in: section) {
-                if item.id.isPelmetSeparator || item.id.isPelmetChevron { continue }
+                if !ItemMenuActions.canAlias(item.id) { continue }
                 let key = item.id.sectionKey
                 let title = ItemNaming.displayName(for: item)
                 let app = item.appName ?? item.id.bundleID.flatMap(ItemNaming.appName(forBundle:))

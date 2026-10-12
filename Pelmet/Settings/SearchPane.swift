@@ -60,6 +60,13 @@ struct SearchPane: View {
             corpus = CommandBarCorpus.build(appState: appState)
             appState.searchDemo.activate()
         }
+        // "Alias and Shortcut…" from a tile: the icon joins the list, whether
+        // the pane was already up or is just coming up.
+        .onChange(of: appState.pendingAliasItems, initial: true) { _, pending in
+            guard !pending.isEmpty else { return }
+            added.append(contentsOf: pending.filter { !added.contains($0) })
+            appState.pendingAliasItems = []
+        }
         .onDisappear { appState.searchDemo.deactivate() }
         .onChange(of: appState.settings.itemAliases) { appState.searchDemo.refresh() }
         .onChange(of: appState.settings.itemHotkeys) { appState.searchDemo.refresh() }
@@ -115,6 +122,9 @@ struct SearchPane: View {
 
     // MARK: - Aliases and shortcuts
 
+    /// The anchor of an icon's row, for the scroll "Alias and Shortcut…" asks for.
+    static func rowAnchor(for key: String) -> String { "itemShortcut:\(key)" }
+
     private var aliases: some View {
         let listed = listedKeys
         return SettingsCard(title: "Aliases and shortcuts") {
@@ -131,6 +141,7 @@ struct SearchPane: View {
                     appState.setItemHotkey(nil, for: id)
                     added.removeAll { $0 == key }
                 }
+                .settingAnchor(Self.rowAnchor(for: key))
             }
             addMenu(excluding: Set(listed))
         }
@@ -338,6 +349,15 @@ private struct ItemSearchRow: View {
             }
         }
         .onAppear { alias = appState.settings.itemAliases[key] ?? "" }
+        // Asked for from a tile's "Alias and Shortcut…": the cursor goes in
+        // the alias field once the scroll to the row has settled.
+        .task(id: appState.aliasFocusItem) {
+            guard appState.aliasFocusItem == key else { return }
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled, appState.aliasFocusItem == key else { return }
+            appState.aliasFocusItem = nil
+            aliasFocused = true
+        }
     }
 
     /// The recorder's chip recipe, holding text instead of keys.

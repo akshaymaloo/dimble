@@ -288,15 +288,16 @@ struct ShowWhenUnavailable: View {
 // MARK: - Tile popover
 
 /// What an editor tile offers when it is clicked: when the icon shows up on
-/// the bar. The same choice as the card, as a checkmark list.
-struct TileRulePopover: View {
+/// the bar (the same choice as the card, as a checkmark list) when it has a
+/// rule, and a way to Search's alias and shortcut for it.
+struct TilePopover: View {
     let id: ItemID
     let name: String
-    let rule: ShowWhenRule
+    /// Nil for an icon with no rule: the header and the link are all it has.
+    let rule: ShowWhenRule?
+    let editAlias: () -> Void
 
     var body: some View {
-        let availability = rule.availability
-        let applies = availability == .applies
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 TileGlyph(id: id)
@@ -305,35 +306,46 @@ struct TileRulePopover: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Shows up on the bar")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.bottom, 2)
-                choice(Text("Never"), selected: !rule.isActive) { rule.setOn(false) }
-                ForEach(rule.subject.conditions, id: \.self) { condition in
-                    choice(Text(condition.label), selected: rule.isActive && rule.condition == condition) {
-                        rule.choose(condition)
-                    }
-                }
+            if let rule {
+                ruleChoices(rule)
             }
-            .disabled(!applies)
-            if !applies {
-                ShowWhenUnavailable(subject: rule.subject, availability: availability)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            if rule.subject == .wifi {
-                Text("Waits 5 seconds, so a wake or a roam doesn't flash it.")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
+            Button("Alias and shortcut…", action: editAlias)
+                .buttonStyle(.plain)
+                .foregroundStyle(PelmetAccent.accent)
         }
         .padding(12)
         .frame(width: 240, alignment: .leading)
         // One signal per state: the checkmark marks the choice, no focus ring
         // competing with it (as in the separator options).
         .focusEffectDisabled()
+    }
+
+    @ViewBuilder private func ruleChoices(_ rule: ShowWhenRule) -> some View {
+        let availability = rule.availability
+        let applies = availability == .applies
+        VStack(alignment: .leading, spacing: 2) {
+            Text("Shows up on the bar")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.bottom, 2)
+            choice(Text("Never"), selected: !rule.isActive) { rule.setOn(false) }
+            ForEach(rule.subject.conditions, id: \.self) { condition in
+                choice(Text(condition.label), selected: rule.isActive && rule.condition == condition) {
+                    rule.choose(condition)
+                }
+            }
+        }
+        .disabled(!applies)
+        if !applies {
+            ShowWhenUnavailable(subject: rule.subject, availability: availability)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        if rule.subject == .wifi {
+            Text("Waits 5 seconds, so a wake or a roam doesn't flash it.")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+        }
     }
 
     private func choice(_ label: Text, selected: Bool, action: @escaping () -> Void) -> some View {

@@ -445,8 +445,9 @@ private struct ItemTile: View {
     @State private var cardWork: Task<Void, Never>?
     /// A separator tile's options (style, opacity or width, Remove).
     @State private var optionsShown = false
-    /// The popover of a tile with a "Show when it matters" rule.
-    @State private var ruleShown = false
+    /// What a click on an icon tile opens: its "Show when it matters" rule,
+    /// if it has one, and the way to its alias and shortcut.
+    @State private var popoverShown = false
 
     /// This tile's separator, when it is one: specs are keyed by the
     /// ItemID they mint, so match on the section key.
@@ -462,6 +463,19 @@ private struct ItemTile: View {
     /// This tile's "Show when it matters" rule, when it has one.
     private var showWhen: ShowWhenRule? {
         ShowWhenSubject(item.id).map { ShowWhenRule(subject: $0, appState: appState) }
+    }
+
+    /// The inactive-icon hover card is what these tiles show; a click has
+    /// nothing to add unless they carry a rule.
+    private var hasHoverCard: Bool {
+        isUnhideable || isSuperseded || isImmovable
+    }
+
+    /// Whether a click opens the popover: any icon Search can alias, but not
+    /// the ones Pelmet can't manage (their card says why), unless a rule is
+    /// theirs to set.
+    private var offersPopover: Bool {
+        showWhen != nil || (!hasHoverCard && ItemMenuActions.canAlias(item.id))
     }
 
     private var isSystemIcon: Bool {
@@ -524,6 +538,12 @@ private struct ItemTile: View {
                 Button(ItemMenuActions.moveTitle(target)) {
                     appState.moveItem(item.id, to: target, before: nil)
                 }
+            }
+        }
+        if ItemMenuActions.canAlias(item.id) {
+            Divider()
+            Button(ItemMenuActions.aliasTitle) {
+                ItemMenuActions.editAlias(item.id, appState: appState, source: "editor")
             }
         }
         if let app = ItemMenuActions.app(for: item, title: displayName), ItemMenuActions.isRunning(app.bundleID) {
@@ -694,13 +714,14 @@ private struct ItemTile: View {
         .onTapGesture {
             if separatorIndex != nil {
                 optionsShown = true
-            } else if showWhen != nil {
-                ruleShown = true
+            } else if offersPopover {
+                popoverShown = true
             }
         }
-        .popover(isPresented: $ruleShown, arrowEdge: .bottom) {
-            if let rule = showWhen {
-                TileRulePopover(id: item.id, name: displayName, rule: rule)
+        .popover(isPresented: $popoverShown, arrowEdge: .bottom) {
+            TilePopover(id: item.id, name: displayName, rule: showWhen) {
+                popoverShown = false
+                ItemMenuActions.editAlias(item.id, appState: appState, source: "editor")
             }
         }
         .popover(isPresented: $optionsShown, arrowEdge: .bottom) {
@@ -728,7 +749,7 @@ private struct ItemTile: View {
             hovered = false
             cardShown = false
             optionsShown = false
-            ruleShown = false
+            popoverShown = false
             session.begin(.item(item.id, home: section, homeIndex: index))
             return NSItemProvider(object: item.id.rawValue as NSString)
         }
