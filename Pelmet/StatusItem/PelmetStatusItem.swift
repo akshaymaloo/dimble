@@ -230,7 +230,7 @@ final class PelmetStatusItem {
         )
         Self.showShortcut(appState.settings.hotkey, on: toggle)
         let showAll = NSMenuItem(
-            title: String(localized: "Show Always-Hidden Too"),
+            title: String(localized: "Show Always Hidden Too"),
             action: #selector(AppMenuTarget.showAll), keyEquivalent: ""
         )
         Self.showShortcut(appState.settings.alwaysHiddenHotkey, on: showAll)

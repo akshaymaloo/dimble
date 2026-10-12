@@ -518,6 +518,9 @@ struct PelmetMenuPicker<Value: Hashable>: View {
     /// Row-sized: a caption-weight label with no button chrome, for a menu
     /// that sits inside a card row rather than beside a setting.
     var borderless = false
+    /// Borderless only: the label in the brand accent, for a value that
+    /// belongs to the switch beside it (the hover delay).
+    var accent = false
 
     private var currentLabel: LocalizedStringKey {
         options.first { $0.0 == selection }?.1 ?? ""
@@ -538,7 +541,7 @@ struct PelmetMenuPicker<Value: Hashable>: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
         }
-        .modifier(MenuPickerChrome(borderless: borderless))
+        .modifier(MenuPickerChrome(borderless: borderless, accent: accent))
     }
 }
 
@@ -547,13 +550,14 @@ struct PelmetMenuPicker<Value: Hashable>: View {
 /// branch touches the bordered picker's appearance.
 private struct MenuPickerChrome: ViewModifier {
     let borderless: Bool
+    let accent: Bool
 
     func body(content: Content) -> some View {
         if borderless {
             content
                 .menuStyle(.borderlessButton)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(accent ? AnyShapeStyle(PelmetAccent.accent) : AnyShapeStyle(.secondary))
         } else {
             content
                 .menuStyle(.button)
@@ -567,6 +571,9 @@ struct SettingRow<Control: View>: View {
     let title: Text
     var caption: LocalizedStringKey? = nil
     let control: Control
+    /// An orange dot before the title: "this needs you" (the sidebar's dot,
+    /// carried down to the row it points at).
+    private var attention = false
 
     /// Literal titles localize through the string catalog.
     init(title: LocalizedStringKey, caption: LocalizedStringKey? = nil, @ViewBuilder control: () -> Control) {
@@ -576,14 +583,26 @@ struct SettingRow<Control: View>: View {
     }
 
     /// Runtime titles (display names, user data) are shown as-is.
-    init(verbatim title: String, @ViewBuilder control: () -> Control) {
+    init(verbatim title: String, caption: LocalizedStringKey? = nil, @ViewBuilder control: () -> Control) {
         self.title = Text(verbatim: title)
+        self.caption = caption
         self.control = control()
+    }
+
+    func attention(_ on: Bool) -> Self {
+        var row = self
+        row.attention = on
+        return row
     }
 
     private var label: some View {
         VStack(alignment: .leading, spacing: 2) {
-            title
+            HStack(spacing: 6) {
+                if attention {
+                    Circle().fill(.orange).frame(width: 7, height: 7)
+                }
+                title
+            }
             if let caption {
                 Text(caption)
                     .font(.caption)
@@ -613,6 +632,19 @@ struct SettingRow<Control: View>: View {
     }
 }
 
+/// The row switch, small and unlabeled. One recipe for the toggle rows and
+/// for rows that put another control beside it.
+struct SettingSwitch: View {
+    @Binding var isOn: Bool
+
+    var body: some View {
+        Toggle("", isOn: $isOn)
+            .toggleStyle(.switch)
+            .controlSize(.small)
+            .labelsHidden()
+    }
+}
+
 struct SettingToggleRow: View {
     let title: LocalizedStringKey
     var caption: LocalizedStringKey? = nil
@@ -620,10 +652,7 @@ struct SettingToggleRow: View {
 
     var body: some View {
         SettingRow(title: title, caption: caption) {
-            Toggle("", isOn: $isOn)
-                .toggleStyle(.switch)
-                .controlSize(.small)
-                .labelsHidden()
+            SettingSwitch(isOn: $isOn)
         }
     }
 }
@@ -636,7 +665,12 @@ struct StatusIconPicker: View {
     var body: some View {
         HStack(spacing: 2) {
             ForEach(StatusIconStyle.allCases) { style in
-                StatusIconTile(symbol: style.symbol(revealed: false), size: style.symbolPointSize ?? 13, selected: selection == style) {
+                StatusIconTile(
+                    symbol: style.symbol(revealed: false),
+                    size: style.symbolPointSize ?? 13,
+                    name: style.name,
+                    selected: selection == style
+                ) {
                     selection = style
                 }
             }
@@ -647,9 +681,25 @@ struct StatusIconPicker: View {
     }
 }
 
+extension StatusIconStyle {
+    /// What the tile's tooltip calls the glyph.
+    fileprivate var name: LocalizedStringKey {
+        switch self {
+        case .chevron: "Chevron"
+        case .arrow: "Arrow"
+        case .eye: "Eye"
+        case .dots: "Dots"
+        case .grid: "Grid"
+        case .panel: "Panel"
+        case .dot: "Dot"
+        }
+    }
+}
+
 private struct StatusIconTile: View {
     let symbol: String
     let size: Double
+    let name: LocalizedStringKey
     let selected: Bool
     let action: () -> Void
     @State private var hovered = false
@@ -671,6 +721,7 @@ private struct StatusIconTile: View {
         .buttonStyle(.plain)
         .focusEffectDisabled()
         .onHover { hovered = $0 }
+        .help(name)
     }
 }
 
@@ -693,34 +744,6 @@ struct SettingNote: View {
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 8).fill(.quaternary.opacity(0.5)))
-    }
-}
-
-struct SettingSliderRow: View {
-    let title: LocalizedStringKey
-    @Binding var value: TimeInterval
-    let range: ClosedRange<Double>
-    let step: Double
-    let format: String
-    var zeroLabel: String? = nil
-
-    var body: some View {
-        SettingRow(title: title) {
-            HStack(spacing: 8) {
-                Slider(value: $value, in: range, step: step)
-                    .frame(width: 160)
-                Text(value == 0 ? (zeroLabel ?? String(format: format, value)) : String(format: format, value))
-                    .font(.callout)
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    // "Instant" is 48pt in English and ~72 in French; the
-                    // box may grow, it must not clip the value it exists
-                    // to show.
-                    .fixedSize(horizontal: true, vertical: false)
-                    .frame(minWidth: 48, alignment: .trailing)
-            }
-        }
     }
 }
 
@@ -753,48 +776,15 @@ private struct GeneralPane: View {
                     StatusIconPicker(selection: binding(\.statusIconStyle))
                 }
             }
-            SettingRow(
-                title: "Keyboard shortcut",
-                caption: hotkeyCaption(appState.settings.hotkey, conflict: appState.hotkeyConflict,
-                                       otherwise: "Show or hide your icons without reaching for the mouse.")
-            ) {
-                ShortcutRecorder(shortcut: binding(\.hotkey), fallback: .default)
-            }
-            .settingAnchor("hotkey")
-            SettingRow(
-                title: "Show Always-Hidden Too",
-                caption: hotkeyCaption(appState.settings.alwaysHiddenHotkey, conflict: appState.alwaysHiddenHotkeyConflict,
-                                       otherwise: "Everything at once, press again to hide it all.")
-            ) {
-                ShortcutRecorder(shortcut: binding(\.alwaysHiddenHotkey), fallback: .alwaysHiddenDefault)
-            }
-            // Its shortcut moved with the rest of Search; this row says where
-            // for anyone who still looks here.
-            SettingRow(
-                title: "Search the menu bar",
-                caption: "Its shortcut, aliases and history moved to Search."
-            ) {
-                Button("Show Search") { appState.settingsTab = .search }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.tint)
-            }
-            SettingRow(
-                title: "Open Settings",
-                caption: hotkeyCaption(appState.settings.settingsHotkey, conflict: appState.settingsHotkeyConflict,
-                                       otherwise: "Get back here from any app.")
-            ) {
-                ShortcutRecorder(shortcut: binding(\.settingsHotkey), fallback: .settingsDefault)
-            }
-            .settingAnchor("settingsHotkey")
             SettingToggleRow(
                 // Named, not spelled out: a sentence long enough to say the
-                // whole thing ("Right-click the menu bar for Pelmet's menu")
-                // pushed the switch onto its own line in Portuguese — in the
-                // ordinary state, not just the locked one — and broke the
-                // card's one-line rhythm. Short title, caption carries it,
-                // same shape as the Permissions and Language rows.
+                // whole thing pushed the switch onto its own line in
+                // Portuguese. Short title, caption short enough to leave the
+                // switch on the right, same shape as the other rows.
                 title: "Right-click menu",
-                caption: "Pelmet's menu from any empty spot on the bar. Also your way back here when the icon is hidden.",
+                caption: appState.settings.showStatusItem
+                    ? "Pelmet's menu from any empty spot on the bar."
+                    : "Stays on while the Pelmet icon is hidden. It's your way back here.",
                 isOn: Binding(
                     get: { appState.settings.barRightClickMenuActive },
                     set: { enabled in
@@ -816,67 +806,128 @@ private struct GeneralPane: View {
             }
         }
 
+        SettingsCard(title: "Shortcuts") {
+            shortcutRow("Show hidden icons", binding(\.hotkey), fallback: .default,
+                        conflict: appState.hotkeyConflict)
+                .settingAnchor("hotkey")
+            shortcutRow("Show Always Hidden too", binding(\.alwaysHiddenHotkey), fallback: .alwaysHiddenDefault,
+                        conflict: appState.alwaysHiddenHotkeyConflict)
+            // The same setting Search's own recorder edits.
+            shortcutRow("Search the menu bar", binding(\.searchHotkey), fallback: .searchDefault,
+                        conflict: appState.searchHotkeyConflict)
+            // Registered only while the clock click is on (Behavior).
+            if appState.settings.clockClickOpensNotificationCenter {
+                shortcutRow("Open Notification Center", binding(\.notificationCenterHotkey),
+                            fallback: .notificationCenterDefault,
+                            conflict: appState.notificationCenterHotkeyConflict)
+            }
+            shortcutRow("Open Settings", binding(\.settingsHotkey), fallback: .settingsDefault,
+                        conflict: appState.settingsHotkeyConflict)
+                .settingAnchor("settingsHotkey")
+        }
+
         SettingsCard(title: "Language") {
             SettingRow(title: "Display language", caption: "Relaunches Pelmet to apply.") {
-                Picker("", selection: $language) {
-                    Text("System language").tag(AppLanguage.system)
-                    Divider()
-                    ForEach(AppLanguage.allCases.filter { $0 != .system }) { language in
-                        Text(verbatim: language.endonym).tag(language)
+                PelmetMenuPicker(selection: $language, options: languageOptions)
+                    .onChange(of: language) { _, newValue in
+                        guard newValue != AppLanguage.current else { return }
+                        AppLanguage.set(newValue)
+                        AppLanguage.offerRelaunch()
                     }
-                }
-                .pickerStyle(.menu)
-                .labelsHidden()
-                .fixedSize()
-                .onChange(of: language) { _, newValue in
-                    guard newValue != AppLanguage.current else { return }
-                    AppLanguage.set(newValue)
-                    AppLanguage.offerRelaunch()
-                }
             }
             .settingAnchor("language")
         }
 
         SettingsCard(title: "Permissions") {
-            SettingRow(
-                title: "Accessibility",
-                caption: appState.accessibilityGranted
-                    ? "How Pelmet sees the menu bar and moves its icons."
-                    : "Off. Pelmet can't see or arrange the menu bar without it."
-            ) {
-                if appState.accessibilityGranted {
-                    StatusChip(text: "Granted", symbol: "checkmark.circle.fill", tint: .green)
-                } else {
-                    AccentChipButton(text: "Grant access", symbol: "hand.raised.fill") {
-                        AccessibilityAccess.request()
-                    }
-                }
-            }
-            .settingAnchor("accessibility")
-            SettingRow(
-                title: "Screen Recording",
-                caption: appState.screenRecordingGranted
-                    ? "Smoother show and hide animations."
-                    : "Optional. Without it, icons show and hide the way macOS does it."
-            ) {
-                if appState.screenRecordingGranted {
-                    StatusChip(text: "Granted", symbol: "checkmark.circle.fill", tint: .green)
-                } else {
-                    AccentChipButton(text: "Grant access", symbol: "rectangle.dashed.badge.record") {
-                        ScreenRecordingAccess.request()
-                    }
-                }
-            }
-            .settingAnchor("screenRecording")
+            permissions
         }
         .task {
             // The grant lands in System Settings, outside our window —
-            // poll while the tab is up so the chip flips without a relaunch.
+            // poll while the tab is up so the rows flip without a relaunch.
             while !Task.isCancelled {
                 appState.refreshScreenRecording()
                 try? await Task.sleep(for: .seconds(1))
             }
         }
+    }
+
+    /// A language name is shown in itself and never translated: the
+    /// endonyms are not catalog keys, so they render as they are.
+    private var languageOptions: [(AppLanguage, LocalizedStringKey)] {
+        [(.system, LocalizedStringKey("System language"))]
+            + AppLanguage.allCases.filter { $0 != .system }.map { ($0, LocalizedStringKey($0.endonym)) }
+    }
+
+    /// One shortcut row: the recorder on the right. A caption only when the
+    /// shortcut can't fire (another app or macOS holds it).
+    private func shortcutRow(
+        _ title: LocalizedStringKey,
+        _ shortcut: Binding<HotkeySpec?>,
+        fallback: HotkeySpec,
+        conflict: Bool
+    ) -> some View {
+        SettingRow(title: title, caption: hotkeyWarning(shortcut.wrappedValue, conflict: conflict)) {
+            ShortcutRecorder(shortcut: shortcut, fallback: fallback)
+        }
+    }
+
+    // MARK: Permissions
+
+    /// Both on: one quiet line. Otherwise each missing grant asks for itself
+    /// at the top and the granted one folds into a quiet line underneath.
+    @ViewBuilder private var permissions: some View {
+        let accessibility = appState.accessibilityGranted
+        let recording = appState.screenRecordingGranted
+        if accessibility && recording {
+            // One line answers to both ids (the command bar jumps by either).
+            VStack(alignment: .leading, spacing: 0) {
+                grantedLine("Accessibility and Screen Recording are on.")
+                    .settingAnchor("accessibility")
+            }
+            .settingAnchor("screenRecording")
+        } else {
+            if !accessibility {
+                // The one that stops Pelmet working: the dot and the accent
+                // button. Screen Recording only polishes the motion.
+                SettingRow(
+                    title: "Accessibility",
+                    caption: "Pelmet can't see or move your icons until it's on."
+                ) {
+                    AccentChipButton(text: "Grant access", symbol: "hand.raised.fill") {
+                        AccessibilityAccess.request()
+                    }
+                }
+                .attention(true)
+                .settingAnchor("accessibility")
+            }
+            if !recording {
+                SettingRow(
+                    title: "Screen Recording",
+                    caption: "Off. Turn it on for smoother show and hide animations."
+                ) {
+                    Button("Grant access") { ScreenRecordingAccess.request() }
+                        .buttonStyle(.bordered)
+                }
+                .settingAnchor("screenRecording")
+            }
+            if accessibility {
+                grantedLine("Accessibility is on.")
+                    .settingAnchor("accessibility")
+            }
+            if recording {
+                grantedLine("Screen Recording is on.")
+                    .settingAnchor("screenRecording")
+            }
+        }
+    }
+
+    private func grantedLine(_ text: LocalizedStringKey) -> some View {
+        Label {
+            Text(text).foregroundStyle(.secondary)
+        } icon: {
+            Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+        }
+        .font(.callout)
     }
 
     private func binding<T>(
@@ -920,6 +971,11 @@ private struct GeneralPane: View {
 private struct BehaviorPane: View {
     @Environment(AppState.self) private var appState
 
+    private static let hoverDelayOptions: [(TimeInterval, LocalizedStringKey)] = [
+        (0.1, "After 0.1s"), (0.2, "After 0.2s"), (0.3, "After 0.3s"),
+        (0.4, "After 0.4s"), (0.5, "After 0.5s"),
+    ]
+
     var body: some View {
         SettingsCard(title: "Animation") {
             AnimationShowcase(selection: binding(\.revealAnimation))
@@ -932,83 +988,84 @@ private struct BehaviorPane: View {
         .settingAnchor("iconSpacing")
 
         SettingsCard(title: "Reveal") {
-            SettingToggleRow(
+            SettingRow(
                 title: "Reveal on hover",
-                caption: "Hands-free: rest the pointer on the right half of the menu bar.",
-                isOn: binding(\.revealTriggers.hoverEnabled)
-            )
-            .settingAnchor("hoverReveal")
-            if appState.settings.revealTriggers.hoverEnabled {
-                SettingSliderRow(
-                    title: "Hover delay",
-                    value: binding(\.revealTriggers.hoverDelay),
-                    range: 0.1...0.5,
-                    step: 0.1,
-                    format: "%.1fs"
-                )
-                .settingAnchor("hoverDelay")
+                caption: "Rest the pointer on the right half of the menu bar."
+            ) {
+                HStack(spacing: 10) {
+                    // The delay belongs to the switch: it shows only while
+                    // hovering reveals anything.
+                    if appState.settings.revealTriggers.hoverEnabled {
+                        PelmetMenuPicker(selection: hoverDelay, options: Self.hoverDelayOptions,
+                                         borderless: true, accent: true)
+                    }
+                    SettingSwitch(isOn: binding(\.revealTriggers.hoverEnabled))
+                }
             }
-            SettingToggleRow(title: "Reveal on click in empty menu bar area", isOn: binding(\.revealTriggers.clickEnabled))
+            .settingAnchor("hoverReveal")
+            SettingToggleRow(title: "Reveal on click in empty space", isOn: binding(\.revealTriggers.clickEnabled))
                 .settingAnchor("clickReveal")
-            SettingToggleRow(title: "Double-click reveals always-hidden too",
-                             caption: "On the chevron, and in empty menu bar space when the option above is on",
-                             isOn: binding(\.revealTriggers.doubleClickForAlwaysHidden))
-                .settingAnchor("doubleClickReveal")
+            SettingToggleRow(
+                title: "Double-click shows Always Hidden too",
+                caption: appState.settings.revealTriggers.clickEnabled
+                    ? "On the chevron, and in empty space."
+                    : "On the chevron.",
+                isOn: binding(\.revealTriggers.doubleClickForAlwaysHidden)
+            )
+            .padding(.leading, 20)
+            .settingAnchor("doubleClickReveal")
         }
 
-        SettingsCard(title: "Auto-rehide") {
-            SettingToggleRow(title: "Automatically rehide", isOn: binding(\.autoRehide))
-                .settingAnchor("autoRehide")
-            if appState.settings.autoRehide {
-                SettingSliderRow(
-                    title: "After",
-                    value: binding(\.rehideDelay),
-                    range: 0...5,
-                    step: 0.5,
-                    format: "%.2gs",
-                    zeroLabel: String(localized: "Instant")
-                )
+        SettingsCard(title: "Hide again") {
+            SettingRow(title: "When the pointer leaves the bar") {
+                PelmetMenuPicker(selection: rehideChoice, options: RehideChoice.options)
             }
-            SettingToggleRow(title: "Rehide when clicking elsewhere", isOn: binding(\.rehideOnClickElsewhere))
+            .settingAnchor("autoRehide")
+            SettingToggleRow(title: "When you click elsewhere", isOn: binding(\.rehideOnClickElsewhere))
                 .settingAnchor("rehideElsewhere")
         }
 
-        SettingsCard(title: "System extras") {
-            SettingRow(
-                title: "Now Playing, camera controls, AirDrop, Focus, Timer",
-                caption: appState.settings.replacesCollateralExtras
-                    ? "Pelmet's items stand in for these, so Apple's stay hidden. Turn a Pelmet item off to get Apple's back when the bar is revealed."
-                    : "macOS hides these whenever any icons are concealed — they can only appear while the whole bar is revealed."
-            ) {
-                PelmetMenuPicker(
-                    selection: appState.settings.replacesCollateralExtras
-                        ? .constant(true) : binding(\.hideSystemExtras),
-                    options: [
-                        (true, LocalizedStringKey("Always hidden")),
-                        (false, LocalizedStringKey("Show while revealed")),
-                    ]
-                )
-                .disabled(appState.settings.replacesCollateralExtras)
-            }
-            .settingAnchor("systemExtras")
+        SettingsCard(title: "Notification Center") {
             SettingToggleRow(
                 title: "Clicking the clock opens Notification Center",
                 caption: appState.screenRecordingGranted
-                    ? "Notification Center still opens from the clock, even with icons hidden. Pelmet handles the click."
-                    : "Notification Center still opens from the clock, even with icons hidden. Pelmet handles the click; without Screen Recording the hidden icons flash by for an instant. Off, the two-finger swipe from the trackpad's right edge still works.",
+                    ? "Works with icons hidden. Pelmet handles the click."
+                    : "Works with icons hidden. Without Screen Recording, they flash by.",
                 isOn: binding(\.clockClickOpensNotificationCenter)
             )
             .settingAnchor("clockClick")
-            if appState.settings.clockClickOpensNotificationCenter {
-                SettingRow(
-                    title: "Keyboard shortcut",
-                    caption: hotkeyCaption(appState.settings.notificationCenterHotkey, conflict: appState.notificationCenterHotkeyConflict,
-                                           otherwise: "Opens Notification Center while the icons are hidden, which the macOS shortcut can't.")
-                ) {
-                    ShortcutRecorder(shortcut: binding(\.notificationCenterHotkey), fallback: .notificationCenterDefault)
-                }
-            }
         }
+    }
+
+    /// The stored delay as the nearest of the five the picker offers (an
+    /// older store can hold any step of 0.1).
+    private var hoverDelay: Binding<TimeInterval> {
+        Binding(
+            get: { nearest(appState.settings.revealTriggers.hoverDelay, in: Self.hoverDelayOptions.map(\.0)) },
+            set: { newValue in
+                appState.settings.revealTriggers.hoverDelay = newValue
+                appState.settingsChanged()
+            }
+        )
+    }
+
+    private var rehideChoice: Binding<RehideChoice> {
+        Binding(
+            get: {
+                guard appState.settings.autoRehide else { return .never }
+                return .after(Int(nearest(appState.settings.rehideDelay, in: RehideChoice.delays.map(TimeInterval.init))))
+            },
+            set: { choice in
+                switch choice {
+                case .never:
+                    appState.settings.autoRehide = false
+                case .after(let seconds):
+                    appState.settings.autoRehide = true
+                    appState.settings.rehideDelay = TimeInterval(seconds)
+                }
+                appState.settingsChanged()
+            }
+        )
     }
 
     private func binding<T>(
@@ -1024,6 +1081,27 @@ private struct BehaviorPane: View {
             }
         )
     }
+}
+
+/// "Hide again" as one pick: how long after the pointer leaves, or never.
+/// Never is the old Automatically rehide switched off, the rest are the
+/// delay (a store saved with 0.5 steps rounds to the nearest of these).
+private enum RehideChoice: Hashable {
+    case after(Int)
+    case never
+
+    static let delays = [0, 1, 2, 3, 5]
+
+    static let options: [(RehideChoice, LocalizedStringKey)] = [
+        (.after(0), "Right away"), (.after(1), "After 1 second"), (.after(2), "After 2 seconds"),
+        (.after(3), "After 3 seconds"), (.after(5), "After 5 seconds"), (.never, "Never"),
+    ]
+}
+
+/// The option closest to a stored value. A tie goes to the longer one: a bar
+/// that stays a beat too long beats one that vanishes under the pointer.
+private func nearest(_ value: TimeInterval, in options: [TimeInterval]) -> TimeInterval {
+    options.sorted(by: >).min { abs($0 - value) < abs($1 - value) } ?? value
 }
 
 // MARK: - Icon spacing
@@ -1070,13 +1148,22 @@ private struct IconSpacingRow: View {
             SettingNote("Still on the old spacing until relaunched: \(ListFormatter.localizedString(byJoining: staleApps))")
         }
         HStack(spacing: 10) {
-            SettingNote("macOS's own spacing, so it stays after Pelmet. The clock and system icons follow right away; other apps when they next open, or log out and back in for all of them at once.")
+            SettingNote("macOS's own spacing, so it stays after Pelmet. Other apps catch up when they next open.")
             Spacer(minLength: 0)
             if !atDefault || applied != IconSpacing.macOSDefault {
-                Button("Reset") { draft = Double(IconSpacing.index(of: IconSpacing.macOSDefault)) }
-                    .font(.callout)
-                    .disabled(atDefault)
-                    .help("Back to the macOS default")
+                // The shortcut recorder's ↺: tertiary, only while there is
+                // something to undo.
+                Button {
+                    draft = Double(IconSpacing.index(of: IconSpacing.macOSDefault))
+                } label: {
+                    Image(systemName: "arrow.counterclockwise.circle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+                .focusEffectDisabled()
+                .disabled(atDefault)
+                .help("Reset to default")
             }
             TintChipButton(
                 text: Text("Apply"),
@@ -1107,6 +1194,9 @@ private struct IconSpacingRow: View {
 private struct DisplaysPane: View {
     var body: some View {
         SettingsCard {
+            Text("Every screen has its own menu bar, so each can hide or show.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
             ForEach(NSScreen.screens, id: \.self) { screen in
                 DisplayRow(screen: screen)
             }
@@ -1124,8 +1214,13 @@ private struct DisplayRow: View {
         screen.safeAreaInsets.top > 0
     }
 
+    private var behavior: DisplayBehavior { appState.settings.behavior(forDisplayUUID: uuid) }
+
     var body: some View {
-        SettingRow(verbatim: screen.localizedName) {
+        SettingRow(
+            verbatim: screen.localizedName,
+            caption: behavior == .alwaysShowAll ? "Shows every icon, hidden ones too." : nil
+        ) {
             HStack(spacing: 8) {
                 if hasNotch {
                     Text("Notch")
@@ -1136,7 +1231,7 @@ private struct DisplayRow: View {
                         .background(.quaternary, in: Capsule())
                 }
                 PelmetMenuPicker(selection: Binding(
-                    get: { appState.settings.behavior(forDisplayUUID: uuid) },
+                    get: { behavior },
                     set: { behavior in
                         if let uuid {
                             appState.settings.displayOverrides[uuid] = behavior
@@ -1145,8 +1240,8 @@ private struct DisplayRow: View {
                         }
                     }
                 ), options: [
-                    (DisplayBehavior.collapse, LocalizedStringKey("Collapse")),
-                    (DisplayBehavior.alwaysShowAll, LocalizedStringKey("Expanded")),
+                    (DisplayBehavior.collapse, LocalizedStringKey("Hides icons")),
+                    (DisplayBehavior.alwaysShowAll, LocalizedStringKey("Shows all icons")),
                 ])
             }
         }
@@ -1163,7 +1258,6 @@ private struct ThanksPane: View {
 
     private static let sponsor = URL(string: "https://github.com/sponsors/fif7y")!
     private static let repo = URL(string: "https://github.com/fif7y/pelmet")!
-    private static let issues = URL(string: "https://github.com/fif7y/pelmet/issues")!
     private static let x = URL(string: "https://x.com/FIF7Y")!
     private static let instagram = URL(string: "https://www.instagram.com/madebyfif7y/")!
     private static let website = URL(string: "https://pelmet.fif7y.com")!
@@ -1209,21 +1303,14 @@ private struct ThanksPane: View {
             }
         }
 
-        VStack(spacing: 4) {
-            Text("Enjoy the extra room up there.")
-                .foregroundStyle(.secondary)
-            HStack(spacing: 4) {
-                Text("Found a bug?")
-                Link("Report an issue", destination: Self.issues)
+        Text("Enjoy the extra room up there.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity)
+            .padding(.top, 12)
+            .task {
+                if let count = await GitHubStars.fetch() { stars = count }
             }
-            .foregroundStyle(.tertiary)
-        }
-        .font(.caption)
-        .frame(maxWidth: .infinity)
-        .padding(.top, 12)
-        .task {
-            if let count = await GitHubStars.fetch() { stars = count }
-        }
     }
 
     private func open(_ url: URL) { NSWorkspace.shared.open(url) }
@@ -1553,13 +1640,11 @@ struct ChipLabel<Icon: View>: View {
 
 // MARK: - Animation showcase
 
-/// Three cards, one per style, each a mock bar (squircles + chevron) playing
-/// that style's show/hide loop. Only one plays at a time: the selected card,
-/// or the hovered one while the pointer is on it (the selected card pauses,
-/// then resumes on hover out). A card at rest shows its name instead.
+/// Three picture cards in Panel's recipe, one per style: a sketch of the bar
+/// with the name under it, the pick on the accent ring and fill. A card plays
+/// its own reveal once while the pointer is on it, never with Reduce Motion.
 struct AnimationShowcase: View {
     @Binding var selection: RevealAnimation
-    @State private var hovered: RevealAnimation?
 
     private static let styles: [(RevealAnimation, LocalizedStringKey)] = [
         (.instant, "Instant"), (.smooth, "Smooth"), (.fade, "Fade"),
@@ -1568,19 +1653,12 @@ struct AnimationShowcase: View {
     var body: some View {
         HStack(spacing: 10) {
             ForEach(Self.styles, id: \.0) { style, title in
-                AnimationStyleCard(
-                    style: style,
-                    title: title,
-                    selected: selection == style,
-                    playing: hovered == style || (hovered == nil && selection == style)
-                ) {
+                AnimationStyleCard(style: style, title: title, selected: selection == style) {
                     selection = style
-                }
-                .onHover { inside in
-                    if inside { hovered = style } else if hovered == style { hovered = nil }
                 }
             }
         }
+        .animation(.spring(duration: 0.22), value: selection)
     }
 }
 
@@ -1588,123 +1666,112 @@ private struct AnimationStyleCard: View {
     let style: RevealAnimation
     let title: LocalizedStringKey
     let selected: Bool
-    let playing: Bool
     let select: () -> Void
 
-    @State private var revealed = false
-    @State private var pressed = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var hovered = false
+    /// The sketch rests revealed. A hover takes it back to the concealed bar
+    /// and plays the style's reveal.
+    @State private var revealed = true
+    @State private var playing: Task<Void, Never>?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            // The name lives above the card so it stays readable while the
-            // card plays; the selected one carries an Active tag.
-            HStack(spacing: 6) {
+        Button(action: select) {
+            VStack(spacing: 7) {
+                MockBar(style: style, revealed: revealed, ink: selected ? PelmetAccent.accent : .secondary)
                 Text(title)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(selected ? PelmetAccent.accent : .secondary)
-                if selected {
-                    Text("Active")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(PelmetAccent.accent)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1.5)
-                        .background(Capsule().fill(PelmetAccent.accent.opacity(0.16)))
-                        .transition(.opacity.combined(with: .scale(scale: 0.8)))
-                }
+                    .font(.system(size: 12, weight: selected ? .semibold : .medium))
+                    .foregroundStyle(selected ? PelmetAccent.accent : .primary)
             }
-            .padding(.leading, 2)
-            .animation(.easeInOut(duration: 0.2), value: selected)
-
-            MockBar(style: style, revealed: revealed)
-                .opacity(playing ? 1 : 0.45)
-                .animation(.easeInOut(duration: 0.25), value: playing)
-                .frame(maxWidth: .infinity)
-                .frame(height: 64)
-                .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(selected ? PelmetAccent.accent.opacity(0.14) : Color.primary.opacity(0.05))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(PelmetAccent.accent.opacity(selected ? 0.7 : 0), lineWidth: 1)
-                )
-                .shadow(color: .black.opacity(selected ? 0.18 : 0), radius: 8, y: 3)
-                .scaleEffect(pressed ? 0.98 : 1)
-                .animation(.easeOut(duration: 0.15), value: pressed)
-                .animation(.easeInOut(duration: 0.2), value: selected)
-                .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .padding(6)
+            .padding(.bottom, 2)
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(selected ? PelmetAccent.accent.opacity(0.14) : Color.primary.opacity(hovered ? 0.08 : 0.04))
+                    .shadow(color: .black.opacity(selected ? 0.2 : 0), radius: 4, y: 1)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .strokeBorder(PelmetAccent.accent, lineWidth: 1.5)
+                    .opacity(selected ? 1 : 0)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 10))
         }
-        .onTapGesture(perform: select)
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { _ in pressed = true }
-                .onEnded { _ in pressed = false }
-        )
-        .task(id: playing) {
-            // The loop: show, hold, hide, hold. A card at rest shows the
-            // collapsed bar — frame one of the animation, dimmed.
-            guard playing else { revealed = false; return }
-            revealed = false
-            try? await Task.sleep(for: .milliseconds(350))
-            while !Task.isCancelled {
-                revealed = true
-                try? await Task.sleep(for: .milliseconds(1400))
-                guard !Task.isCancelled else { break }
-                revealed = false
-                try? await Task.sleep(for: .milliseconds(1000))
-            }
+        .buttonStyle(.plain)
+        .focusEffectDisabled()
+        .onHover { inside in
+            hovered = inside
+            if inside { play() }
+        }
+        .onDisappear { playing?.cancel() }
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func play() {
+        playing?.cancel()
+        guard !reduceMotion else { return }
+        playing = Task {
+            // Back to the concealed bar without a trace, a beat to read it,
+            // then this style's own reveal.
+            withAnimation(nil) { revealed = false }
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled else { return }
+            withAnimation(MockBar.animation(style, revealed: true)) { revealed = true }
         }
     }
 }
 
-/// A menu bar in miniature: three hidden squircles left of the chevron,
-/// two visible ones right of it. The hidden group moves the way the real
-/// style does, with the same durations (AppTiming).
+/// A menu bar in miniature, sketched like the Panel cards': a strip with three
+/// hidden icons left of the chevron and three shown ones right of it. The
+/// hidden group moves the way the real style does, with the same durations
+/// (AppTiming). The caller animates `revealed`, so a snap stays a snap.
 struct MockBar: View {
     let style: RevealAnimation
     let revealed: Bool
+    let ink: Color
 
-    private let dot: CGFloat = 12
-    private let gap: CGFloat = 9
+    private static let icon: CGFloat = 8
+    private static let gap: CGFloat = 4
+    private static let edge: CGFloat = 8
+    private static let hiddenWidth = 3 * icon + 2 * gap
 
-    var body: some View {
-        HStack(spacing: gap) {
-            // Hidden group, clipped at the chevron so a slide emerges from
-            // behind it exactly like the real strip.
-            HStack(spacing: gap) {
-                ForEach(0..<3, id: \.self) { _ in squircle }
+    private func icons(_ color: Color) -> some View {
+        HStack(spacing: Self.gap) {
+            ForEach(0..<3, id: \.self) { _ in
+                RoundedRectangle(cornerRadius: 2).fill(color).frame(width: Self.icon, height: Self.icon)
             }
-            .offset(x: hiddenOffset)
-            .opacity(revealed ? 1 : 0)
-            .animation(Self.animation(style, revealed: revealed), value: revealed)
-            .frame(width: 3 * dot + 2 * gap, alignment: .trailing)
-            .clipped()
-
-            Image(systemName: revealed ? "chevron.right" : "chevron.left")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(PelmetAccent.accent)
-                .frame(width: 12)
-                .contentTransition(.symbolEffect(.replace))
-
-            ForEach(0..<2, id: \.self) { _ in squircle }
         }
-        .padding(.horizontal, 12)
-        .frame(height: 28)
-        .background(
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(Color.black.opacity(0.28))
-        )
     }
 
-    private var squircle: some View {
-        RoundedRectangle(cornerRadius: 4, style: .continuous)
-            .fill(Color.primary.opacity(0.8))
-            .frame(width: dot, height: dot)
+    var body: some View {
+        HStack(spacing: 5) {
+            // Hidden group, clipped at the chevron so a slide emerges from
+            // behind it exactly like the real strip.
+            icons(ink)
+                .offset(x: hiddenOffset)
+                .opacity(revealed ? 1 : 0)
+                .frame(width: Self.hiddenWidth, alignment: .trailing)
+                .clipped()
+            Image(systemName: revealed ? "chevron.right" : "chevron.left")
+                .font(.system(size: 7, weight: .heavy))
+                .foregroundStyle(ink)
+                .contentTransition(.symbolEffect(.replace))
+            icons(Color.primary.opacity(0.35))
+        }
+        .padding(.horizontal, Self.edge)
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .frame(height: 22)
+        .background(Color.primary.opacity(0.08))
+        .frame(maxWidth: .infinity, alignment: .top)
+        .frame(height: 40, alignment: .top)
+        .background(Color.primary.opacity(0.05))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 
     private var hiddenOffset: CGFloat {
         guard case .smooth = style, !revealed else { return 0 }
-        return 3 * dot + 2 * gap  // parked behind the chevron
+        return Self.hiddenWidth  // parked behind the chevron
     }
 
     /// The style's motion, revealing or concealing, at the real durations.
@@ -1725,9 +1792,15 @@ struct MockBar: View {
 /// A shortcut row’s caption: the plain one, or why the shortcut will
 /// not fire. macOS's own shortcuts register fine and never run (#55).
 func hotkeyCaption(_ spec: HotkeySpec?, conflict: Bool, otherwise: LocalizedStringKey) -> LocalizedStringKey {
+    hotkeyWarning(spec, conflict: conflict) ?? otherwise
+}
+
+/// Why a shortcut will not fire, or nil when nothing is in its way. The
+/// General › Shortcuts rows carry no caption except this one.
+func hotkeyWarning(_ spec: HotkeySpec?, conflict: Bool) -> LocalizedStringKey? {
     if conflict { return "Held by another app — record a different one." }
     if let spec, SystemShortcuts.owns(spec) {
         return "macOS uses this shortcut. Turn it off in System Settings › Keyboard › Keyboard Shortcuts, or record another."
     }
-    return otherwise
+    return nil
 }
