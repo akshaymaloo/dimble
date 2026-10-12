@@ -521,10 +521,10 @@ final class TransitionCoordinator {
             }
             trace.mark("cover", detail: "\(emptyBar.isEmpty ? "none" : "precaptured")\(strip != nil ? ", strip captured live" : "")")
             PelmetLog.log("effect conceal → engine (anim=\(style.rawValue), cover=\(cover != nil), strip=\(strip != nil)\(released.isEmpty ? "" : ", releasing \(released.map(\.rawValue).sorted())"))")
-            // Own extras shown alone are the manager's: released first, so the
+            // Own extras shown alone are the manager's: forgotten first, so the
             // companion inside this swap hides them with the section's extras.
             let ownReleased = released.filter(appState.isOwnExtra)
-            appState.releaseExtrasAlone(ownReleased)
+            appState.forgetExtrasAlone(ownReleased)
             await engine.conceal(releasing: released.subtracting(ownReleased))
             trace.mark("engine")
             trace.note(await engine.lastConvergeTiming)
@@ -650,11 +650,13 @@ final class TransitionCoordinator {
             PelmetLog.log("effect conceal items settled")
             if settles { onConcealSettled?() }
             trace.mark("settled")
-            // An extra fades out on its own clock (ghost, then width): the
-            // cover stays until that is over.
-            if !own.isEmpty { try? await Task.sleep(for: AppTiming.ownItemFadeHold) }
             if let cover {
+                // Counted before the hold: a reveal asked for meanwhile waits
+                // for the lift instead of capturing under the cover (#61).
                 liftsInFlight += 1
+                // An extra fades out on its own clock (ghost, then width): the
+                // cover stays until that is over.
+                if !own.isEmpty { try? await Task.sleep(for: AppTiming.ownItemFadeHold) }
                 endBarCover(cover, label: "show") { [weak self] in
                     self?.liftsInFlight -= 1
                     self?.pressEnded()

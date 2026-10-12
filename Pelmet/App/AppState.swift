@@ -462,6 +462,8 @@ final class AppState {
             // list.
             let now = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
             Task { [engine = self?.engine] in await engine?.setRunningBundles(now) }
+            let quit = before.subtracting(now)
+            if !quit.isEmpty { Task { @MainActor [weak self] in self?.appsQuit(quit) } }
             let appeared = (change.newValue ?? [])
                 .filter { Self.isBundleMainProcess($0) }
                 .compactMap(\.bundleIdentifier)
@@ -810,11 +812,23 @@ final class AppState {
     /// open their section the way the hotkey opens it (Always Hidden with
     /// Hidden, as the Always Hidden shortcut does). Its own reason, so a
     /// panel setting never swallows the reveal.
-    func showItemInBar(_ id: ItemID) {
+    func showItemInBar(_ id: ItemID, passWaited: Bool = false) {
         let key = id.sectionKey
         let section = settings.sectionModel.section(of: key)
         guard section != .visible else {
             PelmetLog.log("press: show \(key.rawValue) — already in the visible section")
+            return
+        }
+        // A picture pass has the bar revealed under its cover, so an extra
+        // reads as already out and the pick would be dropped: it waits, as
+        // a press does (`openItemMenu`).
+        if !passWaited, transitions.passInFlight {
+            transitions.passWaiterArrived()
+            PelmetLog.log("press: show \(key.rawValue) — waits for the picture pass")
+            Task {
+                await transitions.awaitPicturePass()
+                showItemInBar(id, passWaited: true)
+            }
             return
         }
         // An Apply pass owns the bar's frames; the section reveal queues
@@ -926,6 +940,46 @@ final class AppState {
         }
     }
 
+    /// Icons Show in Menu Bar has out that left the bar by themselves: their
+    /// app quit, or an extra's own rule ended (media stopped). When that was
+    /// all of it, the empty reveal ends through the normal icon conceal, or
+    /// hover would stay dead and the pointer on the bar would hold nothing
+    /// open. Otherwise the rest stays out and the gone ones are let go.
+    private func itemsLeftBar(_ keys: Set<ItemID>) {
+        let gone = itemsInBar.filter { held in keys.contains { $0.sectionKey == held.sectionKey } }
+        guard !gone.isEmpty else { return }
+        PelmetLog.log("press: show — \(gone.map(\.rawValue).sorted()) left the bar by themselves")
+        let onlyIcons: Bool
+        switch rehide.state {
+        case .revealed(let sections, _): onlyIcons = sections.isEmpty
+        case .transitioning(target: .reveal(let sections, _), queued: nil): onlyIcons = sections.isEmpty
+        default: onlyIcons = false
+        }
+        if gone.count == itemsInBar.count, onlyIcons {
+            // The conceal takes the set, gone ones included, and releases it.
+            dispatch(rehide.handle(.concealRequested))
+            return
+        }
+        itemsInBar.subtract(gone)
+        let ends = itemsInBar.isEmpty
+        let theirs = gone.filter { !isOwnExtra($0) }
+        Task {
+            // The engine still lists the app's icon as brought out.
+            if !theirs.isEmpty { await engine.conceal(items: Set(theirs)) }
+            if ends { transitions.pressEnded() }
+        }
+    }
+
+    /// The extras manager: these extras went out of the bar on their own.
+    func ownItemsLeftBar(_ keys: Set<ItemID>) { itemsLeftBar(keys) }
+
+    /// Apps that quit (running-applications KVO): their icons are gone.
+    private func appsQuit(_ bundles: Set<String>) {
+        guard !itemsInBar.isEmpty else { return }
+        let gone = itemsInBar.filter { !isOwnExtra($0) && $0.bundleID.map(bundles.contains) == true }
+        if !gone.isEmpty { itemsLeftBar(Set(gone)) }
+    }
+
     // MARK: - Pelmet's own extras
 
     /// What a press on one of Pelmet's own extras needs first; nil when the
@@ -941,6 +995,7 @@ final class AppState {
     func isOwnExtra(_ key: ItemID) -> Bool { extras?.manages(key) ?? false }
     func showExtrasAlone(_ keys: Set<ItemID>) { extras?.showAlone(keys) }
     func releaseExtrasAlone(_ keys: Set<ItemID>) { extras?.releaseAlone(keys) }
+    func forgetExtrasAlone(_ keys: Set<ItemID>) { extras?.forgetAlone(keys) }
 
     /// False for one of Pelmet's own extras its section would not bring out
     /// (media controls with nothing playing); true for anything else.

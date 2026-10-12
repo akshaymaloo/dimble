@@ -335,6 +335,50 @@ import Testing
         #expect(machine.state == .transitioning(target: .reveal([.hidden], .click), queued: .conceal))
     }
 
+    /// Two presses while the icon is still coming out: the first queues the
+    /// section, the second heads for it and queues the conceal, so they
+    /// cancel out as they do on a settled bar.
+    @Test func secondToggleDuringAnItemAloneRevealQueuesTheConceal() {
+        var machine = RehideStateMachine(policy: .init(autoRehide: true, delay: 5))
+        _ = machine.handle(.revealRequested([], .itemInBar), now: now)
+        _ = machine.handle(.toggleRequested([.hidden], .hotkey), now: now)
+        #expect(machine.handle(.toggleRequested([.hidden], .hotkey), now: now) == [.none])
+        #expect(machine.state == .transitioning(target: .reveal([], .itemInBar), queued: .conceal))
+        // A third press is the opposite of that conceal: the section again.
+        _ = machine.handle(.toggleRequested([.hidden], .hotkey), now: now)
+        #expect(machine.state == .transitioning(target: .reveal([], .itemInBar), queued: .reveal([.hidden], .hotkey)))
+        // Settled, the queued conceal takes the icon back with it.
+        _ = machine.handle(.toggleRequested([.hidden], .hotkey), now: now)
+        #expect(machine.handle(.transitionSettled, now: now) == [.conceal])
+    }
+
+    /// An icon that left the bar by itself (its app quit, the media stopped)
+    /// ends the empty reveal. The conceal settles and a hover opens the
+    /// section again: nothing keeps the pointer's reveal dead.
+    @Test func hoverRevealsOnceTheItemAlonesConcealSettles() {
+        var machine = RehideStateMachine(policy: .init(autoRehide: true, delay: 5))
+        _ = machine.handle(.revealRequested([], .itemInBar), now: now)
+        _ = machine.handle(.transitionSettled, now: now)
+        #expect(machine.state == .revealed(sections: [], reason: .itemInBar))
+        #expect(machine.handle(.revealRequested([.hidden], .hover), now: now) == [.none])
+        #expect(machine.handle(.pointerReturned, now: now) == [.cancelTimer])
+        #expect(machine.handle(.concealRequested, now: now) == [.cancelTimer, .conceal])
+        #expect(machine.handle(.transitionSettled, now: now) == [.none])
+        #expect(machine.state == .concealed)
+        #expect(machine.handle(.revealRequested([.hidden], .hover), now: now) == [.reveal([.hidden])])
+    }
+
+    /// The same end for an icon reveal still on its way: the conceal waits
+    /// for it, and the hover after it works.
+    @Test func concealDuringAnItemAloneRevealEndsItAndHoverWorksAfter() {
+        var machine = RehideStateMachine(policy: .init(autoRehide: true, delay: 5))
+        _ = machine.handle(.revealRequested([], .itemInBar), now: now)
+        #expect(machine.handle(.concealRequested, now: now) == [.none])
+        #expect(machine.handle(.transitionSettled, now: now) == [.conceal])
+        #expect(machine.handle(.transitionSettled, now: now) == [.none])
+        #expect(machine.handle(.revealRequested([.hidden], .hover), now: now) == [.reveal([.hidden])])
+    }
+
     /// A configured delay still applies to a hotkey reveal.
     @Test func hotkeyRevealWithDelayArmsTheDelay() {
         var machine = RehideStateMachine(policy: .init(autoRehide: true, delay: 5))

@@ -205,8 +205,17 @@ final class ExtrasManager {
         applyCurrent()
     }
 
-    func releaseAlone(_ keys: Set<ItemID>) {
+    /// Only forgets them: whoever calls this has a swap of its own coming,
+    /// and the engine's companion hides the extras inside it with the rest.
+    /// Applying here ran every Hidden extra's ghost one converge early.
+    func forgetAlone(_ keys: Set<ItemID>) {
         for key in keys { specID(for: key).map { _ = shownAlone.remove($0) } }
+    }
+
+    /// Forgets them and hides them now, for a release with no swap behind it.
+    func releaseAlone(_ keys: Set<ItemID>) {
+        guard !keys.isEmpty else { return }
+        forgetAlone(keys)
         applyCurrent()
     }
 
@@ -503,6 +512,13 @@ final class ExtrasManager {
             setVisible(visible, for: id, item: item)
             // A hidden glyph keeps its last frame and stops ticking.
             animators[id]?.paused = !visible
+        }
+        // Brought out alone but out of the bar now (media stopped, the app
+        // quit, the Focus ended): nothing of it is left to hold the reveal.
+        let left = shownAlone.filter { specs[$0] != nil && lastVisible[$0] != true && !attachedForApply.contains($0) }
+        if !left.isEmpty {
+            shownAlone.subtract(left)
+            appState?.ownItemsLeftBar(Set(left.compactMap { specs[$0].map { Self.itemID(for: $0).sectionKey } }))
         }
     }
 

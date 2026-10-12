@@ -195,15 +195,19 @@ public struct RehideStateMachine: Equatable, Sendable {
             state = .transitioning(target: target, queued: .reveal(sections, reason))
             return [.none]
 
-        case (.transitioning(let target, _), .toggleRequested(let sections, let reason)):
+        case (.transitioning(let target, let alreadyQueued), .toggleRequested(let sections, let reason)):
             // A toggle means "the opposite of where we're heading" — clicking
             // the chevron during a hover-triggered reveal must queue a conceal,
             // not reinforce the reveal (which reads as a dead click).
             // Except over icons coming out alone (Show in Menu Bar): no section
-            // is on its way, so the toggle opens one, as on a settled bar.
+            // is on its way, so the toggle opens one, as on a settled bar. A
+            // second toggle there heads for that section, so it queues the
+            // conceal: two presses cancel out, as on a settled bar.
             let queued: State.Target = {
                 if case .reveal(let inFlight, _) = target {
-                    return inFlight.isEmpty && !sections.isEmpty ? .reveal(sections, reason) : .conceal
+                    guard inFlight.isEmpty && !sections.isEmpty else { return .conceal }
+                    if case .reveal(let next, _)? = alreadyQueued, !next.isEmpty { return .conceal }
+                    return .reveal(sections, reason)
                 }
                 return .reveal(sections, reason)
             }()
