@@ -66,6 +66,12 @@ enum ItemNaming {
         if let name = usable(appName) ?? id.bundleID.flatMap(appName(forBundle:)) {
             return name
         }
+        // A helper named after its bundle id (Fantastical's
+        // "85C27NK92C.com.flexibits.fantastical2.mac.helper", #81): the app
+        // it ships inside.
+        if let bundle = id.bundleID, let shipping = shippingAppName(for: bundle) {
+            return shipping
+        }
         return id.bundleID?.components(separatedBy: ".").last ?? "?"
     }
 
@@ -86,10 +92,12 @@ enum ItemNaming {
 
     private static var appNames: [String: String] = [:]
 
-    /// A name that says something: not empty, not the agent's "Item-N".
+    /// A name that says something: not empty, not the agent's "Item-N", not
+    /// a bundle id standing in for one (no spaces, two dots or more).
     private static func usable(_ name: String?) -> String? {
         guard let name, !name.isEmpty else { return nil }
         if name.hasPrefix("Item-"), Int(name.dropFirst("Item-".count)) != nil { return nil }
+        if !name.contains(where: \.isWhitespace), name.filter({ $0 == "." }).count >= 2 { return nil }
         return name
     }
 
@@ -101,7 +109,10 @@ enum ItemNaming {
     private static func shippingAppName(for bundle: String) -> String? {
         if let cached = shippingAppNames[bundle] { return cached }
         var name: String?
-        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle) {
+        // The running copy first: a third-party helper LaunchServices may not
+        // have registered is still on the bar.
+        if let url = NSRunningApplication.runningApplications(withBundleIdentifier: bundle).first?.bundleURL
+            ?? NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle) {
             let parts = url.pathComponents
             // <App>.app / Contents / Library / LoginItems / <Extra>.app
             if parts.count >= 5, parts[parts.count - 2] == "LoginItems", parts[parts.count - 3] == "Library",
