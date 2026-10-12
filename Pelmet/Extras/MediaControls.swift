@@ -163,11 +163,59 @@ final class ExtrasManager {
         }
     }
 
+    /// Extras Show in Menu Bar brought out on their own: each rides its rule
+    /// as if its section were out, until `releaseAlone`. They hide by their
+    /// own visibility, not the assertion, so the engine's item reveal can't
+    /// bring them (AppState.itemsInBar holds the set the rehide machine ends).
+    private var shownAlone: Set<UUID> = []
+
+    enum AloneOutcome {
+        /// It can come out on its own.
+        case ready
+        /// It is in the bar already.
+        case showing
+        /// Its own rule keeps it out whatever its section does (media with
+        /// nothing playing, a launcher whose app is not running, a Focus
+        /// that is off): there is nothing to bring out.
+        case gated
+    }
+
+    private func specID(for key: ItemID) -> UUID? {
+        specs.first { Self.itemID(for: $0.value).sectionKey == key.sectionKey }?.key
+    }
+
+    /// Whether this key is one of the extras; separators and the chevron are not.
+    func manages(_ key: ItemID) -> Bool { specID(for: key) != nil }
+
+    /// Nil for a key that is no extra.
+    func aloneOutcome(for key: ItemID) -> AloneOutcome? {
+        guard let id = specID(for: key), let spec = specs[id] else { return nil }
+        if lastVisible[id] == true { return .showing }
+        let live: Bool
+        switch spec.kind {
+        case .focus: live = focusStatus?.active != nil || spec.resolvedShowRule == .always
+        case .timeMachine: live = spec.resolvedShowRule != .whenActive || timeMachine?.status.running == true
+        default: live = wouldShow(key)
+        }
+        return live ? .ready : .gated
+    }
+
+    func showAlone(_ keys: Set<ItemID>) {
+        for key in keys { specID(for: key).map { _ = shownAlone.insert($0) } }
+        applyCurrent()
+    }
+
+    func releaseAlone(_ keys: Set<ItemID>) {
+        for key in keys { specID(for: key).map { _ = shownAlone.remove($0) } }
+        applyCurrent()
+    }
+
     func sync(with newSpecs: [ExtraItemSpec]) {
         Self.iconCache.removeAll(keepingCapacity: true)
         let wanted = Set(newSpecs.map(\.id))
         for (id, item) in items where !wanted.contains(id) {
             NSStatusBar.system.removeStatusItem(item)
+            shownAlone.remove(id)
             items.removeValue(forKey: id)
             glyphKeys.removeValue(forKey: id)
             specs.removeValue(forKey: id)
@@ -300,7 +348,9 @@ final class ExtrasManager {
         for (id, item) in items {
             guard let spec = specs[id], !attachedForApply.contains(id) else { continue }
             let section = model.section(of: Self.itemID(for: spec))
-            var visible = section == .visible || revealed.contains(section)
+            // Shown on its own, the extra reads as if its section were out:
+            // its own rule below (media playing, app running) still decides.
+            var visible = section == .visible || revealed.contains(section) || shownAlone.contains(id)
             switch spec.kind {
             case .cameraMicIndicator:
                 // Pure indicator, like Apple's: exists ONLY while hardware is

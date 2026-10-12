@@ -802,11 +802,14 @@ final class AppState {
 
     /// Show an item in the bar without clicking it. The icon comes out alone,
     /// in its own spot, and goes back on the rules a section reveal follows
-    /// (the rehide machine's countdown, pointer and click elsewhere). Pelmet's
-    /// own items hide by their own visibility, so the engine can't bring one
-    /// out alone: their section opens the way the hotkey opens it (Always
-    /// Hidden with Hidden, as the Always Hidden shortcut does). Its own
-    /// reason, so a panel setting never swallows the reveal.
+    /// (the rehide machine's countdown, pointer and click elsewhere). Apps and
+    /// system items come out through the engine's item reveal; Pelmet's own
+    /// extras through the extras manager, which hides them by their own
+    /// visibility (an extra whose own rule keeps it out of the bar, such as
+    /// media with nothing playing, is left alone). Separators and the chevron
+    /// open their section the way the hotkey opens it (Always Hidden with
+    /// Hidden, as the Always Hidden shortcut does). Its own reason, so a
+    /// panel setting never swallows the reveal.
     func showItemInBar(_ id: ItemID) {
         let key = id.sectionKey
         let section = settings.sectionModel.section(of: key)
@@ -816,9 +819,24 @@ final class AppState {
         }
         // An Apply pass owns the bar's frames; the section reveal queues
         // behind it as it always did.
-        if MenuBarPolicy.canRevealAlone(key), !applying {
-            bringItemOut(key, section: section, waited: false)
-            return
+        if !applying {
+            if MenuBarPolicy.canRevealAlone(key) {
+                bringItemOut(key, section: section, waited: false)
+                return
+            }
+            switch extras?.aloneOutcome(for: key) {
+            case .ready:
+                bringItemOut(key, section: section, waited: false)
+                return
+            case .showing:
+                PelmetLog.log("press: show \(key.rawValue) — already out")
+                return
+            case .gated:
+                PelmetLog.log("press: show \(key.rawValue) — its own rule keeps it out of the bar, nothing to bring out")
+                return
+            case nil:
+                break
+            }
         }
         let wanted: Set<PelmetCore.Section> = section == .alwaysHidden ? [.hidden, .alwaysHidden] : [.hidden]
         guard !wanted.isSubset(of: currentRevealedSections) else {
@@ -888,6 +906,12 @@ final class AppState {
     }
 
     func isOwnExtraShowing(_ key: ItemID) -> Bool { extras?.isShowing(key) ?? false }
+
+    /// One of the extras (Shortcuts, Siri, media, AirDrop…), not a separator
+    /// or the chevron. Show in Menu Bar brings these out through the manager.
+    func isOwnExtra(_ key: ItemID) -> Bool { extras?.manages(key) ?? false }
+    func showExtrasAlone(_ keys: Set<ItemID>) { extras?.showAlone(keys) }
+    func releaseExtrasAlone(_ keys: Set<ItemID>) { extras?.releaseAlone(keys) }
 
     /// False for one of Pelmet's own extras its section would not bring out
     /// (media controls with nothing playing); true for anything else.

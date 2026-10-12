@@ -115,6 +115,10 @@ enum AppTiming {
     /// 2026-09-11: placed within a frame of the attach; the lead only needs
     /// to clear that).
     static let ownItemAttachLead: Duration = .milliseconds(50)
+    /// How long the cover over a Show in Menu Bar conceal outlasts one of
+    /// Pelmet's own extras: its ghost fades over 0.22s and the width
+    /// collapses at 0.26s (StatusItemFader).
+    static let ownItemFadeHold: Duration = .milliseconds(300)
     /// Minimum time the empty-bar cover stays over a conceal: the agent's
     /// own fade of the concealed items runs ~300ms past the swap.
     static let exitCoverHold: TimeInterval = 0.42
