@@ -129,6 +129,11 @@ final class PanelPresenter: RevealPresenter {
     private var measurer: NSHostingController<PanelView>?
     /// The measuring pass has no drag to show, and must not watch the live one.
     private let idleDrag = PanelDragState()
+    /// A redraw for the place a drag now aims at is queued (`reshuffle`).
+    private var reshuffleTask: Task<Void, Never>?
+    /// Tiles ease into their places until then: while a drag makes room, and
+    /// a moment after it ends, as a cancelled one returns.
+    private var easeUntil: CFTimeInterval = 0
 
     init(appState: AppState) {
         self.appState = appState
@@ -640,11 +645,19 @@ final class PanelPresenter: RevealPresenter {
         let rowWidth = screen.map {
             min($0.frame.width - 2 * GlassPanel.edgeMargin, Self.debugCap) - 2 * PanelMetrics.row.padding
         }
+        let aimed = tileDrag.flatMap { drag in drag.slot.map { (tile: drag.tile, slot: $0) } }
         let (built, missing, model) = buildContent(
             appState, layout: appState.revealTarget.panelLayout ?? .panel, query: query, selected: selected,
-            foldOpen: foldOpen, alwaysRequested: sections.contains(.alwaysHidden), maxRowWidth: rowWidth)
+            foldOpen: foldOpen, alwaysRequested: sections.contains(.alwaysHidden), maxRowWidth: rowWidth, aimed: aimed)
         var content = built
         lastModel = model
+        // What this draw shows of the drag; its frames are not final until the
+        // tiles have eased there.
+        if let drag = tileDrag {
+            drag.shownSlot = drag.slot
+            drag.settledAt = CACurrentMediaTime() + Self.makeRoomSettle
+        }
+        content.animatesTiles = (tileDrag != nil || CACurrentMediaTime() < easeUntil) && !Self.reduceMotion
         if selectBest {
             selectBest = false
             selected = query.isEmpty ? nil : model.bestMatch
@@ -789,12 +802,21 @@ final class PanelPresenter: RevealPresenter {
 
     /// What `refresh` and the preview draw: no state of the presenter's
     /// changes. A selection the filter or fold took away comes back nil.
+    ///
+    /// `aimed`: a tile in the air and the slot it is over. The sections are
+    /// drawn as they would be with it dropped there, so the other tiles make
+    /// room; the model returned is the one without it.
     private func buildContent(_ appState: AppState, layout: PanelGrid.Layout, query: String, selected: PanelTile?,
-                              foldOpen: Bool, alwaysRequested: Bool, maxRowWidth: CGFloat? = nil)
+                              foldOpen: Bool, alwaysRequested: Bool, maxRowWidth: CGFloat? = nil,
+                              aimed: (tile: PanelTile, slot: PanelSlot)? = nil)
         -> (content: PanelContent, missing: [ItemID], model: PanelModel)
     {
         let options = appState.settings.panel
-        let (model, items) = buildModel(appState, query: query, alwaysRequested: alwaysRequested)
+        let (base, items) = buildModel(appState, query: query, alwaysRequested: alwaysRequested)
+        // Each section is a grid of its own in the panel: the tile keeps its
+        // dimmed place in the one it came from, so that one doesn't reflow
+        // under the pointer. The row is one grid, where it only moves.
+        let model = aimed.map { base.moving($0.tile, to: $0.slot, keepingOrigin: layout == .panel) } ?? base
 
         // What is on screen, in stacking order. A folded Always Hidden draws
         // its fold only; the row layout has no fold, so it leaves it out.
@@ -849,7 +871,8 @@ final class PanelPresenter: RevealPresenter {
                 kind: entry.section.kind,
                 grid: PanelGrid(tiles: entry.section.tiles, columns: columns, layout: layout,
                                 showsNames: options.showsNames, minimumColumns: minimum, maxWidth: maxRowWidth),
-                count: entry.section.count,
+                // The tile in the air is not one more behind the fold.
+                count: layout == .panel ? base.section(entry.section.kind)?.count ?? entry.section.count : entry.section.count,
                 showsHeader: layout == .panel && (entry.section.kind == .didntFit || (entry.section.kind == .hidden && didntFitShown)),
                 foldable: layout == .panel && entry.section.kind == .alwaysHidden,
                 isFolded: entry.folded,
@@ -888,7 +911,7 @@ final class PanelPresenter: RevealPresenter {
             }
         }
         content.selected = selected.flatMap { content.art[$0] == nil && $0 != .fold ? nil : $0 }
-        return (content, missing, model)
+        return (content, missing, base)
     }
 
     /// Read once: the preview rebuilds on every bar read and drag step.
@@ -936,7 +959,8 @@ final class PanelPresenter: RevealPresenter {
     // MARK: - Tile drag
 
     /// A tile in the air, from the first 4pt of travel until it lands or goes
-    /// back (docs/PANEL-PLAN.md D1: between sections only).
+    /// back (docs/PANEL-PLAN.md D1: between sections, and in them since
+    /// 2026-10-12).
     private final class TileDrag {
         let tile: PanelTile
         let key: ItemID
@@ -949,6 +973,16 @@ final class PanelPresenter: RevealPresenter {
         let home: CGPoint
         /// What a drop here would do; `.none` for nothing and for `origin`.
         var hit: PanelDropZones.Hit = .none
+        /// The place in a section it is over: the tiles there make room.
+        var slot: PanelSlot?
+        /// The slot the panel on screen was drawn with, which the tiles'
+        /// frames are read against.
+        var shownSlot: PanelSlot?
+        /// The tiles are still easing before this: the frames are not final.
+        var settledAt: CFTimeInterval = 0
+        /// The gap on the bar it is over, which a line marks.
+        var barGap: PanelBarGap?
+        var line: PanelInsertionLine?
         let started = CACurrentMediaTime()
 
         init(tile: PanelTile, key: ItemID, origin: PelmetCore.Section, ghost: PanelDragGhost, grab: CGSize, home: CGPoint) {
@@ -963,6 +997,9 @@ final class PanelPresenter: RevealPresenter {
 
     /// The fold springs open after this long over it (the mock's 600ms).
     private static let springDelay: Duration = .milliseconds(600)
+    /// After a redraw for the tile in the air, the pointer is not read against
+    /// the new frames for this long: SwiftUI reports them a beat later.
+    private static let makeRoomSettle: CFTimeInterval = 0.04
 
     /// From a tile's gesture. Only the start and the end come from here; the
     /// pointer is read on screen, on the gesture's moves and on a timer, so a
@@ -1070,17 +1107,117 @@ final class PanelPresenter: RevealPresenter {
         }
         let pointer = NSEvent.mouseLocation
         drag.ghost.move(toCenter: CGPoint(x: pointer.x - drag.grab.width, y: pointer.y - drag.grab.height))
-        let hit = target(at: pointer, for: drag)
+        let over = dropZones()?.hit(at: pointer) ?? .none
+        // The tile's own section lights nothing: that is no move.
+        let hit = over.section == drag.origin ? PanelDropZones.Hit.none : over
         if hit != drag.hit {
             drag.hit = hit
             targetChanged(to: hit)
         }
+        aim(drag, over: over, at: pointer)
     }
 
-    /// The drop at `point`, less the tile's own section: that is no move.
-    private func target(at point: CGPoint, for drag: TileDrag) -> PanelDropZones.Hit {
-        let hit = dropZones()?.hit(at: point) ?? .none
-        return hit.section == drag.origin ? .none : hit
+    // MARK: - Aim
+
+    /// Where in what it is over the tile would land. Over Hidden or Always
+    /// Hidden, its own section included, a slot among the tiles, shown by the
+    /// others making room; over the bar, a gap between two icons, shown by a
+    /// line. Elsewhere nothing, and the panel is as it was.
+    private func aim(_ drag: TileDrag, over: PanelDropZones.Hit, at pointer: CGPoint) {
+        let gap = over == .section(.visible) && drag.origin != .visible ? barGap(at: pointer, for: drag) : nil
+        if gap != drag.barGap {
+            drag.barGap = gap
+            if let gap, let screen = window?.screen ?? NSScreen.main {
+                let line = drag.line ?? PanelInsertionLine(appearance: window?.appearance)
+                drag.line = line
+                line.show(at: gap.x, over: Self.barBand(of: screen))
+                PelmetLog.log("panel: drag bar gap x=\(Int(gap.x)) before=\(gap.before?.rawValue ?? "end")")
+            } else {
+                drag.line?.hide()
+                PelmetLog.log("panel: drag bar gap none")
+            }
+        }
+        // The frames belong to the last draw: wait out a redraw under way and
+        // the tiles' easing.
+        guard reshuffleTask == nil, CACurrentMediaTime() >= drag.settledAt else { return }
+        let proposed = slotUnder(pointer, over: over, for: drag)
+        // Its own place again is the panel as it was: no slot to draw.
+        let slot = proposed.flatMap { lastModel?.changes(drag.tile, at: $0) == true ? $0 : nil }
+        if slot != drag.slot {
+            drag.slot = slot
+            if let slot, let base = lastModel,
+               let tiles = base.moving(drag.tile, to: slot, keepingOrigin: true).section(slot.kind)?.tiles {
+                let next = PanelReorder.neighbour(of: drag.tile, in: tiles)
+                PelmetLog.log("panel: drag slot \(slot.kind.rawValue) \(slot.index)/\(tiles.count) "
+                    + "before=\(next.item?.rawValue ?? "end")\(next.afterBreak ? " (after a break)" : "")")
+            } else {
+                PelmetLog.log(proposed == nil ? "panel: drag slot none" : "panel: drag slot home")
+            }
+            reshuffle()
+        }
+    }
+
+    /// The slot in Hidden or Always Hidden under `pointer`, read against the
+    /// tiles as the last draw put them.
+    private func slotUnder(_ pointer: CGPoint, over: PanelDropZones.Hit, for drag: TileDrag) -> PanelSlot? {
+        let kind: PanelSection.Kind
+        switch over {
+        case .section(.hidden): kind = .hidden
+        case .section(.alwaysHidden): kind = .alwaysHidden
+        // The fold is a drop of its own; no slot in what it hides.
+        default: return nil
+        }
+        guard let base = lastModel, let content = lastContent else { return nil }
+        let panel = content.layout == .panel
+        let shown = drag.shownSlot.map { base.moving(drag.tile, to: $0, keepingOrigin: panel) } ?? base
+        // The row is one grid, laid out from its first block.
+        let block = panel ? content.blocks.first { $0.kind == kind && !$0.isFolded } : content.blocks.first
+        guard let tiles = shown.section(kind)?.tiles, let block, let grid = screenFrame(of: .grid(block.kind)) else { return nil }
+        var frames: [PanelTile: CGRect] = [:]
+        for placement in block.grid.rows.joined() where tiles.contains(placement.tile) {
+            let cell = placement.frame
+            frames[placement.tile] = CGRect(x: grid.minX + cell.minX, y: grid.maxY - cell.maxY, width: cell.width, height: cell.height)
+        }
+        return PanelReorder.index(at: pointer, tiles: tiles, frames: frames, dragged: drag.tile)
+            .map { PanelSlot(kind: kind, index: $0) }
+    }
+
+    /// Draws the panel again for the slot the drag now aims at. Queued, not
+    /// run from the gesture's own callback.
+    private func reshuffle() {
+        guard reshuffleTask == nil else { return }
+        reshuffleTask = Task { @MainActor [weak self] in
+            guard let self, !Task.isCancelled else { return }
+            self.reshuffleTask = nil
+            if self.isOpen { self.refresh() }
+        }
+    }
+
+    /// The gap between Visible icons nearest `pointer`, from the last walk:
+    /// the icons on the panel's display, the chevron's edge counting as one.
+    private func barGap(at pointer: CGPoint, for drag: TileDrag) -> PanelBarGap? {
+        guard let appState, let snapshot = appState.snapshot, let screen = window?.screen ?? NSScreen.main,
+              let id = screen.displayID else { return nil }
+        // AX frames: top-left origin, in the display's own bounds.
+        let display = CGDisplayBounds(id)
+        let behindOverflow = Set(appState.overflowTrappedItems.map(\.sectionKey))
+        let model = appState.settings.sectionModel
+        var edge: CGFloat?
+        var icons: [PanelBarGap.Icon] = []
+        var seen: Set<ItemID> = [drag.key.sectionKey]
+        for item in snapshot.items {
+            guard let frame = item.frame, MenuBarGeometry.isInBand(frame, ofDisplay: display) else { continue }
+            if MenuBarPolicy.isChevronID(item.id, pelmetBundleID: PelmetBundle.mainID) {
+                edge = frame.maxX
+                continue
+            }
+            let key = item.id.sectionKey
+            guard model.section(of: key) == .visible, !behindOverflow.contains(key), seen.insert(key).inserted else { continue }
+            icons.append(PanelBarGap.Icon(id: key, minX: frame.minX, maxX: frame.maxX, movable: !appState.isImmovable(item.id)))
+        }
+        // Visible icons sit right of the chevron; one left of it is mid-move.
+        if let edge { icons.removeAll { ($0.minX + $0.maxX) / 2 < edge } }
+        return PanelBarGap.nearest(to: pointer.x, icons: icons, edge: edge)
     }
 
     private func targetChanged(to hit: PanelDropZones.Hit) {
@@ -1120,16 +1257,49 @@ final class PanelPresenter: RevealPresenter {
         finishDrag(cancel: true)
     }
 
-    /// The drop: a section other than the tile's own takes it; anywhere else
-    /// it goes back to where it was. `closing`: the panel is going, the ghost
-    /// only fades.
+    /// Where a drop goes: the section, and the icon it goes in front of (nil is
+    /// the end). `aimed`: at a place the drag showed; otherwise the plain move
+    /// for the section.
+    private struct Landing {
+        let section: PelmetCore.Section
+        let before: ItemID?
+        let aimed: Bool
+    }
+
+    /// The drop at `point`: what the drag showed under the pointer, else the
+    /// section it is over. Nothing for the tile's own section left as it was,
+    /// and for anywhere else: it goes back to where it was.
+    private func dropLanding(of drag: TileDrag, at point: CGPoint) -> Landing? {
+        guard let appState else { return nil }
+        switch dropZones()?.hit(at: point) ?? .none {
+        case .none:
+            return nil
+        case .fold:
+            return drag.origin == .alwaysHidden ? nil : Landing(section: .alwaysHidden, before: nil, aimed: false)
+        case .section(.visible):
+            guard drag.origin != .visible else { return nil }
+            return Landing(section: .visible, before: drag.barGap?.before, aimed: drag.barGap != nil)
+        case .section(let section):
+            let kind: PanelSection.Kind = section == .alwaysHidden ? .alwaysHidden : .hidden
+            if let slot = drag.slot, slot.kind == kind, let base = lastModel,
+               let tiles = base.moving(drag.tile, to: slot, keepingOrigin: true).section(kind)?.tiles {
+                let next = PanelReorder.neighbour(of: drag.tile, in: tiles)
+                return Landing(section: section, before: appState.dropAnchor(before: next, in: section, moving: drag.key), aimed: true)
+            }
+            return section == drag.origin ? nil : Landing(section: section, before: nil, aimed: false)
+        }
+    }
+
+    /// The drop: a place in a section takes it; anywhere else, or where it
+    /// came from, it goes back to where it was. `closing`: the panel is going,
+    /// the ghost only fades.
     private func finishDrag(cancel: Bool, closing: Bool = false) {
         guard let drag = tileDrag else { return }
-        var section = cancel ? nil : target(at: NSEvent.mouseLocation, for: drag).section
+        var landing = cancel ? nil : dropLanding(of: drag, at: NSEvent.mouseLocation)
         // `moveItem` ignores a drop during a pass: it goes back, it doesn't land.
-        if section != nil, appState?.applying == true {
+        if landing != nil, appState?.applying == true {
             PelmetLog.log("panel: drop of \(drag.key.rawValue) refused, a pass has the bar")
-            section = nil
+            landing = nil
         }
         tileDrag = nil
         dragTimer?.invalidate()
@@ -1138,6 +1308,11 @@ final class PanelPresenter: RevealPresenter {
         escMonitors = []
         springTask?.cancel()
         springTask = nil
+        reshuffleTask?.cancel()
+        reshuffleTask = nil
+        drag.line?.close()
+        // The tiles that made room go back, or settle, with the same ease.
+        easeUntil = CACurrentMediaTime() + 0.4
         withAnimation(.easeOut(duration: 0.15)) {
             dragState.tile = nil
             dragState.target = .none
@@ -1154,26 +1329,31 @@ final class PanelPresenter: RevealPresenter {
         // Let go past the edge, it holds until the pointer comes back (the
         // column grip does the same).
         awaitsPointer = true
-        if let section, let appState {
-            PelmetLog.log("panel: drop \(drag.key.rawValue) → \(section.rawValue)")
+        if let landing, let appState {
+            PelmetLog.log("panel: drop \(drag.key.rawValue) → \(landing.section.rawValue)"
+                + (landing.aimed ? " before=\(landing.before?.rawValue ?? "end")" : ""))
             drag.ghost.release()
-            appState.moveItemNow(drag.key, to: section)
+            if landing.aimed {
+                appState.moveItemNow(drag.key, to: landing.section, before: landing.before)
+            } else {
+                appState.moveItemNow(drag.key, to: landing.section)
+            }
             if isOpen { refresh() }
         } else {
             PelmetLog.log("panel: drag cancelled")
             let home = closing ? nil : window.map { CGPoint(x: $0.frame.minX + drag.home.x, y: $0.frame.maxY - drag.home.y) }
             drag.ghost.slideBack(toCenter: home, reduceMotion: Self.reduceMotion)
+            // What the tiles made room for is gone with the drag.
+            if !closing, isOpen, drag.shownSlot != nil { refresh() }
         }
     }
 
     /// What the pointer can drop on, in screen points: the glass, the bar's
     /// band, and the parts SwiftUI laid out.
     private func dropZones() -> PanelDropZones? {
-        guard let window, let hosting, let content = lastContent, let screen = window.screen ?? NSScreen.main else { return nil }
+        guard let window, let content = lastContent, let screen = window.screen ?? NSScreen.main else { return nil }
         var zones = PanelDropZones(bar: Self.barBand(of: screen), panel: window.glassScreenFrame)
-        func onScreen(_ key: PanelFrameKey) -> CGRect? {
-            frames[key].map { window.convertToScreen(hosting.convert($0, to: nil)) }
-        }
+        func onScreen(_ key: PanelFrameKey) -> CGRect? { screenFrame(of: key) }
         if content.layout == .row {
             // One grid; its tiles are placed from its corner (y runs down).
             if let block = content.blocks.first, let grid = onScreen(.grid(block.kind)) {
@@ -1199,6 +1379,12 @@ final class PanelPresenter: RevealPresenter {
             zones.alwaysHidden = onScreen(.grid(.alwaysHidden))
         }
         return zones
+    }
+
+    /// Where SwiftUI laid out `key`, in screen points.
+    private func screenFrame(of key: PanelFrameKey) -> CGRect? {
+        guard let window, let hosting else { return nil }
+        return frames[key].map { window.convertToScreen(hosting.convert($0, to: nil)) }
     }
 
     // MARK: - Bar drag

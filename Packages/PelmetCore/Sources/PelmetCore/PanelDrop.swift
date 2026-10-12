@@ -1,9 +1,12 @@
 // PanelDrop.swift
-// Where a tile dragged out of the panel would land (docs/PANEL-PLAN.md D1:
-// between sections only, no reorder). Pure geometry on screen points, y up
-// (Cocoa), so the drag follows the same rules as the tests: the menu bar
-// above is Visible, the panel's sections are Hidden and Always Hidden, the
-// Always Hidden fold counts as Always Hidden, and Didn't fit takes no drop.
+// Where a tile dragged out of the panel would land. Reorder in the panel is in
+// (Gab, 2026-10-12, reversing docs/PANEL-PLAN.md D1's "between sections
+// only"): this file says which section the pointer is over and which gap of the
+// bar, `PanelReorder` which place among a section's tiles. Pure geometry on
+// screen points, y up (Cocoa), so the drag follows the same rules as the
+// tests: the menu bar above is Visible, the panel's sections are Hidden and
+// Always Hidden, the Always Hidden fold counts as Always Hidden, and Didn't
+// fit takes no drop.
 
 import CoreGraphics
 import Foundation
@@ -112,5 +115,51 @@ public struct PanelDropZones: Equatable, Sendable {
     /// Edges count: a pointer pushed to the display's top row sits at maxY.
     private static func covers(_ rect: CGRect, _ point: CGPoint) -> Bool {
         point.x >= rect.minX && point.x <= rect.maxX && point.y >= rect.minY && point.y <= rect.maxY
+    }
+}
+
+/// Where on the bar a tile dropped on it would land: between two Visible
+/// icons, or at the chevron's edge. macOS can't open a gap in the real bar, so
+/// the panel draws a line at `x` instead.
+public struct PanelBarGap: Equatable, Sendable {
+    /// A Visible icon on the panel's display, in the pointer's x.
+    public struct Icon: Equatable, Sendable {
+        public var id: ItemID
+        public var minX: CGFloat
+        public var maxX: CGFloat
+        /// The clock and Control Center end the bar and stay there: nothing
+        /// is dropped after them.
+        public var movable: Bool
+
+        public init(id: ItemID, minX: CGFloat, maxX: CGFloat, movable: Bool) {
+            self.id = id
+            self.minX = minX
+            self.maxX = maxX
+            self.movable = movable
+        }
+    }
+
+    /// Where the line goes.
+    public var x: CGFloat
+    /// The Visible icon right of the gap, which the tile goes in front of;
+    /// nil past the last one.
+    public var before: ItemID?
+
+    public init(x: CGFloat, before: ItemID?) {
+        self.x = x
+        self.before = before
+    }
+
+    /// The gap nearest `x`. The chevron's edge (`edge`, its right side) is
+    /// one, left of the first icon; none past an icon that can't move.
+    public static func nearest(to x: CGFloat, icons: [Icon], edge: CGFloat?) -> PanelBarGap? {
+        let row = icons.sorted { $0.minX < $1.minX }
+        guard let first = row.first, let last = row.last else { return nil }
+        var gaps = [PanelBarGap(x: edge.map { (min($0, first.minX) + first.minX) / 2 } ?? first.minX, before: first.id)]
+        for (left, right) in zip(row, row.dropFirst()) where left.movable {
+            gaps.append(PanelBarGap(x: (left.maxX + right.minX) / 2, before: right.id))
+        }
+        if last.movable { gaps.append(PanelBarGap(x: last.maxX, before: nil)) }
+        return gaps.min { abs($0.x - x) < abs($1.x - x) }
     }
 }

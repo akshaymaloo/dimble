@@ -110,6 +110,9 @@ struct PanelContent {
     /// The tiles whose right-click menu offers "Move to…": the ones a drag
     /// picks up.
     var draggable: Set<PanelTile> = []
+    /// A tile drag makes room as it goes (and a moment after it ends): tiles
+    /// that change place ease there instead of jumping.
+    var animatesTiles = false
     /// Nothing is hidden, or nothing matches: the panel says so instead of
     /// showing nothing.
     var isEmpty: Bool { blocks.allSatisfy { $0.count == 0 } }
@@ -513,9 +516,17 @@ struct PanelView: View {
                     .allowsHitTesting(false)
             }
         }
+        // Keyed on the order, not the frames: a wider panel or a new column
+        // count reflows at once, only a tile that changed place eases.
+        .transaction(value: grid.rows.joined().map(\.tile)) { transaction in
+            if content.animatesTiles { transaction.animation = Self.makeRoom }
+        }
         .frame(width: grid.contentSize.width, height: grid.contentSize.height, alignment: .topLeading)
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(PanelHost.space)) } action: { onFrame(.grid(block.kind), $0) }
     }
+
+    /// The tiles making room for the one in the air.
+    static let makeRoom = Animation.easeOut(duration: 0.18)
 
     /// The row's group of `section`, a rounded strip behind its tiles per
     /// line.

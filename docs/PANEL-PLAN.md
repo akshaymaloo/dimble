@@ -524,8 +524,16 @@ Rough total: 13–16 sessions.
 
 ## 9. Decisions (Gab, 2026-10-09)
 
-- **D1 Reorder in the panel.** v1 moves between sections only (instant).
-  Reorder stays in Settings › Menu Bar with Apply.
+- **D1 Reorder in the panel.** In (Gab, 2026-10-12), reversing the first call
+  ("between sections only"). A tile dragged over Hidden or Always Hidden aims
+  at a slot: it takes the place of the tile under the pointer and the others
+  ease into the room (same in the Row; in the panel layout a dimmed copy holds
+  its place in the section it came from, so that one doesn't reflow). Dragged
+  up onto the bar it lands in the gap a thin line marks between two Visible
+  icons. A drop files the move with a place (`moveItemNow(_:to:before:)`) and
+  applies it; one that changes nothing is a cancel. Rules: `PanelReorder`,
+  `PanelBarGap` (PelmetCore); the line is `PanelInsertionLine`. Settings › Menu
+  Bar keeps its own reorder.
 - **D2 Pictures.** Picture pass when the panel opens with tiles missing
   pictures (needs Screen Recording; the dot shows briefly), app icons until it
   lands.

@@ -117,3 +117,54 @@ import Testing
         #expect(PanelDropZones.Hit.fold.section == .alwaysHidden)
     }
 }
+
+@Suite struct PanelBarGapTests {
+    private func icon(_ name: String, _ minX: CGFloat, _ maxX: CGFloat, movable: Bool = true) -> PanelBarGap.Icon {
+        PanelBarGap.Icon(id: .bundleKey(name), minX: minX, maxX: maxX, movable: movable)
+    }
+
+    // Left to right: the chevron ends at 100; a, b, c follow.
+    private let icons = [
+        PanelBarGap.Icon(id: .bundleKey("a"), minX: 110, maxX: 140, movable: true),
+        PanelBarGap.Icon(id: .bundleKey("b"), minX: 144, maxX: 180, movable: true),
+        PanelBarGap.Icon(id: .bundleKey("c"), minX: 184, maxX: 220, movable: true),
+    ]
+
+    @Test func theNearestGapBetweenTwoIcons() {
+        let gap = PanelBarGap.nearest(to: 150, icons: icons, edge: 100)
+        #expect(gap == PanelBarGap(x: 142, before: .bundleKey("b")))
+        #expect(PanelBarGap.nearest(to: 190, icons: icons, edge: 100)?.before == .bundleKey("c"))
+    }
+
+    @Test func theChevronsEdgeIsAGap() {
+        let gap = PanelBarGap.nearest(to: 20, icons: icons, edge: 100)
+        #expect(gap?.before == .bundleKey("a"))
+        // Halfway between the chevron and the first icon.
+        #expect(gap?.x == 105)
+        // No chevron frame (an iconless bar): the first icon's own edge.
+        #expect(PanelBarGap.nearest(to: 20, icons: icons, edge: nil)?.x == 110)
+    }
+
+    @Test func pastTheLastIconIsTheEnd() {
+        let gap = PanelBarGap.nearest(to: 400, icons: icons, edge: 100)
+        #expect(gap == PanelBarGap(x: 220, before: nil))
+    }
+
+    @Test func nothingIsDroppedAfterAPinnedIcon() {
+        let row = icons + [icon("clock", 224, 260, movable: false), icon("cc", 264, 300, movable: false)]
+        // In front of the clock is fine; between it and Control Center, or
+        // past the pinned pair, is not: the nearest gap is the one in front.
+        #expect(PanelBarGap.nearest(to: 222, icons: row, edge: 100)?.before == .bundleKey("clock"))
+        #expect(PanelBarGap.nearest(to: 262, icons: row, edge: 100)?.before == .bundleKey("clock"))
+        #expect(PanelBarGap.nearest(to: 500, icons: row, edge: 100)?.before == .bundleKey("clock"))
+    }
+
+    @Test func noIconsNoGap() {
+        #expect(PanelBarGap.nearest(to: 100, icons: [], edge: 90) == nil)
+    }
+
+    @Test func theIconsNeedNoOrder() {
+        let gap = PanelBarGap.nearest(to: 150, icons: icons.reversed(), edge: 100)
+        #expect(gap?.before == .bundleKey("b"))
+    }
+}

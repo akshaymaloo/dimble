@@ -1732,14 +1732,52 @@ final class AppState {
     /// new section and applied at once. Edits the editor already holds stay
     /// the person's to apply: then the move only joins them.
     func moveItemNow(_ id: ItemID, to section: PelmetCore.Section) {
-        let othersPending = applyPending
         let before = section == .visible ? editorItems(in: .visible).first { $0.id != id }?.id : nil
+        moveItemNow(id, to: section, before: before)
+    }
+
+    /// The same move with a place in its section: in front of `before` (nil is
+    /// the end, nearest the chevron for Hidden and Always Hidden). A drop from
+    /// the panel lands where it was aimed (reorder in the panel, 2026-10-12).
+    func moveItemNow(_ id: ItemID, to section: PelmetCore.Section, before: ItemID?) {
+        let othersPending = applyPending
+        let accepted = !applying
         moveItem(id, to: section, before: before)
+        if accepted { notePanelOrder(of: id, in: section) }
         guard !othersPending else {
             PelmetLog.log("editor: move of \(id.rawValue) joins pending edits, not applied")
             return
         }
         applyOrderEdits()
+    }
+
+    /// The panel draws a section in the order the bar had at the last reveal
+    /// (`lastDrawnOrder`). A move filed from it would show at the end until
+    /// the next reveal reads the bar again, so the order just drawn is kept
+    /// ahead of the Apply that lays it down.
+    private func notePanelOrder(of id: ItemID, in section: PelmetCore.Section) {
+        let key = id.sectionKey
+        for drawn in lastDrawnOrder.keys { lastDrawnOrder[drawn]?.removeAll { $0 == key } }
+        if section != .visible, let order = settings.sectionModel.order[section] { lastDrawnOrder[section] = order }
+    }
+
+    /// The icon a tile dropped in front of `neighbour` is filed before. A
+    /// break between them is a separator, and the tile goes in front of it:
+    /// the first of the run of separators before the neighbour (the order,
+    /// less the tile itself, may hold several where the panel draws one).
+    func dropAnchor(before neighbour: PanelNeighbour, in section: PelmetCore.Section, moving id: ItemID) -> ItemID? {
+        guard let item = neighbour.item else { return nil }
+        guard neighbour.afterBreak else { return item }
+        let key = id.sectionKey
+        let order = (settings.orderEdits.order[section] ?? barBasedOrder(in: section, model: settings.sectionModel))
+            .filter { $0 != key }
+        guard var index = order.firstIndex(of: item.sectionKey) else { return item }
+        var anchor = item
+        while index > 0, order[index - 1].isPelmetSeparator {
+            index -= 1
+            anchor = order[index]
+        }
+        return anchor
     }
 
     /// A ⌘-drag from the bar let go on the open panel (`BarDragRedirect`):

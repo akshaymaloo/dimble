@@ -1,9 +1,9 @@
 // PanelDragGhost.swift
-// The tile in the air while it is dragged between sections (docs/PANEL-PLAN.md
-// D1): its well and glyph at 1.08 scale on a small glass of their own, under
-// the pointer. A window apart from the panel, above the menu bar's level, so it
-// can travel up over the bar to drop on it. It takes no mouse events and
-// carries no pasteboard: nothing else can accept the drop.
+// The tile in the air while it is dragged, between sections or within one
+// (docs/PANEL-PLAN.md D1): its well and glyph at 1.08 scale on a small glass of
+// their own, under the pointer. A window apart from the panel, above the menu
+// bar's level, so it can travel up over the bar to drop on it. It takes no
+// mouse events and carries no pasteboard: nothing else can accept the drop.
 
 import AppKit
 import PelmetCore
