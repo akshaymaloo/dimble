@@ -66,4 +66,14 @@ struct ShowRuleSettingsTests {
         // Not being in the bar outranks where the model filed it.
         #expect(ShowRuleAvailability(inMenuBar: false, section: .visible) == .notInMenuBar)
     }
+
+    // The card lists these three; launchers keep their own rule on their row.
+    @Test func onlyActivityDrivenItemsShowWhenItMatters() {
+        let listed = ExtraKind.allCases.filter(\.showsWhenItMatters)
+        #expect(Set(listed) == [.mediaControls, .focus, .timeMachine])
+        // Media's rule starts on, Focus's and Time Machine's off.
+        #expect(ExtraKind.mediaControls.defaultShowRule == .whenActive)
+        #expect(ExtraKind.focus.defaultShowRule == .always)
+        #expect(ExtraKind.timeMachine.defaultShowRule == .always)
+    }
 }

@@ -190,7 +190,11 @@ final class ExtrasManager {
     /// Nil for a key that is no extra.
     func aloneOutcome(for key: ItemID) -> AloneOutcome? {
         guard let id = specID(for: key), let spec = specs[id] else { return nil }
-        if lastVisible[id] == true { return .showing }
+        if lastVisible[id] == true {
+            // Out on its show rule while its section is concealed: the press
+            // still takes it, so it stays when the rule ends.
+            return outOnItsRuleAlone(id, spec) ? .ready : .showing
+        }
         let live: Bool
         switch spec.kind {
         case .focus: live = focusStatus?.active != nil || spec.resolvedShowRule == .always
@@ -198,6 +202,13 @@ final class ExtrasManager {
         default: live = wouldShow(key)
         }
         return live ? .ready : .gated
+    }
+
+    private func outOnItsRuleAlone(_ id: UUID, _ spec: ExtraItemSpec) -> Bool {
+        guard spec.kind.showsWhenItMatters, spec.resolvedShowRule == .whenActive,
+              !shownAlone.contains(id), let appState else { return false }
+        let section = appState.settings.sectionModel.section(of: Self.itemID(for: spec))
+        return section != .visible && !appState.revealedSectionsForExtras.contains(section)
     }
 
     func showAlone(_ keys: Set<ItemID>) {
@@ -400,21 +411,11 @@ final class ExtrasManager {
                 }
                 updateMediaSymbol(item, spec: spec)
                 // "Always": a play/pause button that rides its section like
-                // AirDrop. "When active": section-governed AND
-                // media-relevant — playing, or within the post-playback
-                // linger so pause doesn't swallow resume.
+                // AirDrop. "When active": media-relevant — playing, or within
+                // the post-playback linger so pause doesn't swallow resume —
+                // in whatever section it sits.
                 if spec.resolvedShowRule == .whenActive {
-                    visible = visible && (cameraMicMonitor?.mediaRelevant ?? true)
-                    // Same re-entry hazard as the camera pill: audio
-                    // starting (or the linger expiring and resuming) puts
-                    // the item back in layout at the agent's slot, not the
-                    // model's.
-                    let itemID = Self.itemID(for: spec)
-                    if visible, lastVisible[id] != true {
-                        appState?.placeOwnItemSoon(itemID)
-                    } else if !visible, lastVisible[id] == true {
-                        appState?.cancelOwnItemPlacement(itemID)
-                    }
+                    visible = ruleVisibility(id, spec, active: cameraMicMonitor?.mediaRelevant ?? true, sectionVisible: visible)
                 }
             case .appLauncher:
                 // "While running" mirrors the app's own icon; "Always" is a
@@ -466,51 +467,21 @@ final class ExtrasManager {
             case .timeMachine:
                 updateTimeMachineGlyph(item, spec: spec)
                 let running = timeMachine?.status.running ?? false
-                // "When active": only while a backup runs, the running edge
-                // placed like a while-running launcher.
+                // "When active": on the bar while a backup runs, in whatever
+                // section it sits.
                 if spec.resolvedShowRule == .whenActive {
-                    let sectionVisible = visible
-                    visible = visible && running
-                    let itemID = Self.itemID(for: spec)
-                    if running, !lastBackupRunning {
-                        if sectionVisible {
-                            appState?.placeOwnItemSoon(itemID)
-                        } else {
-                            appState?.placeOwnItemAtNextReveal(itemID)
-                        }
-                    } else if !running, lastBackupRunning {
-                        appState?.cancelOwnItemPlacement(itemID)
-                    }
-                }
-                // #86: a backup in progress shows it whatever its section,
-                // like a Focus that is on.
-                if running, ShowRules.Rule.backingUp.isOn { visible = true }
-                if running != lastBackupRunning, ShowRules.Rule.backingUp.isOn {
-                    PelmetLog.log("rule: \(running ? "backup running, Time Machine shows" : "backup done, Time Machine follows its section")")
+                    visible = ruleVisibility(id, spec, active: running, sectionVisible: visible)
                 }
                 lastBackupRunning = running
             case .focus:
-                // An indicator like the camera pill: a Focus that is on shows
-                // whatever the section says (Apple's own does, and one that
-                // hid would be lying). Off, the rule decides — gone like
-                // Apple's default, or in its section as a moon that opens the
-                // Focus panel.
+                // "Always": the moon rides its section, idle it opens the
+                // Focus panel. "When active": on the bar while a Focus is on,
+                // in whatever section it sits.
                 let active = focusStatus?.active != nil
-                let sectionVisible = visible
-                visible = active || (spec.resolvedShowRule == .always && sectionVisible)
-                updateFocusGlyph(item, spec: spec)
-                let itemID = Self.itemID(for: spec)
-                if active, !lastFocusActive {
-                    // Same re-entry hazard as the timer: the switch put it in
-                    // layout at the agent's slot, not the model's.
-                    if sectionVisible {
-                        appState?.placeOwnItemSoon(itemID)
-                    } else {
-                        appState?.placeOwnItemAtNextReveal(itemID)
-                    }
-                } else if !active, lastFocusActive {
-                    appState?.cancelOwnItemPlacement(itemID)
+                if spec.resolvedShowRule == .whenActive {
+                    visible = ruleVisibility(id, spec, active: active, sectionVisible: visible)
                 }
+                updateFocusGlyph(item, spec: spec)
                 lastFocusActive = active
             case .shortcut, .userSwitching, .shortcutsMenu, .siri:
                 break
@@ -526,6 +497,27 @@ final class ExtrasManager {
             shownAlone.subtract(left)
             appState?.ownItemsLeftBar(Set(left.compactMap { specs[$0].map { Self.itemID(for: $0).sectionKey } }))
         }
+    }
+
+    /// A rule-on extra rides its rule alone (#86): on the bar while its thing
+    /// happens, in whatever section it sits, and off it when it doesn't, even
+    /// with the section out. A press (`shownAlone`) holds it past the rule's
+    /// end, and the rule holds it past the press's release. Back in layout it
+    /// sits at the agent's slot, not the model's: placed now when its section
+    /// is on screen, else at the next reveal settle.
+    private func ruleVisibility(_ id: UUID, _ spec: ExtraItemSpec, active: Bool, sectionVisible: Bool) -> Bool {
+        let visible = active || shownAlone.contains(id)
+        let itemID = Self.itemID(for: spec)
+        if visible, lastVisible[id] != true {
+            if sectionVisible {
+                appState?.placeOwnItemSoon(itemID)
+            } else {
+                appState?.placeOwnItemAtNextReveal(itemID)
+            }
+        } else if !visible, lastVisible[id] == true {
+            appState?.cancelOwnItemPlacement(itemID)
+        }
+        return visible
     }
 
     /// An own extra that is out of the bar has no slot, so Apply could not
@@ -1047,8 +1039,7 @@ final class ExtrasManager {
     private func timeMachineChanged() {
         let running = timeMachine?.status.running ?? false
         if running != lastBackupRunning,
-           ShowRules.Rule.backingUp.isOn
-            || specs.values.contains(where: { $0.kind == .timeMachine && $0.resolvedShowRule == .whenActive }) {
+           specs.values.contains(where: { $0.kind == .timeMachine && $0.resolvedShowRule == .whenActive }) {
             applyCurrent()  // the visibility edge
             return
         }

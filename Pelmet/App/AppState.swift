@@ -673,6 +673,7 @@ final class AppState {
             showRules = ShowRules { [engine] items in
                 Task { await engine.setRuleShown(items) }
             }
+            showRules?.update(settings.showRules)
             transitions.warmAfterBoot(from: launchSnapshot)
             // Launch baseline: the band monitor only applies display behavior
             // on crossings, so the display Pelmet launches under gets its
@@ -1680,6 +1681,7 @@ final class AppState {
             registeredSearchHotkey = settings.searchHotkey
         }
         syncItemHotkeys()
+        showRules?.update(settings.showRules)
         // Newly created separators and toggled-on extras get hosted wherever
         // macOS pleases (the order hint when it is fresh, the hidden side
         // when not): through the Apply door like any own item entering the

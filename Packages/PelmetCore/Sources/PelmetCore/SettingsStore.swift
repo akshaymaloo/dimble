@@ -219,6 +219,18 @@ public extension ExtraKind {
     }
 }
 
+public extension ExtraKind {
+    /// The kinds whose rule is "Show when it matters" (Settings › Menu Bar):
+    /// on the bar only while the thing they watch is happening, in whatever
+    /// section they sit. A launcher's rule is its own row's.
+    var showsWhenItMatters: Bool {
+        switch self {
+        case .mediaControls, .focus, .timeMachine: true
+        default: false
+        }
+    }
+}
+
 /// How a Pelmet item draws its glyph: the SF Symbol still, or (media
 /// controls only) natively drawn bars that wave while audio plays and
 /// settle when it pauses. Nil on old blobs = static; other kinds ignore it.

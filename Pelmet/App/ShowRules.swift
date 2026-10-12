@@ -1,11 +1,10 @@
 // ShowRules.swift
-// #86: keep a hidden icon on the bar while its state matters. Each rule sits
-// behind its own launch argument until the "Show when…" choice lands:
-//   pelmet.debug.showOnBattery         Battery while on battery power
-//   pelmet.debug.showWifiDisconnected  Wi-Fi while it's on and joined to no
-//                                      network (off is on purpose, so it stays)
-//   pelmet.debug.showDuringBackup      Pelmet's Time Machine item while a
-//                                      backup runs (the extras manager reads it)
+// #86, "Show when it matters": keep a hidden icon on the bar while its state
+// matters. This runs the rules on Apple's own Battery and Wi-Fi, which only
+// the app can watch; they come from Settings › Menu Bar and start or stop
+// their watchers as they change. Pelmet's own items (media, Focus, Time
+// Machine) keep theirs on their spec and the extras manager follows them.
+//
 // The engine shows Battery and Wi-Fi the way a press does: their section
 // stays hidden, nothing else reflows. macOS doesn't draw a hidden icon, so
 // each state is read from the system, never from the icon.
@@ -19,14 +18,6 @@ import SystemConfiguration
 
 @MainActor
 final class ShowRules {
-    enum Rule: String, CaseIterable {
-        case onBattery = "pelmet.debug.showOnBattery"
-        case wifiDisconnected = "pelmet.debug.showWifiDisconnected"
-        case backingUp = "pelmet.debug.showDuringBackup"
-
-        var isOn: Bool { UserDefaults.standard.bool(forKey: rawValue) }
-    }
-
     static let battery = ItemID(rawValue: "status:com.apple.MenuBarAgent::com.apple.menuextra.battery")
     static let wifi = ItemID(rawValue: "status:com.apple.MenuBarAgent::com.apple.menuextra.wifi")
 
@@ -35,33 +26,86 @@ final class ShowRules {
     static let wifiGrace: Duration = .seconds(5)
 
     private let apply: (Set<ItemID>) -> Void
+    private var rules = ShowRuleSettings()
     private var powerToken: Int32 = NOTIFY_TOKEN_INVALID
+    private var percentToken: Int32 = NOTIFY_TOKEN_INVALID
     private var store: SCDynamicStore?
     private var storeSource: CFRunLoopSource?
     private var wifiInterface: String?
     private var wifiDown = false
     private var wifiGraceTask: Task<Void, Never>?
     private var shown: Set<ItemID>?
-    private var lastLine: [Rule: String] = [:]
+    private var lastLine: [String: String] = [:]
 
-    init?(apply: @escaping (Set<ItemID>) -> Void) {
-        let battery = Rule.onBattery.isOn, wifi = Rule.wifiDisconnected.isOn
-        guard battery || wifi else { return nil }
+    init(apply: @escaping (Set<ItemID>) -> Void) {
         self.apply = apply
-        if battery {
-            notify_register_dispatch(kIOPSNotifyPowerSource, &powerToken, .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.evaluate() }
-            }
-        }
-        if wifi { watchWifi() }
-        evaluate()
     }
 
     // Isolated: the store's source holds an unretained pointer to self, so it
     // must leave the run loop before self goes.
     isolated deinit {
+        stopBattery()
+        stopWifi()
+    }
+
+    /// The rules as Settings holds them now: watchers start for a rule that
+    /// came on and stop for one that went off.
+    func update(_ new: ShowRuleSettings) {
+        let old = rules
+        guard new != old || shown == nil else { return }
+        rules = new
+        if new.battery != old.battery {
+            stopBattery()
+            if let condition = new.battery { watchBattery(condition) }
+        }
+        if new.wifiOn != old.wifiOn {
+            stopWifi()
+            if new.wifiOn { watchWifi() }
+        }
+        evaluate()
+    }
+
+    // MARK: Battery
+
+    private func watchBattery(_ condition: BatteryShowCondition) {
+        notify_register_dispatch(kIOPSNotifyPowerSource, &powerToken, .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.evaluate() }
+        }
+        // The charge changes all day: listened to only for the rule that reads
+        // it. The SDK has no percent-only key; this one fires when the percent
+        // or the time remaining changes.
+        if condition == .below20 {
+            notify_register_dispatch(kIOPSNotifyTimeRemaining, &percentToken, .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.evaluate() }
+            }
+        }
+    }
+
+    private func stopBattery() {
         if powerToken != NOTIFY_TOKEN_INVALID { notify_cancel(powerToken) }
-        if let storeSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), storeSource, .commonModes) }
+        if percentToken != NOTIFY_TOKEN_INVALID { notify_cancel(percentToken) }
+        powerToken = NOTIFY_TOKEN_INVALID
+        percentToken = NOTIFY_TOKEN_INVALID
+        lastLine.removeValue(forKey: "battery")
+    }
+
+    /// On battery power, and the internal battery's charge (nil with none).
+    private func batteryReading() -> (onBattery: Bool, percent: Int?) {
+        let info = IOPSCopyPowerSourcesInfo().takeRetainedValue()
+        let providing = IOPSGetProvidingPowerSourceType(info).takeUnretainedValue() as String
+        var percent: Int?
+        let sources = IOPSCopyPowerSourcesList(info).takeRetainedValue() as [CFTypeRef]
+        for source in sources {
+            guard let description = IOPSGetPowerSourceDescription(info, source)?.takeUnretainedValue() as? [String: Any],
+                  description[kIOPSTypeKey] as? String == kIOPSInternalBatteryType,
+                  let current = description[kIOPSCurrentCapacityKey] as? Int,
+                  let capacity = description[kIOPSMaxCapacityKey] as? Int, capacity > 0
+            else { continue }
+            // Rounded, like the percentage Battery itself draws.
+            percent = Int((Double(current) / Double(capacity) * 100).rounded())
+            break
+        }
+        return (providing == kIOPSBatteryPowerValue, percent)
     }
 
     // MARK: Wi-Fi
@@ -92,6 +136,17 @@ final class ShowRules {
         storeSource = source
     }
 
+    private func stopWifi() {
+        if let storeSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), storeSource, .commonModes) }
+        storeSource = nil
+        store = nil
+        wifiInterface = nil
+        wifiDown = false
+        wifiGraceTask?.cancel()
+        wifiGraceTask = nil
+        lastLine.removeValue(forKey: "wifi")
+    }
+
     private static func linkKey(_ name: String) -> String { "State:/Network/Interface/\(name)/Link" }
     private static func airportKey(_ name: String) -> String { "State:/Network/Interface/\(name)/AirPort" }
 
@@ -109,18 +164,20 @@ final class ShowRules {
 
     private func evaluate() {
         var items: Set<ItemID> = []
-        if Rule.onBattery.isOn {
-            let info = IOPSCopyPowerSourcesInfo().takeRetainedValue()
-            let source = IOPSGetProvidingPowerSourceType(info).takeUnretainedValue() as String
-            let onBattery = source == kIOPSBatteryPowerValue
-            note(.onBattery, onBattery ? "on battery, Battery shows" : "on power, Battery follows its section")
-            if onBattery { items.insert(Self.battery) }
+        if let condition = rules.battery {
+            let reading = batteryReading()
+            let met = condition.isMet(onBattery: reading.onBattery, percent: reading.percent)
+            let charge = reading.percent.map { ", \($0)%" } ?? ""
+            note("battery", met
+                ? "\(condition.rawValue) holds\(charge), Battery shows"
+                : "\(condition.rawValue) doesn't hold\(charge), Battery follows its section")
+            if met { items.insert(Self.battery) }
         }
-        if Rule.wifiDisconnected.isOn, let down = wifiDisconnected() {
+        if rules.wifiOn, let down = wifiDisconnected() {
             if down, !wifiDown {
                 // Shown only if the grace runs out still disconnected.
                 wifiDown = true
-                note(.wifiDisconnected, "Wi-Fi joined to no network, shows in \(Self.wifiGrace) unless it rejoins")
+                note("wifi", "Wi-Fi joined to no network, shows in \(Self.wifiGrace) unless it rejoins")
                 wifiGraceTask?.cancel()
                 wifiGraceTask = Task { [weak self] in
                     try? await Task.sleep(for: Self.wifiGrace)
@@ -132,10 +189,10 @@ final class ShowRules {
                 wifiDown = false
                 wifiGraceTask?.cancel()
                 wifiGraceTask = nil
-                note(.wifiDisconnected, "Wi-Fi joined or off, Wi-Fi follows its section")
+                note("wifi", "Wi-Fi joined or off, Wi-Fi follows its section")
             }
             if down, wifiGraceTask == nil {
-                note(.wifiDisconnected, "Wi-Fi still joined to no network, Wi-Fi shows")
+                note("wifi", "Wi-Fi still joined to no network, Wi-Fi shows")
                 items.insert(Self.wifi)
             }
         }
@@ -145,7 +202,7 @@ final class ShowRules {
     }
 
     /// One line per change of a rule's state, not per notification.
-    private func note(_ rule: Rule, _ line: String) {
+    private func note(_ rule: String, _ line: String) {
         guard lastLine[rule] != line else { return }
         lastLine[rule] = line
         PelmetLog.log("rule: \(line)")
