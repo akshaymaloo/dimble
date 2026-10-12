@@ -243,6 +243,9 @@ public struct RehideStateMachine: Equatable, Sendable {
         }
     }
 
+    /// How long icons shown by Show in Menu Bar wait for the pointer at Instant.
+    static let itemInBarReach: TimeInterval = 4
+
     private func armIfNeeded(reason: RevealReason, now: Date) -> [RehideEffect] {
         guard policy.autoRehide else { return [.none] }
         // "Instant" means "as soon as the pointer leaves the bar". A hotkey
@@ -251,7 +254,12 @@ public struct RehideStateMachine: Equatable, Sendable {
         // elsewhere, or the next press. The 0.75 s floor that replaced the
         // old open-shut flash read as "the first press did nothing" (Gab,
         // 2026-09-15).
-        if reason == .hotkey || reason == .itemInBar, policy.delay == 0 { return [.none] }
+        if reason == .hotkey, policy.delay == 0 { return [.none] }
+        // Show in Menu Bar is picked on the panel or a menu, not the bar: with
+        // nothing armed, a pointer that never went up there left the icons
+        // out for good (#26, cpierce). Time to reach them; the pointer on the
+        // bar or the item's menu open holds them past it.
+        if reason == .itemInBar, policy.delay == 0 { return [.armTimer(now.addingTimeInterval(Self.itemInBarReach))] }
         // Floor the settle-time arm: with the rehide delay dialed to 0, a
         // reveal whose pointer isn't parked in the band concealed within
         // milliseconds of settling — an unreadable open-shut flash. Pointer-

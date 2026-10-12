@@ -179,12 +179,13 @@ import Testing
         #expect(machine.handle(.pointerLeft, now: now) == [.armTimer(now)])
     }
 
-    /// Show-in-bar is asked for like a hotkey: the pointer never entered the
-    /// bar, so Instant has nothing to wait on.
-    @Test func itemInBarRevealAtInstantRehideStaysUp() {
+    /// Show-in-bar at Instant: the pointer starts off the bar, so it gets
+    /// time to reach the icons instead of none at all (#26: stayed out).
+    @Test func itemInBarRevealAtInstantRehideGivesTimeToReach() {
         var machine = RehideStateMachine(policy: .init(autoRehide: true, delay: 0))
         _ = machine.handle(.revealRequested([.hidden], .itemInBar), now: now)
-        #expect(machine.handle(.transitionSettled, now: now) == [.none])
+        #expect(machine.handle(.transitionSettled, now: now)
+            == [.armTimer(now.addingTimeInterval(RehideStateMachine.itemInBarReach))])
         #expect(machine.state == .revealed(sections: [.hidden], reason: .itemInBar))
         #expect(machine.handle(.pointerLeft, now: now) == [.armTimer(now)])
     }
