@@ -221,7 +221,7 @@ enum CommandBarCorpus {
                     revealed ? String(localized: "Hide Items") : String(localized: "Show Hidden Items"),
                     revealed ? "eye.slash" : "eye",
                     revealed ? ["conceal", "collapse", "rehide"] : ["reveal", "expand", "icons"]),
-            command(.showAll, String(localized: "Show Always-Hidden Too"), pick("eyes", "eye"),
+            command(.showAll, String(localized: "Show Always Hidden Too"), pick("eyes", "eye"),
                     ["reveal", "everything", "show all", "icons"]),
             command(.editLayout, String(localized: "Edit Layout"), "slider.horizontal.3",
                     ["arrange", "order", "editor", "menu bar", "move"]),
