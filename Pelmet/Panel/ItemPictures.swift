@@ -99,19 +99,40 @@ final class ItemPictures {
     /// changed pixel lighter than the bar (or every one darker), barely any
     /// colour. Each pixel's alpha is how far it is from the bar, over how
     /// far the glyph's core is: antialiased edges come out partial, not in
-    /// the bar's colour, and a grey capsule comes out as a faint fill.
+    /// the bar's colour, and a grey capsule inside the frame comes out as a
+    /// faint fill (one the frame cuts through drops out, `capsuleFill`).
     private static func flatMask(raw: CGImage, background: CGImage) -> CGImage? {
+        // Measured from a capsule first. One that leaves no glyph is read
+        // from the bar as before: a text widget whose strokes touch both
+        // sides reads as a capsule too.
+        flatMask(raw: raw, background: background, fromCapsule: true)
+            ?? flatMask(raw: raw, background: background, fromCapsule: false)
+    }
+
+    /// `fromCapsule`: nil when the crop cuts through no capsule.
+    private static func flatMask(raw: CGImage, background: CGImage, fromCapsule: Bool) -> CGImage? {
         let w = raw.width, h = raw.height
         guard w > 0, h > 0, background.width == w, background.height == h,
               let rawBitmap = rgba(raw, width: w, height: h), let barBitmap = rgba(background, width: w, height: h)
         else { return nil }
         defer { withExtendedLifetime((rawBitmap.context, barBitmap.context)) {} }
         let s = rawBitmap.pixels, b = barBitmap.pixels
-        func luma(_ p: UnsafeMutablePointer<UInt8>, _ i: Int) -> Int { (Int(p[i]) * 3 + Int(p[i + 1]) * 6 + Int(p[i + 2])) / 10 }
+        // A capsule the bar draws behind the item, wider than its frame
+        // (Velja's and Herd's on macOS 27): measured from its fill rather
+        // than the bar, the capsule drops out and the glyph is left. A
+        // tinted one (over a purple wallpaper) failed the check below, and
+        // the tile showed the capsule cut square at the frame (2026-10-12).
+        let fill: Int?
+        if fromCapsule {
+            guard let found = capsuleFill(s, b, width: w, height: h) else { return nil }
+            fill = found
+        } else {
+            fill = nil
+        }
         var changed = 0, strong = 0, tinted = 0, lighter = 0, darker = 0
         var spread = [Int](repeating: 0, count: 256)
         for i in stride(from: 0, to: w * h * 4, by: 4) {
-            let d = max(abs(Int(s[i]) - Int(b[i])), abs(Int(s[i + 1]) - Int(b[i + 1])), abs(Int(s[i + 2]) - Int(b[i + 2])))
+            let d = distance(s, b, i)
             guard d > 6 else { continue }
             changed += 1
             let dl = luma(s, i) - luma(b, i)
@@ -119,10 +140,25 @@ final class ItemPictures {
             guard d >= 26 else { continue }
             strong += 1
             spread[min(255, abs(dl))] += 1
-            if Int(max(s[i], s[i + 1], s[i + 2])) - Int(min(s[i], s[i + 1], s[i + 2])) > 40 { tinted += 1 }
+            if chroma(s, i) > 40 { tinted += 1 }
         }
         let sign = lighter * 20 >= changed * 19 ? 1 : darker * 20 >= changed * 19 ? -1 : 0
-        guard strong > 0, sign != 0, tinted * 10 <= strong else { return nil }
+        guard sign != 0 else { return nil }
+        func base(_ i: Int) -> Int {
+            guard let fill else { return luma(b, i) }
+            return sign > 0 ? max(luma(b, i), fill + 4) : min(luma(b, i), fill - 4)
+        }
+        if fill != nil {
+            strong = 0
+            spread = [Int](repeating: 0, count: 256)
+            for i in stride(from: 0, to: w * h * 4, by: 4) {
+                let dl = (luma(s, i) - base(i)) * sign
+                guard dl >= 26 else { continue }
+                strong += 1
+                spread[min(255, dl)] += 1
+            }
+        }
+        guard strong > 0, fill != nil || tinted * 10 <= strong else { return nil }
         // The core's distance from the bar: the strong pixels' 90th
         // percentile, so a stray pixel does not set it.
         var seen = 0, peak = 255
@@ -131,17 +167,58 @@ final class ItemPictures {
             if seen * 10 >= strong * 9 { peak = level; break }
         }
         guard peak >= 40 else { return nil }
+        if fill != nil {
+            // The glyph's antialiased rim is a blend with the capsule's
+            // colour, tinted whenever the capsule is: only the core is
+            // judged (Herd's H, a fifth of its pixels tinted, none in the core).
+            var core = 0
+            tinted = 0
+            for i in stride(from: 0, to: w * h * 4, by: 4) where (luma(s, i) - base(i)) * sign >= peak / 2 {
+                core += 1
+                if chroma(s, i) > 40 { tinted += 1 }
+            }
+            guard tinted * 10 <= core else { return nil }
+        }
         guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
                                   space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
               let data = ctx.data
         else { return nil }
         let out = data.bindMemory(to: UInt8.self, capacity: w * h * 4)
         for i in stride(from: 0, to: w * h * 4, by: 4) {
-            let dl = (luma(s, i) - luma(b, i)) * sign
+            let dl = (luma(s, i) - base(i)) * sign
             let a = UInt8(clamping: max(0, min(255, dl * 255 / peak)))
             out[i] = a; out[i + 1] = a; out[i + 2] = a; out[i + 3] = a
         }
         return ctx.makeImage()
+    }
+
+    /// The luma of a capsule's fill when the crop cuts through one: a third
+    /// or more of both side columns changed from the bar (Velja's 18pt
+    /// capsule is 36 of a 39pt column's 78 rows). Their median, so the
+    /// capsule's antialiased rim does not set it. Nil when either side is
+    /// the bar, as it is around a glyph alone.
+    private static func capsuleFill(_ s: UnsafeMutablePointer<UInt8>, _ b: UnsafeMutablePointer<UInt8>, width w: Int, height h: Int) -> Int? {
+        guard w > 4 else { return nil }
+        var levels: [Int] = []
+        for x in [1, w - 2] {
+            let column = (0..<h).map { ($0 * w + x) * 4 }.filter { distance(s, b, $0) >= 26 }
+            guard column.count * 3 >= h else { return nil }
+            levels += column.map { luma(s, $0) }
+        }
+        return levels.sorted()[levels.count / 2]
+    }
+
+    private static func luma(_ p: UnsafeMutablePointer<UInt8>, _ i: Int) -> Int {
+        (Int(p[i]) * 3 + Int(p[i + 1]) * 6 + Int(p[i + 2])) / 10
+    }
+
+    private static func chroma(_ p: UnsafeMutablePointer<UInt8>, _ i: Int) -> Int {
+        Int(max(p[i], p[i + 1], p[i + 2])) - Int(min(p[i], p[i + 1], p[i + 2]))
+    }
+
+    /// The largest channel difference of pixel `i` between two bitmaps.
+    private static func distance(_ s: UnsafeMutablePointer<UInt8>, _ b: UnsafeMutablePointer<UInt8>, _ i: Int) -> Int {
+        max(abs(Int(s[i]) - Int(b[i])), abs(Int(s[i + 1]) - Int(b[i + 1])), abs(Int(s[i + 2]) - Int(b[i + 2])))
     }
 
     /// RGBA8 premultiplied, top row first. The context owns the pixels:
