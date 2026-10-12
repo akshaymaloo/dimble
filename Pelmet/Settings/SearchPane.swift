@@ -223,7 +223,7 @@ private struct SearchDemoStage: View {
             }
             .frame(height: Self.height)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            Text("Type to try it. It works for real: ↩ opens the icon's menu, ⌘K shows more.")
+            Text("Type to try it. It works for real.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
