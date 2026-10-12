@@ -241,10 +241,12 @@ final class PelmetStatusItem {
         Self.showShortcut(appState.settings.searchHotkey, on: search)
         let settings = NSMenuItem(
             title: String(localized: "Pelmet Settings…"),
-            // No key equivalent: it only fires while this menu is open, and read
-            // as a global shortcut that never worked (2026-09-15).
+            // Never ⌘, here: it only fired while this menu was open and read
+            // as a global shortcut that never worked (2026-09-15). The global
+            // one Settings › Shortcuts sets is real, so that one is drawn.
             action: #selector(AppMenuTarget.openSettings), keyEquivalent: ""
         )
+        Self.showShortcut(appState.settings.settingsHotkey, on: settings)
         let quit = NSMenuItem(
             title: String(localized: "Quit Pelmet"),
             action: #selector(AppMenuTarget.quit), keyEquivalent: "q"
@@ -286,8 +288,9 @@ final class PelmetStatusItem {
         // adds a gear to a "Settings…" item on its own. Only the update and
         // Accessibility rows below keep theirs, they carry a state.
         settings.preferredImageVisibility = .hidden
-        // Search leads: a left click already shows and hides.
-        var items: [NSMenuItem] = [search, .separator(), toggle, showAll, .separator(), animation, shownIn, settings, .separator(), quit]
+        // Search and Settings lead, they're what a right-click is for: a left
+        // click already shows and hides.
+        var items: [NSMenuItem] = [search, settings, .separator(), toggle, showAll, .separator(), animation, shownIn, .separator(), quit]
         // Same line in every right-click (chevron, separators, empty bar),
         // right under Settings: the About chip is the only other trace once
         // the banner is gone.
