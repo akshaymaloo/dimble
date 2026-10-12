@@ -1266,7 +1266,7 @@ extension TransitionCoordinator {
         // before it: read while they still slid in, S1's crops were off by
         // up to an icon, and two walks from before they came agree too.
         func settledWalk(
-            watching watch: (ItemID) -> Bool, quiet: TimeInterval = 0.2,
+            watching watch: (ItemID) -> Bool, awaiting: Set<ItemID> = [], quiet: TimeInterval = 0.2,
             leaving: ((EngineSnapshot) -> Bool)? = nil, label: String? = nil
         ) async -> EngineSnapshot {
             await appState.waitUntilQuiesced(interval: quiet, deadline: 2, poll: .milliseconds(30))
@@ -1290,7 +1290,11 @@ extension TransitionCoordinator {
             for k in 0..<12 {
                 try? await Task.sleep(for: .milliseconds(50))
                 let next = await engine.snapshot()
-                let arrived = next.items.contains { watch($0.id) && $0.frame != nil }
+                // The icons the panel asked for are in the walk too: settled on
+                // the first one in, the walk framed Shortcuts before Snib came
+                // and pushed it aside, and its cut was half of Snib (2026-10-12).
+                let listed = Set(next.items.map(\.id.sectionKey))
+                let arrived = next.items.contains { watch($0.id) && $0.frame != nil } && awaiting.isSubset(of: listed)
                 let settled = arrived && next.items.map(\.frame) == snap.items.map(\.frame)
                 if let label, settled || k == 11 {
                     let mine = next.items.filter { watch($0.id) }.map { $0.frame.map { "\(Int($0.minX))…\(Int($0.maxX))" } ?? "none" }
@@ -1309,7 +1313,7 @@ extension TransitionCoordinator {
         PelmetLog.log("pass: cover \(cover == nil ? "none" : "up") at \(ms())ms")
         appState.picturePassSections = sections
         await engine.reveal(sections)
-        let snap = await settledWalk { wanted($0) }
+        let snap = await settledWalk(watching: { wanted($0) }, awaiting: Set(wanting.filter(wanted)))
         appState.updateSnapshot(snap)
         // The panel orders its tiles the way the bar just drew them.
         appState.recordDrawnOrder(snap, revealed: sections)
@@ -1449,8 +1453,21 @@ extension TransitionCoordinator {
             lastApart = apart
             if apart < 0.005 { break }
         }
-        PelmetLog.log("pass: strip captured at \(ms())ms (\(strip.count) display(s), \(filmed) frame(s), last \(String(format: "%.2f", lastApart * 100))% apart) x \(strip.map { "\(Int($0.windowFrame.minX))…\(Int($0.windowFrame.maxX))" }) items \(frames.map { "\(Int($0.minX))…\(Int($0.maxX))" })")
-        return Self.pictures(of: items, strip: strip, empty: empty, dump: dump)
+        PelmetLog.log("pass: strip captured at \(ms())ms (\(strip.count) display(s), \(filmed) frame(s), last \(String(format: "%.2f", lastApart * 100))% apart) x \(strip.map { "\(Int($0.windowFrame.minX))…\(Int($0.windowFrame.maxX))" }) items \(items.map { "\($0.key.rawValue) \(Int($0.frame.minX))…\(Int($0.frame.maxX))" })")
+        // An icon that moved since the walk was filmed at its old place: a cut
+        // there is its neighbour, stored under its key. It waits for the next
+        // pass instead.
+        let after = await engine.freshSnapshot()
+        let still = items.filter { item in
+            after.items.contains {
+                $0.id.sectionKey == item.key && $0.frame.map { abs($0.minX - item.frame.minX) <= 1 && abs($0.maxX - item.frame.maxX) <= 1 } == true
+            }
+        }
+        if still.count < items.count {
+            let moved = items.filter { item in !still.contains { $0.key == item.key && $0.frame == item.frame } }
+            PelmetLog.log("pass: \(moved.count) moved while filmed, not cut \(moved.map(\.key.rawValue))")
+        }
+        return Self.pictures(of: still, strip: strip, empty: empty, dump: dump)
     }
 
     /// Debug trigger (`pelmet.debug.picturePass`): Hidden, dumped to disk.
