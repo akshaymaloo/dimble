@@ -47,6 +47,11 @@ final class PanelDragGhost {
         window.alphaValue = 1
     }
 
+    /// Off the panel during a bar drag: macOS draws the icon there itself.
+    func hide() {
+        window.alphaValue = 0
+    }
+
     /// Back to the tile it came from, then gone: a cancelled drag. With no
     /// tile to go back to (the panel closed), or Reduce Motion, it only fades.
     func slideBack(toCenter point: CGPoint?, reduceMotion: Bool) {

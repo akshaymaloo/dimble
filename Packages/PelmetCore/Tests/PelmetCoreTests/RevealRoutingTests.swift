@@ -23,11 +23,11 @@ import Testing
     @Test func doubleClickFollowsTheSetting() { followsTheSetting(.doubleClick) }
     @Test func hotkeyFollowsTheSetting() { followsTheSetting(.hotkey) }
     @Test func statusItemFollowsTheSetting() { followsTheSetting(.statusItem) }
+    // A ⌘-drag drops where hidden icons show: the hidden run, or the panel.
+    @Test func barDragFollowsTheSetting() { followsTheSetting(.barDrag) }
 
     // Apply and the editor's preview measure and drag icons that are on the bar.
     @Test func settingsPreviewIsAlwaysTheBar() { alwaysTheBar(.settingsPreview) }
-    // A ⌘-drag needs the hidden run on screen as a drop target.
-    @Test func barDragIsAlwaysTheBar() { alwaysTheBar(.barDrag) }
     // "Always show everything here" is the bar by definition.
     @Test func displayPolicyIsAlwaysTheBar() { alwaysTheBar(.displayPolicy) }
     // Pelmet's own extras and "show in bar" ask for the bar itself.

@@ -38,6 +38,8 @@ final class PanelPresenter: RevealPresenter {
     /// A tile is in the air (`TileDrag`): the pointer runs over the bar and
     /// off the panel, and that must not close it.
     private var tileDrag: TileDrag?
+    /// A bar icon's copy while a ⌘-drag from the bar is over the panel.
+    private var barGhost: PanelDragGhost?
     private var dragTimer: Timer?
     private var springTask: Task<Void, Never>?
     /// Esc during a drag: global (a panel a hover opened isn't key and hears
@@ -1097,7 +1099,7 @@ final class PanelPresenter: RevealPresenter {
         else { return }
         springTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: Self.springDelay)
-            guard let self, !Task.isCancelled, self.tileDrag?.hit == .fold else { return }
+            guard let self, !Task.isCancelled, self.dragState.target == .fold else { return }
             self.springTask = nil
             self.openFoldForDrag()
         }
@@ -1197,6 +1199,56 @@ final class PanelPresenter: RevealPresenter {
             zones.alwaysHidden = onScreen(.grid(.alwaysHidden))
         }
         return zones
+    }
+
+    // MARK: - Bar drag
+
+    /// Where a ⌘-drag from the bar can end on the open panel, in screen
+    /// points (`BarDragRedirect`): the drop zone, stopped at the bar's band
+    /// so a drop on the bar stays the bar's.
+    func barDragZone() -> CGRect? {
+        guard isOpen, let zones = dropZones() else { return nil }
+        var zone = zones.zone
+        zone.size.height = max(0, min(zone.maxY, zones.bar.minY) - zone.minY)
+        return zone
+    }
+
+    /// A ⌘-drag from the bar can now end on the panel: a copy of the icon
+    /// rides under the pointer while it is over it, where the tap keeps the
+    /// real one in its slot (`BarDragRedirect`).
+    func beginBarDrag(_ id: ItemID?) {
+        barGhost?.release()
+        barGhost = nil
+        guard isOpen, let window, let grid = lastContent?.blocks.first?.grid else { return }
+        let art: PanelTileArt
+        if let id, let picture = pictures.picture(for: id.sectionKey) {
+            art = PanelTileArt(image: .picture(picture.image, size: picture.size, monochrome: picture.isMonochrome), name: "")
+        } else {
+            art = PanelTileArt(image: .icon(id.map(Self.standIn(for:)) ?? Self.placeholder), name: "")
+        }
+        barGhost = PanelDragGhost(art: art, grid: grid, appearance: window.appearance)
+    }
+
+    /// A ⌘-drag from the bar is at `point`: lights the section a drop there
+    /// files the icon in, and returns it.
+    @discardableResult
+    func barDrag(at point: CGPoint) -> PelmetCore.Section? {
+        var hit = isOpen ? dropZones()?.hit(at: point) ?? .none : .none
+        if hit == .section(.visible) { hit = .none }
+        if let barGhost {
+            if barDragZone()?.contains(point) == true { barGhost.show(at: point) } else { barGhost.hide() }
+        }
+        // Held over the fold it springs open, as for a tile.
+        if hit != dragState.target { targetChanged(to: hit) }
+        return hit.section
+    }
+
+    func endBarDrag() {
+        barGhost?.release()
+        barGhost = nil
+        springTask?.cancel()
+        springTask = nil
+        withAnimation(.easeOut(duration: 0.12)) { dragState.target = .none }
     }
 
     // MARK: - Columns

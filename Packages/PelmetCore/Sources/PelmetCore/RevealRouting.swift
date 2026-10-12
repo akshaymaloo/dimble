@@ -37,16 +37,17 @@ public enum RevealRouting {
         case panel
     }
 
-    /// Reveals a person asks for follow the setting. The rest need the real
-    /// bar: Apply and the editor's preview measure and drag icons that are on
-    /// it, a ⌘-drag needs the hidden run as a drop target, the always-show
-    /// policy is "don't hide anything here", and an item asked for in the bar
-    /// is the point. No `default:`, so a new reason has to pick a side.
+    /// Reveals a person asks for follow the setting, a ⌘-drag too: its drop
+    /// target is wherever hidden icons show (the panel takes the drop through
+    /// `BarDragRedirect`). The rest need the real bar: Apply and the editor's
+    /// preview measure and drag icons that are on it, the always-show policy
+    /// is "don't hide anything here", and an item asked for in the bar is the
+    /// point. No `default:`, so a new reason has to pick a side.
     public static func destination(for reason: RevealReason, target: RevealTarget) -> Destination {
         switch reason {
-        case .hover, .click, .doubleClick, .hotkey, .statusItem:
+        case .hover, .click, .doubleClick, .hotkey, .statusItem, .barDrag:
             target == .menuBar ? .bar : .panel
-        case .displayPolicy, .settingsPreview, .barDrag, .itemInBar:
+        case .displayPolicy, .settingsPreview, .itemInBar:
             .bar
         }
     }

@@ -36,6 +36,20 @@ final class MenuBarBandMonitor {
     /// the running ⌘-drag grabbed: the drop's adoption looks for its icon.
     private var lastHitOwner: String?
     private var dragOwner: String?
+    /// A ⌘-drag that began while the panel was open can end on it
+    /// (`BarDragRedirect`): where it began, and the panel's zone it was
+    /// armed with (screen points).
+    private let dragRedirect = BarDragRedirect()
+    private var dragStart: NSPoint?
+    private var dragItem: ItemID?
+    private var panelDropZone: CGRect?
+    /// The last left mouse-down (screen point, event time): only a drag
+    /// pressed on the bar carries an icon, and a press after a drag began
+    /// means that drag's mouse-up was missed.
+    private var lastLeftDown: (point: NSPoint, at: TimeInterval)?
+    private var dragPressedOnBar = false
+    private var dragStartedAt: TimeInterval = 0
+    private var localDownMonitor: Any?
     /// Set by a deliberate conceal (chevron / empty-area click) so the hover
     /// path can't undo it while the pointer is still where it clicked.
     private var hoverSuppressedUntilExit = false
@@ -130,7 +144,13 @@ final class MenuBarBandMonitor {
         clickMonitor = NSEvent.addGlobalMonitorForEvents(
             matching: [.leftMouseDown, .rightMouseDown]
         ) { [weak self] event in
+            if event.type == .leftMouseDown { self?.lastLeftDown = (event.locationInWindow, event.timestamp) }
             self?.clicked(event)
+        }
+        // Presses on Pelmet's own items come to Pelmet, not the global monitor.
+        localDownMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+            self?.lastLeftDown = (NSEvent.mouseLocation, event.timestamp)
+            return event
         }
         // ⌘-drag tracking: rehide must never fire mid-drag, and adoption runs
         // the moment the drag ends — before the next conceal can act on a
@@ -146,12 +166,31 @@ final class MenuBarBandMonitor {
         guard let appState else { return }
         switch event.type {
         case .leftMouseDragged:
+            // A press since this drag began: its mouse-up never reached us.
+            if cmdDragActive, let down = lastLeftDown, down.at > dragStartedAt {
+                PelmetLog.log("band: ⌘-drag's mouse-up was missed, a new press ends it")
+                cmdDragActive = false
+                endPanelDrop(appState)
+            }
+            if cmdDragActive {
+                // The panel a ⌘-drag opened arrives a beat after the drag.
+                if panelDropZone == nil { armPanelDrop(appState) }
+                if panelDropZone != nil {
+                    if let zone = appState.panelPresenter.barDragZone(), zone != panelDropZone {
+                        panelDropZone = zone
+                        dragRedirect.update(zone: zone)
+                    }
+                    appState.panelPresenter.barDrag(at: dragRedirect.realPointer() ?? event.locationInWindow)
+                }
+            }
             guard event.modifierFlags.contains(.command) else { return }
             // Pelmet's own synthetic drags reach this global monitor too —
             // adopting them is circular (model → drag → adopt → model), and
             // adopting a BOUNCED one would cement the failure into the model.
             guard !appState.syntheticDragInFlight else { return }
-            let location = NSEvent.mouseLocation
+            // Where the event happened, not where the pointer is by the time
+            // it is handled: a quick flick is past the band by then.
+            let location = event.locationInWindow
             let screen = NSScreen.containing(location)
             guard let screen, isInMenuBarBand(location, of: screen) else { return }
             if !cmdDragActive {
@@ -160,10 +199,19 @@ final class MenuBarBandMonitor {
                 dragOwner = lastHitOwner
                 appState.pointerReturnedToBand()  // cancels any rehide countdown
                 PelmetLog.log("band: ⌘-drag started")
+                dragStartedAt = event.timestamp
+                dragStart = location
+                // A window or a file dragged up into the bar carries no icon.
+                dragPressedOnBar = lastLeftDown.map { down in
+                    NSScreen.containing(down.point).map { isInMenuBarBand(down.point, of: $0) } == true
+                } ?? false
+                dragItem = appState.snapshot.flatMap { AppState.barItem(at: location, bundle: dragOwner, in: $0.items) }
+                armPanelDrop(appState)
                 // Nothing walks icons into the hidden run any more, so the
-                // run must be on screen to be a drop target. A deliberate
-                // reveal: the countdown re-arms at the drop (below) and the
-                // band gate holds it while the pointer is still up here.
+                // run must be on screen to be a drop target (or the panel, in
+                // Panel mode). A deliberate reveal: the countdown re-arms at
+                // the drop (below) and the band gate holds it while the
+                // pointer is still up here.
                 if !appState.isRevealed {
                     appState.reveal([.hidden], reason: .barDrag)
                 }
@@ -171,6 +219,25 @@ final class MenuBarBandMonitor {
         case .leftMouseUp:
             guard cmdDragActive else { return }
             cmdDragActive = false
+            if panelDropZone != nil {
+                let drop = dragRedirect.takeDrop()
+                let section = drop.flatMap { $0.rewrote ? appState.panelPresenter.barDrag(at: $0.point) : nil }
+                endPanelDrop(appState)
+                // The tap's word decides: it told macOS the icon went home,
+                // or it didn't and macOS has the drop.
+                if let drop, drop.rewrote {
+                    PelmetLog.log("band: ⌘-drag let go on the panel at \(Int(drop.point.x)),\(Int(drop.point.y))")
+                    dragSinceAdoption = false
+                    if let section, let start = dragStart {
+                        PelmetLog.log("band: ⌘-drag ended on the panel → \(section.rawValue) (from x=\(Int(start.x)), grabbed \(dragOwner ?? "unknown"))")
+                        appState.barDropOnPanel(dragItem, at: start, bundle: dragOwner, section: section)
+                    } else {
+                        PelmetLog.log("band: ⌘-drag ended on the panel, nothing under it — back in its place")
+                    }
+                    if appState.isRevealed { appState.pointerLeftBand() }
+                    return
+                }
+            }
             // The mouse-up was seen: the band-exit catch-all must not adopt
             // early without the drop x. MenuBarAgent's drag image under the
             // pointer reads as leaving the band right after the drop, and
@@ -197,9 +264,31 @@ final class MenuBarBandMonitor {
         }
     }
 
+    /// Arms `BarDragRedirect` once the panel is open under a running ⌘-drag
+    /// that was pressed on the bar.
+    private func armPanelDrop(_ appState: AppState) {
+        guard dragPressedOnBar, let start = dragStart, let zone = appState.panelPresenter.barDragZone(),
+              dragRedirect.arm(zone: zone, anchor: start)
+        else { return }
+        panelDropZone = zone
+        appState.panelPresenter.beginBarDrag(dragItem)
+        PelmetLog.log("band: ⌘-drag can end on the panel (\(dragItem?.rawValue ?? "icon unknown"))")
+    }
+
+    private func endPanelDrop(_ appState: AppState) {
+        guard panelDropZone != nil else { return }
+        appState.panelPresenter.endBarDrag()
+        dragRedirect.disarm()
+        panelDropZone = nil
+    }
+
     func stop() {
         pointerTap?.stop()
         pointerTap = nil
+        dragRedirect.disarm()
+        panelDropZone = nil
+        if let localDownMonitor { NSEvent.removeMonitor(localDownMonitor) }
+        localDownMonitor = nil
         if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor) }
         if let localMouseMonitor { NSEvent.removeMonitor(localMouseMonitor) }
         localMouseMonitor = nil
@@ -270,7 +359,8 @@ final class MenuBarBandMonitor {
             // Leaving the band arms the countdown (never an instant conceal),
             // and catches a ⌘-drag whose mouse-up the monitor missed.
             appState.pointerLeftBand()
-            if dragSinceAdoption {
+            // A drag on its way to the panel is still in the air.
+            if dragSinceAdoption, panelDropZone == nil {
                 dragSinceAdoption = false
                 appState.adoptSectionsFromBar()
             }

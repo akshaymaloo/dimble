@@ -1742,6 +1742,52 @@ final class AppState {
         applyOrderEdits()
     }
 
+    /// A ⌘-drag from the bar let go on the open panel (`BarDragRedirect`):
+    /// the icon went back to its slot, so it is the one under where the drag
+    /// began (`start`, screen points), filed in `section` like a tile drop.
+    func barDropOnPanel(_ known: ItemID?, at start: NSPoint, bundle: String?, section: PelmetCore.Section) {
+        Task { @MainActor in
+            // The icon read at the drag's start, if it is the grabbed app's;
+            // else the bar as it is now.
+            let found: ItemID?
+            if let known, bundle == nil || known.bundleID == bundle {
+                found = known
+            } else {
+                found = Self.barItem(at: start, bundle: bundle, in: await engine.snapshot().items)
+            }
+            guard let id = found, MenuBarPolicy.isZoneAdoptable(id, pelmetBundleID: PelmetBundle.mainID) else {
+                PelmetLog.log("panel: bar drop found no movable icon at x=\(Int(start.x)) (\(found?.rawValue ?? "none"))")
+                return
+            }
+            guard settings.sectionModel.section(of: id) != section else {
+                PelmetLog.log("panel: bar drop \(id.rawValue) already in \(section.rawValue)")
+                return
+            }
+            PelmetLog.log("panel: bar drop \(id.rawValue) → \(section.rawValue)")
+            moveItemNow(id, to: section)
+        }
+    }
+
+    /// The bar icon under `point` (screen points), the grabbed app's first:
+    /// what a ⌘-drag that began there is carrying. An app with one icon is
+    /// that icon wherever the snapshot saw it: positions go stale after a
+    /// move (a neighbour was picked, 2026-10-12).
+    static func barItem(at point: NSPoint, bundle: String?, in items: [ObservedItem]) -> ItemID? {
+        if let bundle {
+            let own = items.filter { $0.id.bundleID == bundle }
+            if own.count == 1 { return own[0].id }
+        }
+        // AX frames: top-left origin.
+        let ax = CGPoint(x: point.x, y: (NSScreen.screens.first?.frame.height ?? 0) - point.y)
+        return items
+            .compactMap { item -> (id: ItemID, distance: CGFloat)? in
+                guard let frame = item.frame, frame.insetBy(dx: -8, dy: -8).contains(ax) else { return nil }
+                let grabbed = bundle.map { item.id.bundleID == $0 } ?? false
+                return (item.id, abs(frame.midX - ax.x) - (grabbed ? 10_000 : 0))
+            }
+            .min { $0.distance < $1.distance }?.id
+    }
+
     func moveItem(_ id: ItemID, to section: PelmetCore.Section, before beforeID: ItemID?) {
         // A drop that lands while a pass runs would be cleared with the
         // pass's own edits on success; the editor is inert meanwhile, this
