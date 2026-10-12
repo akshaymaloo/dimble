@@ -3,6 +3,41 @@
     <channel>
         <title>Nook</title>
         <item>
+            <title>0.3.2-beta.4</title>
+            <pubDate>Mon, 12 Oct 2026 09:36:52 -0400</pubDate>
+            <sparkle:fullReleaseNotesLink>https://github.com/fif7y/pelmet/releases</sparkle:fullReleaseNotesLink>
+            <sparkle:channel>beta</sparkle:channel>
+            <sparkle:version>66</sparkle:version>
+            <sparkle:shortVersionString>0.3.2-beta.4</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>27.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<style>:root{color-scheme:light dark;--fg:#1d1d1f;--muted:#6e6e73;--accent:#6841ed;--tint:rgba(104,65,237,.09)}
+@media (prefers-color-scheme:dark){:root{--fg:#f2f2f7;--muted:#98989f;--accent:#a28cf8;--tint:rgba(126,95,242,.2)}}
+body{margin:0;padding:12px 16px 14px;font:13px/1.45 -apple-system,system-ui,sans-serif;color:var(--fg);-webkit-font-smoothing:antialiased}
+h2{font-size:14px;font-weight:600;margin:16px 0 4px}
+h3{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:14px 0 4px}
+p{margin:0 0 8px}
+ul{margin:0 0 8px;padding-left:18px}
+li{margin:0 0 4px}
+li::marker{color:var(--muted)}
+a{color:var(--accent);text-decoration:none}
+code{font:12px ui-monospace,monospace}
+.announce{background:var(--tint);border-radius:10px;padding:10px 12px;margin:0 0 12px}
+.announce p:last-child{margin:0}
+.announce strong{color:var(--accent)}
+body>:first-child{margin-top:0}</style>
+<h3>Fixed</h3>
+<ul><li>On a crowded bar, the panel and Row show your icons instead of a row of arrows. Icons macOS had tucked behind its « got a picture of the « itself. Now they're skipped, and the ones that can't get room in the bar show their app icon (<a href="https://github.com/fif7y/pelmet/issues/81">#81</a>, thanks @2f4vwwb5t6-gif, and <a href="https://github.com/fif7y/pelmet/issues/26">#26</a>, thanks @OiCkilL).</li><li>With more than one display, a right-click on Pelmet's chevron opens its menu on the display you clicked. It used to open where the panel was last open (<a href="https://github.com/fif7y/pelmet/issues/26">#26</a>, thanks @cpierce).</li><li>Icons that sit on a capsule in the menu bar, like Velja's and Herd's, show without it in the panel. On a coloured wallpaper the capsule came out as a box around the icon.</li><li>"Always Hidden" fits on its fold tile, the name is a size under the others.</li><li>The Search tab in Settings gets a New chip, gone once you open it.</li></ul>
+]]></description>
+            <enclosure url="https://github.com/fif7y/pelmet/releases/download/v0.3.2-beta.4/Pelmet-0.3.2-beta.4.dmg" length="5081230" type="application/octet-stream" sparkle:edSignature="HmHAqCO9475uSMLhGY//S/IfnF7DBGfwIVFMC1DElY+NqM1Kh/92YS91CJ3oH4IUOv4w4mPOI+QOvBt8+j6DAg=="/>
+            <sparkle:deltas>
+                <enclosure url="https://github.com/fif7y/pelmet/releases/download/v0.3.2-beta.4/Pelmet66-65.delta" sparkle:deltaFrom="65" length="193294" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="UovSKv+D4sOFjO7lyWlrCxI5cLzs9kSrPlGaYAiNW+vhhqgBiC9qCsMH9M8Q12cMCi8KBEYqfqYEcuFWbkUBBg=="/>
+                <enclosure url="https://github.com/fif7y/pelmet/releases/download/v0.3.2-beta.4/Pelmet66-64.delta" sparkle:deltaFrom="64" length="824442" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="DXU2JMNbolhaj0KDDAQrRnGuLW9v1qSmUj0/JM5ti+6/0TCzAMKBHuKcWeK6WYkkizduTg1LzfFFYkQtwDQ/Bg=="/>
+                <enclosure url="https://github.com/fif7y/pelmet/releases/download/v0.3.2-beta.4/Pelmet66-63.delta" sparkle:deltaFrom="63" length="921990" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="lEYc7rI/0hVCjeQDb+qkgoYh8M1CvF2xvb4VD7/5lSWlbQfcwYaYxr3R0V7SX4g4Ha8kItaeWpSbcT4ccnMkDA=="/>
+                <enclosure url="https://github.com/fif7y/pelmet/releases/download/v0.3.2-beta.4/Pelmet66-62.delta" sparkle:deltaFrom="62" length="922670" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="4X4vZrZ3jImFjRmvkbqSbOuPzeuOJVwNlqA2bWeH4yng81J+wMBLckACM9AyWIYYQSF/4iFnwQL++o8NqbUgAw=="/>
+                <enclosure url="https://github.com/fif7y/pelmet/releases/download/v0.3.2-beta.4/Pelmet66-61.delta" sparkle:deltaFrom="61" length="923610" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="+TC4xuvgIOraZBkHEugzf2Hkr6XaOlPfnWXJcSLImTdLUW1x3Jft+uB/ycU4nlOhuy8K3QCKdUQYK8MqlfiHBQ=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>0.3.2-beta.3</title>
             <pubDate>Sat, 10 Oct 2026 06:17:27 -0400</pubDate>
             <sparkle:fullReleaseNotesLink>https://github.com/fif7y/pelmet/releases</sparkle:fullReleaseNotesLink>
@@ -77,22 +112,6 @@ body>:first-child{margin-top:0}</style>
                 <enclosure url="https://github.com/fif7y/pelmet/releases/download/v0.3.2-beta.2/Pelmet64-61.delta" sparkle:deltaFrom="61" length="412990" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="rs8ydTfrVga6t6k6f1sD6guRBvtu3FQH0yMWgTQVVQn9W04AhygpgkfHoxVRSgki8Xu9xK/5qXeqmOYwvrgiAA=="/>
                 <enclosure url="https://github.com/fif7y/pelmet/releases/download/v0.3.2-beta.2/Pelmet64-60.delta" sparkle:deltaFrom="60" length="674754" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="ycILiVRC/e6jxUWwyrACpyBUgeTQiCWNBILUXdcHe8uxv8d7KjVOHPO7Yz+hlR1Uc/ZoX846RxdWsn5KpdjnBg=="/>
                 <enclosure url="https://github.com/fif7y/pelmet/releases/download/v0.3.2-beta.2/Pelmet64-59.delta" sparkle:deltaFrom="59" length="706702" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="oJG85hMK9Apuqts0D6rFODL+5maojSgxvme2hWrdIulCSYVSrGy6O1F/sBhGW3dfLA8C4pTNPiDlEOHrP0znDA=="/>
-            </sparkle:deltas>
-        </item>
-        <item>
-            <title>0.3.2-beta.1</title>
-            <pubDate>Mon, 05 Oct 2026 18:48:02 -0400</pubDate>
-            <sparkle:channel>beta</sparkle:channel>
-            <sparkle:version>63</sparkle:version>
-            <sparkle:shortVersionString>0.3.2-beta.1</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>27.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/fif7y/pelmet/releases/download/v0.3.2-beta.1/Pelmet-0.3.2-beta.1.dmg" length="4535418" type="application/octet-stream" sparkle:edSignature="mA8IYdIcc1D40mYHI7emzL3eQDdy8NCDFvIfmjyLfyAtB56UPypusMuyIn3wJkcLQaKaRUEfZ8vlepKIPlS9Cg=="/>
-            <sparkle:deltas>
-                <enclosure url="https://github.com/fif7y/pelmet/releases/download/v0.3.2-beta.1/Pelmet63-62.delta" sparkle:deltaFrom="62" length="125330" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="aLUkl4jXCtZ+5V3lpwKINUgan7AuaJOVfvTPc3/1qEvkW160gKkShYiTvpwE9HP9rQ9DyHbMyy/HPP9U1hhvBQ=="/>
-                <enclosure url="https://github.com/fif7y/pelmet/releases/download/v0.3.2-beta.1/Pelmet63-61.delta" sparkle:deltaFrom="61" length="126126" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="mWR/X8rXKyotQZB7tNqxcsT4LkMsllPd0vpF8tOc0GuvEtShxxPp6R8+ovnv0ijKTRnTJkJz8kA2Wt5Ocmc9Bw=="/>
-                <enclosure url="https://github.com/fif7y/pelmet/releases/download/v0.3.2-beta.1/Pelmet63-60.delta" sparkle:deltaFrom="60" length="557778" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="dpiE/2j6vX4XG0DSIGyCANdreNWGKeKWHpGflFutWsFWEHotVi0xR5ds1DfAQWdwBKPqQUTonXwn88I2tnb+DQ=="/>
-                <enclosure url="https://github.com/fif7y/pelmet/releases/download/v0.3.2-beta.1/Pelmet63-59.delta" sparkle:deltaFrom="59" length="591442" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="uwxacnDZGoGxifM9cGRpub7vVEvj/BldeKoD2xUCh7961CBF1oFLfhxbh1sCHus9oU37Fry67+C35bgcUuSUBA=="/>
-                <enclosure url="https://github.com/fif7y/pelmet/releases/download/v0.3.2-beta.1/Pelmet63-58.delta" sparkle:deltaFrom="58" length="1563494" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="Alou+Fv66m4rLMAXiRoQIUfQauZoXDcrW0KxXPFDhQ8KiX3dO4ew5pePhYtzu+YxjcXr7NJgjia5+ulxHQUnCw=="/>
             </sparkle:deltas>
         </item>
         <item>
