@@ -1167,7 +1167,9 @@ final class PanelPresenter: RevealPresenter {
         // The fold is a drop of its own; no slot in what it hides.
         default: return nil
         }
-        guard let base = lastModel, let content = lastContent else { return nil }
+        // A search ranks the tiles by match, not by the bar: a place among
+        // them means nothing there. The drop files it in the section.
+        guard query.isEmpty, let base = lastModel, let content = lastContent else { return nil }
         let panel = content.layout == .panel
         let shown = drag.shownSlot.map { base.moving(drag.tile, to: $0, keepingOrigin: panel) } ?? base
         // The row is one grid, laid out from its first block.
@@ -1196,8 +1198,10 @@ final class PanelPresenter: RevealPresenter {
     /// The gap between Visible icons nearest `pointer`, from the last walk:
     /// the icons on the panel's display, the chevron's edge counting as one.
     private func barGap(at pointer: CGPoint, for drag: TileDrag) -> PanelBarGap? {
+        // The walk keeps the main display's copy of each icon: a side bar
+        // has too few to aim between, and the drop takes the default place.
         guard let appState, let snapshot = appState.snapshot, let screen = window?.screen ?? NSScreen.main,
-              let id = screen.displayID else { return nil }
+              let id = screen.displayID, id == CGMainDisplayID() else { return nil }
         // AX frames: top-left origin, in the display's own bounds.
         let display = CGDisplayBounds(id)
         let behindOverflow = Set(appState.overflowTrappedItems.map(\.sectionKey))

@@ -1313,7 +1313,11 @@ extension TransitionCoordinator {
         PelmetLog.log("pass: cover \(cover == nil ? "none" : "up") at \(ms())ms")
         appState.picturePassSections = sections
         await engine.reveal(sections)
-        let snap = await settledWalk(watching: { wanted($0) }, awaiting: Set(wanting.filter(wanted)))
+        // An app that quit since the panel drew never comes: waiting on it
+        // held every walk to the deadline.
+        let running = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
+        let awaiting = Set(wanting.filter { wanted($0) && $0.bundleID.map(running.contains) != false })
+        let snap = await settledWalk(watching: { wanted($0) }, awaiting: awaiting)
         appState.updateSnapshot(snap)
         // The panel orders its tiles the way the bar just drew them.
         appState.recordDrawnOrder(snap, revealed: sections)

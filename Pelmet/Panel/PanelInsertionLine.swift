@@ -15,6 +15,9 @@ final class PanelInsertionLine {
     private static let height: CGFloat = 16
 
     private let window: NSPanel
+    /// Where the last fade is going: mid-fade the window's alpha is still the
+    /// old one, and a hide read against it did nothing.
+    private var target: CGFloat = 0
 
     /// `appearance` is the panel's, so the line reads in the same mode.
     init(appearance: NSAppearance?) {
@@ -54,10 +57,12 @@ final class PanelInsertionLine {
     func close() {
         window.orderOut(nil)
         window.alphaValue = 0
+        target = 0
     }
 
     private func fade(to alpha: CGFloat) {
-        guard window.alphaValue != alpha else { return }
+        guard target != alpha else { return }
+        target = alpha
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.1
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)

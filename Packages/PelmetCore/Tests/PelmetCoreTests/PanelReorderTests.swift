@@ -162,6 +162,8 @@ import Testing
         let list = [t(0), .rowBreak, t(1), t(2)]
         #expect(PanelReorder.neighbour(of: t(0), in: list) == PanelNeighbour(item: .bundleKey("t1"), afterBreak: true))
         #expect(PanelReorder.neighbour(of: t(1), in: list) == PanelNeighbour(item: .bundleKey("t2"), afterBreak: false))
+        // Last before a trailing break: no icon, but the break is said.
+        #expect(PanelReorder.neighbour(of: t(0), in: [t(0), .rowBreak]) == PanelNeighbour(item: nil, afterBreak: true))
         // A tile that is not in the list has nothing beside it.
         #expect(PanelReorder.neighbour(of: t(9), in: list).item == nil)
     }

@@ -1766,11 +1766,17 @@ final class AppState {
     /// the first of the run of separators before the neighbour (the order,
     /// less the tile itself, may hold several where the panel draws one).
     func dropAnchor(before neighbour: PanelNeighbour, in section: PelmetCore.Section, moving id: ItemID) -> ItemID? {
-        guard let item = neighbour.item else { return nil }
-        guard neighbour.afterBreak else { return item }
+        guard neighbour.afterBreak else { return neighbour.item }
         let key = id.sectionKey
         let order = (settings.orderEdits.order[section] ?? barBasedOrder(in: section, model: settings.sectionModel))
             .filter { $0 != key }
+        // Last before a trailing break: before the separators that close the
+        // section, not appended after them.
+        guard let item = neighbour.item else {
+            var index = order.endIndex
+            while index > 0, order[index - 1].isPelmetSeparator { index -= 1 }
+            return index < order.endIndex ? order[index] : nil
+        }
         guard var index = order.firstIndex(of: item.sectionKey) else { return item }
         var anchor = item
         while index > 0, order[index - 1].isPelmetSeparator {

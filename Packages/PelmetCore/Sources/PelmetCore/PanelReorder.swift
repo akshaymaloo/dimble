@@ -92,7 +92,8 @@ public enum PanelReorder {
         return min(lastInRow ? there + 1 : nearest.index, most)
     }
 
-    /// What `tile` stands next to on its right in `tiles`.
+    /// What `tile` stands next to on its right in `tiles`. No icon after it
+    /// but a break: it ends its run, before the separators closing the section.
     public static func neighbour(of tile: PanelTile, in tiles: [PanelTile]) -> PanelNeighbour {
         let head = tiles.filter(isPlaced)
         guard let at = head.firstIndex(of: tile) else { return PanelNeighbour(item: nil, afterBreak: false) }
@@ -104,7 +105,7 @@ public enum PanelReorder {
             case .launcher, .fold: break
             }
         }
-        return PanelNeighbour(item: nil, afterBreak: false)
+        return PanelNeighbour(item: nil, afterBreak: broke)
     }
 
     /// The distance the nearest-icon rule compares: a tile in another row
