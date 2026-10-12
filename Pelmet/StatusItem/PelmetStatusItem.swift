@@ -169,11 +169,19 @@ final class PelmetStatusItem {
         PelmetLog.log("statusItem clicked: type=\(event?.type.rawValue ?? 0) option=\(option) count=\(event?.clickCount ?? 0) double=\(isDouble)")
         if event?.type == .rightMouseUp {
             lastLeftClickAt = nil
-            item.menu = Self.contextMenu(appState: appState)
-            item.button?.performClick(nil)
-            item.menu = nil
-            // performClick returns once the menu is dismissed; it fades for
-            // a beat after that (see `ConcealGhostOverlay.menuClosedAt`).
+            let mouse = NSEvent.mouseLocation
+            if let home = item.button?.window?.screen, NSMouseInRect(mouse, home.frame, false) {
+                item.menu = Self.contextMenu(appState: appState)
+                item.button?.performClick(nil)
+                item.menu = nil
+            } else {
+                // AppKit opens the item's menu on its own window's display
+                // whichever copy was clicked (#26, 3 displays): on another
+                // display it drops from that bar, at the pointer.
+                Self.contextMenu(appState: appState).popUp(positioning: nil, at: Self.underBar(at: mouse), in: nil)
+            }
+            // Both return once the menu is dismissed; it fades for a beat
+            // after that (see `ConcealGhostOverlay.menuClosedAt`).
             ConcealGhostOverlay.menuClosedAt = Date()
             return
         }
@@ -191,6 +199,27 @@ final class PelmetStatusItem {
         } else {
             appState.toggle(reason: .statusItem)
         }
+    }
+
+    /// Under the bar of the display `point` is on, at its x (Cocoa). The
+    /// bar's own window gives its height: off the main display the
+    /// visibleFrame keeps no band for it, and a 30pt bar read as none.
+    private static func underBar(at point: NSPoint) -> NSPoint {
+        guard let screen = NSScreen.screens.first(where: { NSMouseInRect(point, $0.frame, false) }) else { return point }
+        var height = GlassPanel.barHeight(of: screen)
+        if let id = screen.directDisplayID, let list = ConcealGhostOverlay.onScreenWindows() {
+            let display = CGDisplayBounds(id)
+            let barLevel = Int(CGWindowLevelForKey(.mainMenuWindow))
+            for w in list where (w[kCGWindowLayer as String] as? Int) == barLevel && (w[kCGWindowOwnerName as String] as? String) == "Window Server" {
+                guard let b = w[kCGWindowBounds as String] as? [String: CGFloat],
+                      let x = b["X"], let y = b["Y"], let h = b["Height"],
+                      abs(y - display.minY) < 1, x >= display.minX - 1, x < display.maxX
+                else { continue }
+                height = h
+                break
+            }
+        }
+        return NSPoint(x: point.x, y: screen.frame.maxY - height)
     }
 
     static func contextMenu(appState: AppState) -> NSMenu {
