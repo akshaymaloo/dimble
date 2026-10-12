@@ -897,6 +897,35 @@ final class AppState {
         return itemsInBar
     }
 
+    /// Icons held for a reveal the machine no longer has: it settled
+    /// concealed, or the queued icon reveal was replaced or cancelled. They
+    /// never came out through the machine, so a later Show would read
+    /// "already out", the hold on the idle picture would stay up and every
+    /// picture pass would be skipped. They go back quietly (nothing was
+    /// seen) and end their hold.
+    private func releaseOrphanedItemsInBar() {
+        guard !itemsInBar.isEmpty else { return }
+        switch rehide.state {
+        case .concealed:
+            break
+        case .transitioning(target: .conceal, queued: .reveal(let sections, _)?):
+            guard !sections.isEmpty else { return }
+        case .transitioning(target: .conceal, queued: _):
+            break
+        default:
+            return
+        }
+        let stale = takeItemsInBar()
+        PelmetLog.log("press: show — \(stale.count) icon(s) held for a reveal that never ran, released")
+        let own = stale.filter(isOwnExtra)
+        releaseExtrasAlone(own)
+        let theirs = stale.subtracting(own)
+        Task {
+            if !theirs.isEmpty { await engine.conceal(items: theirs) }
+            transitions.pressEnded()
+        }
+    }
+
     // MARK: - Pelmet's own extras
 
     /// What a press on one of Pelmet's own extras needs first; nil when the
@@ -2661,7 +2690,10 @@ final class AppState {
         // swap's reflow. Applying pre-reflow here put them on a second clock.
         // The chevron flips at transition START — settle-time flips read as an
         // unacknowledged click.
-        defer { statusItem?.updateSymbol(revealed: isRevealedOrRevealing) }
+        defer {
+            statusItem?.updateSymbol(revealed: isRevealedOrRevealing)
+            releaseOrphanedItemsInBar()
+        }
         for effect in effects {
             switch effect {
             case .none:

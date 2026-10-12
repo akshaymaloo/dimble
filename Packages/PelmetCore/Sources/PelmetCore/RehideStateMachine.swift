@@ -102,6 +102,11 @@ public struct RehideStateMachine: Equatable, Sendable {
             state = .transitioning(target: .reveal(sections, reason), queued: nil)
             return [.reveal(sections)]
 
+        case (.revealed(let current, _), .revealRequested(_, .hover)) where current.isEmpty:
+            // Only single icons are out (Show in Menu Bar): the pointer coming
+            // to them is not a request for the section behind them.
+            return [.none]
+
         case (.revealed(let current, _), .revealRequested(let sections, let reason))
             where !sections.subtracting(current).isEmpty:
             // Widen the reveal (e.g. hidden already out, now always-hidden too).
@@ -151,6 +156,11 @@ public struct RehideStateMachine: Equatable, Sendable {
             if queued == .conceal, reason == .hover {
                 return [.none]
             }
+            // Same for icons Show in Menu Bar is bringing out: a hover merged
+            // into that transition would slide the whole section out.
+            if reason == .hover, Self.bringsIconsOnly(target: target, queued: queued) {
+                return [.none]
+            }
             // A reveal landing mid-reveal must never NARROW what's in flight
             // or queued: the engine's reveal is additive, so settling a queued
             // [hidden] right after a double-click [hidden, alwaysHidden]
@@ -189,8 +199,12 @@ public struct RehideStateMachine: Equatable, Sendable {
             // A toggle means "the opposite of where we're heading" — clicking
             // the chevron during a hover-triggered reveal must queue a conceal,
             // not reinforce the reveal (which reads as a dead click).
+            // Except over icons coming out alone (Show in Menu Bar): no section
+            // is on its way, so the toggle opens one, as on a settled bar.
             let queued: State.Target = {
-                if case .reveal = target { return .conceal }
+                if case .reveal(let inFlight, _) = target {
+                    return inFlight.isEmpty && !sections.isEmpty ? .reveal(sections, reason) : .conceal
+                }
                 return .reveal(sections, reason)
             }()
             state = .transitioning(target: target, queued: queued)
@@ -244,6 +258,16 @@ public struct RehideStateMachine: Equatable, Sendable {
 
         default:
             return [.none]
+        }
+    }
+
+    /// A transition whose only reveal is icons coming out on their own.
+    private static func bringsIconsOnly(target: State.Target, queued: State.Target?) -> Bool {
+        switch (target, queued) {
+        case (.reveal(let sections, _), nil): sections.isEmpty
+        case (.reveal(let sections, _), .reveal(let next, _)?): sections.isEmpty && next.isEmpty
+        case (.conceal, .reveal(let next, _)?): next.isEmpty
+        default: false
         }
     }
 

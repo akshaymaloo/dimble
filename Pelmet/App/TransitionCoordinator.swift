@@ -493,7 +493,7 @@ final class TransitionCoordinator {
             // its finished picture, and every reveal after paid the
             // cover-only path — 0.6s from the click to the icons on each
             // toggle (#35). The strip is still up and at rest: take it now.
-            if lastRevealedSections == [.hidden], let why = revealedStripProblem {
+            if lastRevealedSections == [.hidden], released.isEmpty, let why = revealedStripProblem {
                 await takeRevealedStripPicture(reason: "conceal (\(why))")
             }
             let emptyBar = freshEmptyBarSnapshots()
@@ -597,6 +597,15 @@ final class TransitionCoordinator {
                 appState.showExtrasAlone(own)
                 // The agent lays the attached item out within a frame.
                 try? await Task.sleep(for: AppTiming.ownItemAttachLead)
+            }
+            // A conceal that took these while the cover was going up ran
+            // before this reveal: they are out now and nobody holds them.
+            let gone = live.subtracting(appState.itemsInBar)
+            if !gone.isEmpty {
+                let goneOwn = gone.filter(appState.isOwnExtra)
+                appState.releaseExtrasAlone(goneOwn)
+                if gone.count > goneOwn.count { await engine.conceal(items: gone.subtracting(goneOwn)) }
+                PelmetLog.log("effect reveal items — \(gone.map(\.rawValue).sorted()) released meanwhile, put back")
             }
             trace.mark("engine")
             trace.note(await engine.lastConvergeTiming)
@@ -1157,6 +1166,12 @@ final class TransitionCoordinator {
                 try? await Task.sleep(for: AppTiming.precaptureGhostClearance)
             }
             guard !Task.isCancelled, appState.currentRevealedSections == [.hidden] else { return }
+            // An icon Show in Menu Bar has out on top of the section would be
+            // in the picture, and the next reveal would flash it.
+            guard appState.itemsInBar.isEmpty else {
+                PelmetLog.log("finished: an icon is out on the bar, no picture at settle")
+                return
+            }
             await takeRevealedStripPicture(reason: "settle")
         }
     }

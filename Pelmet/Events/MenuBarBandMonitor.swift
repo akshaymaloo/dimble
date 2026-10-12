@@ -455,7 +455,7 @@ final class MenuBarBandMonitor {
 
     private func scheduleHoverReveal() {
         guard let appState,
-              appState.settings.revealTriggers.hoverEnabled, !appState.isRevealed else { return }
+              appState.settings.revealTriggers.hoverEnabled, !appState.isRevealed, appState.itemsInBar.isEmpty else { return }
         guard !appState.syntheticDragInFlight, !hoverSuppressedUntilExit else {
             PelmetLog.log("band: hover refused — \(hoverSuppressedUntilExit ? "concealed under the pointer, waits for it to leave the bar" : "synthetic drag in flight")")
             return
@@ -465,7 +465,7 @@ final class MenuBarBandMonitor {
         hoverTimer?.invalidate()
         hoverTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { _ in
             Task { @MainActor [weak self] in
-                guard let self, let appState = self.appState, self.pointerInHoverZone else { return }
+                guard let self, let appState = self.appState, self.pointerInHoverZone, appState.itemsInBar.isEmpty else { return }
                 PerfTrace.markTrigger("hover")
                 // Re-verify against the LIVE pointer, not just the
                 // tracked flag — the flag lags by one event-delivery

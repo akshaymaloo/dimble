@@ -278,6 +278,63 @@ import Testing
         #expect(machine.state == .revealed(sections: [], reason: .itemInBar))
     }
 
+    /// The pointer coming to an icon that Show in Menu Bar is bringing out is
+    /// not a request for its section: a hover merged into the transition made
+    /// the whole Hidden section slide out under the item's reason.
+    @Test func hoverDuringAnItemAloneRevealIsDropped() {
+        var machine = RehideStateMachine(policy: .init(autoRehide: true, delay: 5))
+        _ = machine.handle(.revealRequested([], .itemInBar), now: now)
+        #expect(machine.handle(.revealRequested([.hidden], .hover), now: now) == [.none])
+        #expect(machine.state == .transitioning(target: .reveal([], .itemInBar), queued: nil))
+        _ = machine.handle(.transitionSettled, now: now)
+        #expect(machine.state == .revealed(sections: [], reason: .itemInBar))
+    }
+
+    @Test func hoverOnAnItemAloneIsDroppedButADeliberateRevealWidens() {
+        var machine = RehideStateMachine(policy: .init(autoRehide: true, delay: 5))
+        _ = machine.handle(.revealRequested([], .itemInBar), now: now)
+        _ = machine.handle(.transitionSettled, now: now)
+        #expect(machine.handle(.revealRequested([.hidden], .hover), now: now) == [.none])
+        #expect(machine.state == .revealed(sections: [], reason: .itemInBar))
+        #expect(machine.handle(.revealRequested([.hidden], .displayPolicy), now: now) == [.cancelTimer, .reveal([.hidden])])
+    }
+
+    /// An icon queued behind a conceal (the panel closing for it) is no
+    /// different: a hover must not replace it with the section.
+    @Test func hoverBehindAConcealDoesNotReplaceAQueuedItemAlone() {
+        var machine = RehideStateMachine(policy: .init(autoRehide: true, delay: 5))
+        _ = machine.handle(.revealRequested([.hidden], .click), now: now)
+        _ = machine.handle(.transitionSettled, now: now)
+        _ = machine.handle(.concealRequested, now: now)
+        _ = machine.handle(.revealRequested([], .itemInBar), now: now)
+        #expect(machine.handle(.revealRequested([.hidden], .hover), now: now) == [.none])
+        #expect(machine.state == .transitioning(target: .conceal, queued: .reveal([], .itemInBar)))
+        // A deliberate section reveal still wins the queue.
+        #expect(machine.handle(.revealRequested([.hidden], .click), now: now) == [.none])
+        #expect(machine.state == .transitioning(target: .conceal, queued: .reveal([.hidden], .click)))
+    }
+
+    /// A chevron click or the hotkey while the icon is still coming out: no
+    /// section is on its way, so the toggle opens one instead of queueing a
+    /// conceal that would put the icon away and read as a dead click.
+    @Test func toggleDuringAnItemAloneRevealOpensTheSectionAfterIt() {
+        var machine = RehideStateMachine(policy: .init(autoRehide: true, delay: 5))
+        _ = machine.handle(.revealRequested([], .itemInBar), now: now)
+        #expect(machine.handle(.toggleRequested([.hidden], .click), now: now) == [.none])
+        #expect(machine.state == .transitioning(target: .reveal([], .itemInBar), queued: .reveal([.hidden], .click)))
+        #expect(machine.handle(.transitionSettled, now: now) == [.reveal([.hidden])])
+        _ = machine.handle(.transitionSettled, now: now)
+        #expect(machine.state == .revealed(sections: [.hidden], reason: .click))
+    }
+
+    /// Over a section that is coming out, a toggle is still the opposite.
+    @Test func toggleDuringASectionRevealStillQueuesTheConceal() {
+        var machine = RehideStateMachine(policy: .init(autoRehide: true, delay: 5))
+        _ = machine.handle(.revealRequested([.hidden], .click), now: now)
+        _ = machine.handle(.toggleRequested([.hidden], .click), now: now)
+        #expect(machine.state == .transitioning(target: .reveal([.hidden], .click), queued: .conceal))
+    }
+
     /// A configured delay still applies to a hotkey reveal.
     @Test func hotkeyRevealWithDelayArmsTheDelay() {
         var machine = RehideStateMachine(policy: .init(autoRehide: true, delay: 5))
