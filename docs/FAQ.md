@@ -145,12 +145,14 @@ two. Turning it off keeps you on your current build until the next stable
 passes it.
 
 **Is there a keyboard shortcut?**
-Two, and they work from any app. ⌥⌘, shows the hidden icons and puts them
+A few, and they work from any app. ⌥⌘, shows the hidden icons and puts them
 back on the next press (with auto-rehide set to Instant, they also go back
-once the pointer leaves the bar or you click elsewhere). ⇧⌥⌘, opens Pelmet
-Settings, so it's the way in when the Pelmet icon is off. Change either one
+once the pointer leaves the bar or you click elsewhere). ⌃⌥⌘, does the same
+with the always-hidden ones too. ⌥⌘K opens Pelmet Search. ⇧⌥⌘, opens Pelmet
+Settings, so it's the way in when the Pelmet icon is off. Change any of them
 in Settings → General: click the shortcut, press the new keys. The × next to
-a custom shortcut, or ⌫ while recording, brings the default back.
+a custom shortcut, or ⌫ while recording, brings the default back. ⌥⌘N opens
+Notification Center and lives in Settings → Behavior, under the clock setting.
 
 **How do I open Settings if I turned the Pelmet icon off?**
 Any of: press ⇧⌥⌘, (or the shortcut you recorded), right-click a Pelmet

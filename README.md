@@ -18,14 +18,14 @@ for the menu bar Apple rebuilt in macOS 27. Free, open source, no account,
 no analytics.
 
 > [!TIP]
-> **Beta channel now available.** Fixes and new features land there first, a
-> stable release rolls them up every week or two. Turn on "Get beta releases"
-> in Settings › About (0.2.41 or later), or download the latest beta:
+> **Beta channel.** Fixes and new features land there first, a stable release
+> rolls them up every week or two. Turn on "Get beta releases" in
+> Settings › About, or download the latest beta:
 >
 > [![Latest beta](https://img.shields.io/github/v/release/fif7y/pelmet?include_prereleases&filter=*beta*&label=latest%20beta&color=6841ED)](https://github.com/fif7y/pelmet/releases?q=prerelease%3Atrue)
 
 <p align="center">
-  <img src="docs/assets/bar-anim.svg" alt="The menu bar: hidden icons tuck away behind the chevron, then return on hover" width="575"><br>
+  <img src="https://pelmet.fif7y.com/assets/bar-reveal.svg" alt="The menu bar on a hover. Hidden icons slide out from behind the chevron, then tuck back in" width="575"><br>
   <sub>Collapsed, and a hover later.</sub>
 </p>
 
@@ -41,7 +41,7 @@ chevron right in the menu bar. Pelmet records the move and never moves an
 icon on its own.
 
 <p align="center">
-  <img src="docs/assets/apply-loop.gif" alt="The layout editor under the menu bar: Spotify is dragged from Hidden to Visible, nothing moves in the bar, Apply lights up, one press and Spotify appears in the bar" width="640"><br>
+  <img src="https://pelmet.fif7y.com/assets/apply-loop.gif" alt="The layout editor under the menu bar: Spotify is dragged from Hidden to Visible, nothing moves in the bar, Apply lights up, one press and Spotify appears in the bar" width="640"><br>
   <sub>The layout editor is a drawing. Drag icons between Visible, Hidden and Always&nbsp;Hidden; nothing moves in the bar until you press Apply.</sub>
 </p>
 
@@ -65,13 +65,32 @@ wherever you like.
 
 Every way back in is a setting: hover (with a delay from 0.1 to 0.5 seconds),
 a click on empty menu bar space, a double-click for the always-hidden section,
-or the chevron itself. Pick how it looks (**Instant**, **Smooth** or **Fade**)
+or the chevron itself. The keyboard works too, from any app. ⌥⌘, shows the
+hidden icons and ⌃⌥⌘, brings the always-hidden ones with them (you can change
+both in Settings › General). Pick how it looks (**Instant**, **Smooth** or **Fade**)
 and how it ends, either auto-rehide after a delay you set (instant to 5
 seconds) or the moment you click somewhere else.
 
 <p align="center">
-  <img src="docs/assets/screenshot-settings.png" alt="Behavior pane: Instant/Smooth/Fade animation cards with a live preview, reveal on hover with a stepped delay slider, click and double-click reveals, auto-rehide after a stepped delay, system extras" width="640"><br>
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/screenshot-settings-light.png">
+    <img src="docs/assets/screenshot-settings.png" alt="Behavior pane: Instant/Smooth/Fade animation cards with a live preview, the icon spacing slider, reveal on hover with a stepped delay slider, click and double-click reveals, auto-rehide after a stepped delay, system extras and the Notification Center shortcut" width="640">
+  </picture><br>
   <sub>Your rules for revealing, and for putting everything back.</sub>
+</p>
+
+## Search the menu bar
+
+Press ⌥⌘K, type a few letters, press Return, and that icon's menu opens right
+from its real icon, hidden or not. The arrow keys work in the menu like they
+normally do. Search knows the short names people type (bt, wifi) and puts the
+icons you open most first. It finds Pelmet's settings too, and ⌘K on a result
+moves it to another section or gives it its own shortcut. What it learns
+stays on your Mac. New in 0.3.1.
+
+<p align="center">
+  <img src="https://pelmet.fif7y.com/assets/search.gif" alt="Pelmet Search: ⌥⌘K opens a search panel under the menu bar, typing bt finds Bluetooth, Return opens Bluetooth's menu from its own icon and the arrow keys move down it" width="640"><br>
+  <sub>⌥⌘K, "bt", Return. Bluetooth's menu drops from its own icon.</sub>
 </p>
 
 ## And the rest
@@ -95,6 +114,10 @@ seconds) or the moment you click somewhere else.
 - **Your icon, or none.** Seven menu bar icon styles (chevron, arrow, eye,
   dots, grid, panel, dot), or turn the icon off entirely and reach Settings by
   shortcut or right-click.
+- **Tighter icons.** One slider for the gap macOS leaves between menu bar
+  icons, down to 1 point. Pelmet relaunches itself and the system icons so the
+  clock and Control Center follow at once, other apps pick it up the next time
+  they open.
 - **Speaks your language.** English, German, French, Spanish, Italian,
   Portuguese (Brazil), Japanese, Simplified Chinese, Korean and Russian.
   Pelmet follows your system language, or pick one in Settings › General ›
@@ -102,7 +125,10 @@ seconds) or the moment you click somewhere else.
   in `scripts/gen-xcstrings.py`.
 
 <p align="center">
-  <img src="docs/assets/screenshot-general.png" alt="General settings: launch at login, the menu bar icon toggle with six icon styles, display language picker, Accessibility and Screen Recording permission status" width="640"><br>
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/screenshot-general-light.png">
+    <img src="docs/assets/screenshot-general.png" alt="General settings: launch at login, the menu bar icon toggle with seven icon styles, the keyboard shortcuts, display language picker, Accessibility and Screen Recording permission status" width="640">
+  </picture><br>
   <sub>General. Pick the icon Pelmet wears, or your language.</sub>
 </p>
 
