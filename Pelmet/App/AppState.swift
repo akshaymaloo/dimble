@@ -2698,7 +2698,11 @@ final class AppState {
     func runGroupingPass(allowing allowed: Set<ItemID>) async -> ApplyReport? {
         guard !applying else { return nil }
         applying = true
-        defer { applying = false }
+        // The walk at rest skips its prune while the pass holds the bar
+        // (restoreFocus runs up to ~550ms), and it is the only one after a
+        // swap: pruned here, a settled drawing never waits for the next
+        // transition with Apply lit (review, 2026-10-13).
+        defer { applying = false; pruneSettledOrderEdits() }
         let front = NSWorkspace.shared.frontmostApplication
         let report = await ApplyPass.run(appState: self, scope: .strays(allowed))
         if !report.applied.isEmpty { await engine.writeOrderHint() }
