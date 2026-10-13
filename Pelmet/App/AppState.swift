@@ -2478,6 +2478,19 @@ final class AppState {
 
     // MARK: - Keep sections grouped (docs/CORE-SETS.md, #80)
 
+    /// The bar's frames don't say where the icons sit right now: a pass or a
+    /// transition is moving them, a relay has an icon out alone or the «
+    /// open. The grouping ledger takes no look then: one under a press
+    /// relay's open « read Cardhop as in place and spent the editor drop
+    /// that explained it (#81).
+    var barInFlux: Bool {
+        applying || isTransitioning || clockBlinkInFlight || audioVideoRelayActive || pressRunning
+    }
+
+    /// An item menu relay is clicking: its clicks on an icon behind an open «
+    /// hit-test as empty bar.
+    var pressRunning: Bool { press.isRunning }
+
     /// Why the automatic grouping pass must not start right now (nil = the
     /// door is open). `transient` gates clear on their own and are re-checked
     /// on the debounce beat; the others wait for the snapshot or roster
@@ -3633,7 +3646,15 @@ final class AppState {
         // registered sits in band — and the first converge would park a
         // registration the agent hasn't adopted yet, same as a visible one.
         for id in helperHosts?.hostedLiveIDs ?? [] { expected.insert(id) }
-        guard !expected.isEmpty else { return }
+        // Nothing to wait for is adopted now: the grouping gate and the boot
+        // overflow read wait on this stamp, and a bar with no visible
+        // separator, no media control out and no helper never got one, so
+        // "booting" held a stray on the wrong side for good (#81).
+        guard !expected.isEmpty else {
+            PelmetLog.log("start: own items adopted (none to wait for)")
+            ownItemsAdoptedAt = ContinuousClock.now
+            return
+        }
         let deadline = Date.now.addingTimeInterval(8)
         var missing = expected
         var lastWalk: [ItemID: CGRect?] = [:]

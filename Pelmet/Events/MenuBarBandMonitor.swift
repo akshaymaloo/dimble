@@ -530,7 +530,10 @@ final class MenuBarBandMonitor {
             // the hit-test can read one as an empty-area click (a trapped
             // item's phantom position has no element under it) and toggle a
             // reveal under the running drag (seen live during rescue).
-            guard !appState.syntheticDragInFlight else { return }
+            // The item menu relay's click on an icon behind an open « reads
+            // the same way: it opened the panel over the menu it was
+            // opening, "showed nothing" (#81, CleanMyMac, twice).
+            guard !appState.syntheticDragInFlight, !appState.pressRunning else { return }
             // Stamped before the gates so the perf line counts the
             // hit-test IPCs a click pays on its way to `dispatch`.
             PerfTrace.markTrigger("click")

@@ -156,6 +156,11 @@ final class SectionGrouper {
             note("group: no chevron on the bar — nothing to group against")
             return
         }
+        // Sides read now are not where the icons sit: look on the beat.
+        guard !appState.barInFlux else {
+            schedule(after: AppTiming.groupingDebounce)
+            return
+        }
         let roster = appState.settings.sectionModel.roster
         lastRoster = roster
         let strays = ApplyPass.strays(for: appState, snapshot: snap)
