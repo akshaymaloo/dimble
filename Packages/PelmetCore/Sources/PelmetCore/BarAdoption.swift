@@ -294,12 +294,33 @@ public enum BarAdoption {
             let key = $1.id.sectionKey
             $0[key] = min($0[key] ?? .greatestFiniteMagnitude, x)
         }
+        // Where every icon sits, own items included: they hold their slots,
+        // but they are still neighbours on the bar.
+        let barX: [ItemID: CGFloat] = items.reduce(into: [:]) {
+            guard let x = $1.minX else { return }
+            let key = $1.id.sectionKey
+            $0[key] = min($0[key] ?? .greatestFiniteMagnitude, x)
+        }
         for (section, order) in model.order {
             var newOrder = order.filter { model.section(of: $0) == section }
             let liveSlots = newOrder.indices.filter { liveX[newOrder[$0]] != nil }
             let sortedLive = liveSlots.map { newOrder[$0] }
                 .sorted { liveX[$0, default: .infinity] < liveX[$1, default: .infinity] }
             for (offset, slot) in liveSlots.enumerated() { newOrder[slot] = sortedLive[offset] }
+            // The icon the user ⌘-dragged goes where they dropped it among
+            // all its neighbours. Re-sorted among the others only, a drag
+            // past one of Pelmet's own items changed no order, nothing was
+            // adopted, and the editor stopped matching the bar (live test,
+            // 2026-10-13). With no framed neighbour it keeps its slot.
+            if let dragged = draggedID?.sectionKey, let from = newOrder.firstIndex(of: dragged), let x = barX[dragged] {
+                var rest = newOrder
+                rest.remove(at: from)
+                let after = rest.lastIndex { barX[$0].map { $0 < x } == true }
+                if let to = after.map({ $0 + 1 }) ?? rest.firstIndex(where: { barX[$0] != nil }) {
+                    rest.insert(dragged, at: to)
+                    newOrder = rest
+                }
+            }
             var known = Set(newOrder)
             // A member with no order entry yet slots in by X. Pelmet's own
             // items are absent from `liveX` by design (above), yet an extra
@@ -309,11 +330,7 @@ public enum BarAdoption {
             // Own items hold their slots but still sit where they sit, so a
             // newcomer slots in against them too: One Thing, adopted right of
             // Media, found no member left of it and went first (2026-09-25).
-            var slotX = items.reduce(into: liveX) {
-                guard let x = $1.minX else { return }
-                let key = $1.id.sectionKey
-                $0[key] = min($0[key] ?? .greatestFiniteMagnitude, x)
-            }
+            var slotX = barX
             let missing: [(key: ItemID, x: CGFloat)] = items.compactMap {
                 guard let minX = $0.minX, !known.contains($0.id.sectionKey),
                       model.section(of: $0.id) == section,

@@ -466,6 +466,39 @@ struct BarAdoptionTests {
         #expect(dragged?.model.order[.hidden] == [velja.sectionKey, launcher.sectionKey, figma.sectionKey])
     }
 
+    // Live test, 2026-10-13: an icon ⌘-dragged past one of Pelmet's own
+    // items left the third-party order as it was, so nothing was adopted.
+    @Test func draggedIconPastAnOwnItemTakesItsSlotAmongThem() {
+        let media = ItemID(rawValue: "status:app.fif7y.Pelmet::Pelmet.MediaControls")
+        var model = SectionModel()
+        model.order[.visible] = [velja.sectionKey, media.sectionKey, figma.sectionKey]
+        let items: [(id: ItemID, minX: CGFloat?)] = [
+            (id: chevron, minX: 1000), (id: media, minX: 1040), (id: velja, minX: 1080), (id: figma, minX: 1120),
+        ]
+        let zones = [velja.rawValue: Section.visible, figma.rawValue: .visible, media.rawValue: .visible]
+        let dragged = BarAdoption.reconcile(
+            items: items, model: model, previousZones: zones, userDragged: true, pelmetBundleID: pelmet, draggedID: velja
+        )
+        #expect(dragged?.changed == true)
+        #expect(dragged?.model.order[.visible] == [media.sectionKey, velja.sectionKey, figma.sectionKey])
+        // Not dragged, the own item still holds its slot.
+        let held = BarAdoption.reconcile(items: items, model: model, previousZones: zones, pelmetBundleID: pelmet)
+        #expect(held?.model.order[.visible] == [velja.sectionKey, media.sectionKey, figma.sectionKey])
+    }
+
+    @Test func draggedIconWithNoFramedNeighbourKeepsItsSlot() {
+        var model = SectionModel()
+        model.assignments[velja.sectionKey] = .hidden
+        model.assignments[figma.sectionKey] = .hidden
+        model.order[.hidden] = [figma.sectionKey, velja.sectionKey]
+        let result = BarAdoption.reconcile(
+            items: [(id: chevron, minX: 1000), (id: velja, minX: 900), (id: figma, minX: nil)],
+            model: model, previousZones: [velja.rawValue: .hidden], userDragged: true,
+            pelmetBundleID: pelmet, draggedID: velja
+        )
+        #expect(result?.model.order[.hidden] == [figma.sectionKey, velja.sectionKey])
+    }
+
     @Test func helperHostedOwnItemHoldsItsModelSlotToo() {
         // A hidden-section separator is drawn by the hidden helper: its live
         // id carries the helper bundle, its key folds to the main bundle.
