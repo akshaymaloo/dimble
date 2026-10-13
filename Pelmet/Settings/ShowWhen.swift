@@ -12,7 +12,6 @@ import SwiftUI
 enum ShowWhenCondition: Hashable {
     case onBattery, below20
     case wifiDrops
-    case mediaPlaying
     case focusOn
     case backingUp
 
@@ -21,17 +20,17 @@ enum ShowWhenCondition: Hashable {
         case .onBattery: "On battery power"
         case .below20: "Below \(BatteryShowCondition.lowCharge)%"
         case .wifiDrops: "When it drops"
-        case .mediaPlaying: "While playing"
         case .focusOn: "While a Focus is on"
         case .backingUp: "While backing up"
         }
     }
 }
 
-/// The icons a rule can bring back: Apple's Battery and Wi-Fi, and three of
-/// Pelmet's own items.
+/// The icons a rule can bring back: Apple's Battery and Wi-Fi, and Pelmet's
+/// Focus and Time Machine. Media controls isn't one: like the camera
+/// indicator it comes and goes while in use, wherever it sits (its own row).
 enum ShowWhenSubject: CaseIterable, Hashable {
-    case battery, wifi, media, focus, timeMachine
+    case battery, wifi, focus, timeMachine
 
     /// The subject an editor tile stands for, if it has a rule.
     init?(_ id: ItemID) {
@@ -42,7 +41,6 @@ enum ShowWhenSubject: CaseIterable, Hashable {
             self = .wifi
         } else {
             switch id.pelmetItem {
-            case .mediaControls: self = .media
             case .focus: self = .focus
             case .timeMachine: self = .timeMachine
             default: return nil
@@ -55,7 +53,7 @@ enum ShowWhenSubject: CaseIterable, Hashable {
         switch self {
         case .battery: ShowRules.battery
         case .wifi: ShowRules.wifi
-        case .media, .focus, .timeMachine: nil
+        case .focus, .timeMachine: nil
         }
     }
 
@@ -63,7 +61,6 @@ enum ShowWhenSubject: CaseIterable, Hashable {
     var kind: ExtraKind? {
         switch self {
         case .battery, .wifi: nil
-        case .media: .mediaControls
         case .focus: .focus
         case .timeMachine: .timeMachine
         }
@@ -73,7 +70,6 @@ enum ShowWhenSubject: CaseIterable, Hashable {
         switch self {
         case .battery: "battery.100percent"
         case .wifi: "wifi"
-        case .media: "playpause.fill"
         case .focus: "moon.fill"
         case .timeMachine: ExtraGlyph.timeMachineSymbol
         }
@@ -83,7 +79,6 @@ enum ShowWhenSubject: CaseIterable, Hashable {
         switch self {
         case .battery: "Battery"
         case .wifi: "Wi-Fi"
-        case .media: "Media controls"
         case .focus: "Focus"
         case .timeMachine: "Time Machine"
         }
@@ -94,7 +89,6 @@ enum ShowWhenSubject: CaseIterable, Hashable {
         switch self {
         case .battery: String(localized: "Battery")
         case .wifi: "Wi-Fi"
-        case .media: String(localized: "Media controls")
         case .focus: String(localized: "Focus")
         case .timeMachine: String(localized: "Time Machine")
         }
@@ -104,7 +98,6 @@ enum ShowWhenSubject: CaseIterable, Hashable {
         switch self {
         case .battery: [.onBattery, .below20]
         case .wifi: [.wifiDrops]
-        case .media: [.mediaPlaying]
         case .focus: [.focusOn]
         case .timeMachine: [.backingUp]
         }
@@ -126,7 +119,7 @@ struct ShowWhenRule {
         switch subject {
         case .battery: appState.settings.showRules.batteryOn
         case .wifi: appState.settings.showRules.wifiOn
-        case .media, .focus, .timeMachine:
+        case .focus, .timeMachine:
             specIndex.map { appState.settings.extraItems[$0].resolvedShowRule == .whenActive } ?? false
         }
     }
@@ -136,17 +129,24 @@ struct ShowWhenRule {
     var condition: ShowWhenCondition {
         switch subject {
         case .battery: appState.settings.showRules.batteryCondition == .below20 ? .below20 : .onBattery
-        case .wifi, .media, .focus, .timeMachine: subject.conditions[0]
+        case .wifi, .focus, .timeMachine: subject.conditions[0]
         }
     }
 
-    /// An Apple icon that isn't in the bar, or sits in Visible, has nothing to
-    /// come back from; Pelmet's own items always do.
+    /// An icon in Visible has nothing to come back from, and an Apple one
+    /// that isn't in the bar has nothing to bring. Pelmet's own items are in
+    /// the bar whenever they are on.
     var availability: ShowRuleAvailability {
-        guard let id = subject.appleItem else { return .applies }
+        if let id = subject.appleItem {
+            return ShowRuleAvailability(
+                inMenuBar: appState.isInMenuBar(id),
+                section: appState.settings.sectionModel.section(of: id)
+            )
+        }
+        guard let index = specIndex else { return .applies }
         return ShowRuleAvailability(
-            inMenuBar: appState.isInMenuBar(id),
-            section: appState.settings.sectionModel.section(of: id)
+            inMenuBar: true,
+            section: appState.settings.sectionModel.section(of: ExtrasManager.itemID(for: appState.settings.extraItems[index]))
         )
     }
 
@@ -174,7 +174,7 @@ struct ShowWhenRule {
             if let condition { appState.settings.showRules.batteryCondition = condition == .below20 ? .below20 : .onBattery }
         case .wifi:
             if let on { appState.settings.showRules.wifiOn = on }
-        case .media, .focus, .timeMachine:
+        case .focus, .timeMachine:
             guard let on, let index = specIndex else { return }
             appState.settings.extraItems[index].showRule = on ? .whenActive : .always
         }
@@ -197,31 +197,29 @@ struct ShowWhenCard: View {
     }
 
     var body: some View {
-        // Whether Battery or Wi-Fi is in the bar is read with a grace (an
-        // icon in a gap isn't missing); the tick lets the answer settle once
-        // it has run out, with nothing else changing.
-        TimelineView(.periodic(from: .now, by: 4)) { _ in
-            VStack(alignment: .leading, spacing: 8) {
-                CardHeader(
-                    symbol: "bolt.fill", title: "Show when it matters",
-                    caption: "Hidden icons that come back on their own"
-                ) { EmptyView() }
+        VStack(alignment: .leading, spacing: 8) {
+            CardHeader(
+                symbol: "bolt.fill", title: "Show when it matters",
+                caption: "Hidden icons that come back on their own"
+            ) { EmptyView() }
 
-                VStack(alignment: .leading, spacing: 12) {
-                    ForEach(subjects, id: \.self) { subject in
-                        ShowWhenRow(rule: ShowWhenRule(subject: subject, appState: appState))
-                    }
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(subjects, id: \.self) { subject in
+                    ShowWhenRow(rule: ShowWhenRule(subject: subject, appState: appState))
                 }
-                .pelmetCardSurface()
             }
+            .pelmetCardSurface()
         }
     }
 }
 
 private struct ShowWhenRow: View {
     let rule: ShowWhenRule
+    /// Bumped when the icon's grace runs out, so the row reads it again.
+    @State private var graceOver = 0
 
     var body: some View {
+        let _ = graceOver
         let availability = rule.availability
         let applies = availability == .applies
         ItemRowShell(symbol: rule.subject.symbol, title: rule.subject.title) {
@@ -238,7 +236,19 @@ private struct ShowWhenRow: View {
                 .labelsHidden()
                 .disabled(!applies)
         }
+        // Whether Battery or Wi-Fi is in the bar is read with a grace (an icon
+        // in a gap isn't missing): the row looks again when it runs out, with
+        // nothing else changing, and never otherwise (the card ticked every 4s
+        // before, 2026-10-12).
+        .task(id: graceEnd) {
+            guard let graceEnd else { return }
+            try? await Task.sleep(for: .seconds(max(0, graceEnd.timeIntervalSinceNow)))
+            guard !Task.isCancelled else { return }
+            graceOver += 1
+        }
     }
+
+    private var graceEnd: Date? { rule.subject.appleItem.flatMap(rule.appState.menuBarGraceEnds) }
 
     /// A choice of conditions is the settings' accent menu (the hover delay's
     /// recipe); a single one is just said.
@@ -289,8 +299,9 @@ struct ShowWhenUnavailable: View {
 
 /// What an editor tile offers when it is clicked: when the icon shows up on
 /// the bar (the same choice as the card, as a checkmark list) when it has a
-/// rule, and a way to Search's alias and shortcut for it.
+/// rule, and a way to its shortcut in Settings › Search.
 struct TilePopover: View {
+    @Environment(AppState.self) private var appState
     let id: ItemID
     let name: String
     /// Nil for an icon with no rule: the header and the link are all it has.
@@ -309,7 +320,7 @@ struct TilePopover: View {
             if let rule {
                 ruleChoices(rule)
             }
-            Button("Alias and shortcut…", action: editAlias)
+            Button(hasShortcut ? "Change shortcut…" : "Add a shortcut…", action: editAlias)
                 .buttonStyle(.plain)
                 .foregroundStyle(PelmetAccent.accent)
         }
@@ -319,6 +330,8 @@ struct TilePopover: View {
         // competing with it (as in the separator options).
         .focusEffectDisabled()
     }
+
+    private var hasShortcut: Bool { appState.settings.itemHotkeys[id.sectionKey.rawValue] != nil }
 
     @ViewBuilder private func ruleChoices(_ rule: ShowWhenRule) -> some View {
         let availability = rule.availability

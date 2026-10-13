@@ -170,7 +170,8 @@ final class ShowRules {
             let charge = reading.percent.map { ", \($0)%" } ?? ""
             note("battery", met
                 ? "\(condition.rawValue) holds\(charge), Battery shows"
-                : "\(condition.rawValue) doesn't hold\(charge), Battery follows its section")
+                : "\(condition.rawValue) doesn't hold\(charge), Battery follows its section",
+                 state: "\(condition.rawValue) \(met)")
             if met { items.insert(Self.battery) }
         }
         if rules.wifiOn, let down = wifiDisconnected() {
@@ -201,10 +202,12 @@ final class ShowRules {
         apply(items)
     }
 
-    /// One line per change of a rule's state, not per notification.
-    private func note(_ rule: String, _ line: String) {
-        guard lastLine[rule] != line else { return }
-        lastLine[rule] = line
+    /// One line per change of a rule's state, not per notification: the
+    /// charge alone changing (a line every percent while charging) is not one.
+    private func note(_ rule: String, _ line: String, state: String? = nil) {
+        let state = state ?? line
+        guard lastLine[rule] != state else { return }
+        lastLine[rule] = state
         PelmetLog.log("rule: \(line)")
     }
 }

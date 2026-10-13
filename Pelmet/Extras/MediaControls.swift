@@ -136,11 +136,11 @@ final class ExtrasManager {
         specs.values.map(Self.itemID(for:))
     }
 
-    /// Whether this extra is actually in the bar right now. The hardware-gated
-    /// kinds sit in a section but only appear while their hardware is live
-    /// (media controls with audio playing, the camera indicator with a camera
-    /// on), so a caller that needs a real AX item — the boot adoption wait —
-    /// has to ask rather than infer it from the section.
+    /// Whether this extra is actually in the bar right now. The gated kinds
+    /// sit in a section but only appear while live (media controls with
+    /// audio playing, the camera indicator with a camera on, a launcher's app
+    /// running), so a caller that needs a real AX item — the boot adoption
+    /// wait — has to ask rather than infer it from the section.
     func isShowing(_ id: ItemID) -> Bool {
         specs.contains { lastVisible[$0.key] == true && Self.itemID(for: $0.value) == id }
     }
@@ -175,7 +175,7 @@ final class ExtrasManager {
         /// It is in the bar already.
         case showing
         /// Its own rule keeps it out whatever its section does (media with
-        /// nothing playing, a launcher whose app is not running, a Focus
+        /// nothing playing, a launcher whose app is not running, a camera
         /// that is off): there is nothing to bring out.
         case gated
     }
@@ -195,13 +195,7 @@ final class ExtrasManager {
             // still takes it, so it stays when the rule ends.
             return outOnItsRuleAlone(id, spec) ? .ready : .showing
         }
-        let live: Bool
-        switch spec.kind {
-        case .focus: live = focusStatus?.active != nil || spec.resolvedShowRule == .always
-        case .timeMachine: live = spec.resolvedShowRule != .whenActive || timeMachine?.status.running == true
-        default: live = wouldShow(key)
-        }
-        return live ? .ready : .gated
+        return wouldShow(key) ? .ready : .gated
     }
 
     private func outOnItsRuleAlone(_ id: UUID, _ spec: ExtraItemSpec) -> Bool {
@@ -411,11 +405,23 @@ final class ExtrasManager {
                 }
                 updateMediaSymbol(item, spec: spec)
                 // "Always": a play/pause button that rides its section like
-                // AirDrop. "When active": media-relevant — playing, or within
-                // the post-playback linger so pause doesn't swallow resume —
-                // in whatever section it sits.
+                // AirDrop. "While playing": an indicator, like the camera's
+                // and Apple's Now Playing — in its section only while
+                // media-relevant (playing, or within the post-playback linger
+                // so pause doesn't swallow resume), gone otherwise (Gab,
+                // 2026-10-12: not a "Show when it matters" rule).
                 if spec.resolvedShowRule == .whenActive {
-                    visible = ruleVisibility(id, spec, active: cameraMicMonitor?.mediaRelevant ?? true, sectionVisible: visible)
+                    visible = visible && (cameraMicMonitor?.mediaRelevant ?? true)
+                    // Same re-entry hazard as the camera pill: audio
+                    // starting (or the linger expiring and resuming) puts
+                    // the item back in layout at the agent's slot, not the
+                    // model's.
+                    let itemID = Self.itemID(for: spec)
+                    if visible, lastVisible[id] != true {
+                        appState?.placeOwnItemSoon(itemID)
+                    } else if !visible, lastVisible[id] == true {
+                        appState?.cancelOwnItemPlacement(itemID)
+                    }
                 }
             case .appLauncher:
                 // "While running" mirrors the app's own icon; "Always" is a
@@ -467,16 +473,16 @@ final class ExtrasManager {
             case .timeMachine:
                 updateTimeMachineGlyph(item, spec: spec)
                 let running = timeMachine?.status.running ?? false
-                // "When active": on the bar while a backup runs, in whatever
-                // section it sits.
+                // "When active": also out on the bar while a backup runs,
+                // from whatever section it sits in.
                 if spec.resolvedShowRule == .whenActive {
                     visible = ruleVisibility(id, spec, active: running, sectionVisible: visible)
                 }
                 lastBackupRunning = running
             case .focus:
-                // "Always": the moon rides its section, idle it opens the
-                // Focus panel. "When active": on the bar while a Focus is on,
-                // in whatever section it sits.
+                // The moon rides its section, idle it opens the Focus panel.
+                // "When active": also out on the bar while a Focus is on,
+                // from whatever section it sits in.
                 let active = focusStatus?.active != nil
                 if spec.resolvedShowRule == .whenActive {
                     visible = ruleVisibility(id, spec, active: active, sectionVisible: visible)
@@ -499,21 +505,19 @@ final class ExtrasManager {
         }
     }
 
-    /// A rule-on extra rides its rule alone (#86): on the bar while its thing
-    /// happens, in whatever section it sits, and off it when it doesn't, even
-    /// with the section out. A press (`shownAlone`) holds it past the rule's
-    /// end, and the rule holds it past the press's release. Back in layout it
-    /// sits at the agent's slot, not the model's: placed now when its section
-    /// is on screen, else at the next reveal settle.
+    /// A rule-on extra sits in its section like any icon and comes out on its
+    /// own while its thing happens (#86), the way Battery does and the Timer
+    /// does while it counts. The rule never takes it away: a Focus in Hidden
+    /// with no Focus on waits in Hidden (Gab, 2026-10-12). A press
+    /// (`shownAlone`, in `sectionVisible`) holds it past the rule's end, and
+    /// the rule past the press's release. Out alone it re-enters layout at
+    /// the agent's slot, not the model's, so the next reveal settle places
+    /// it; a section reveal rides the reflow.
     private func ruleVisibility(_ id: UUID, _ spec: ExtraItemSpec, active: Bool, sectionVisible: Bool) -> Bool {
-        let visible = active || shownAlone.contains(id)
+        let visible = sectionVisible || active
         let itemID = Self.itemID(for: spec)
-        if visible, lastVisible[id] != true {
-            if sectionVisible {
-                appState?.placeOwnItemSoon(itemID)
-            } else {
-                appState?.placeOwnItemAtNextReveal(itemID)
-            }
+        if visible, !sectionVisible, lastVisible[id] != true {
+            appState?.placeOwnItemAtNextReveal(itemID)
         } else if !visible, lastVisible[id] == true {
             appState?.cancelOwnItemPlacement(itemID)
         }
@@ -560,18 +564,17 @@ final class ExtrasManager {
             case .timer:
                 // Counting: already in the bar on its own.
                 guard !(pelmetTimer?.isActive ?? false) else { continue }
-            case .focus:
-                // Only an always-shown, currently off Focus rides the section.
+            case .focus, .timeMachine:
+                // Each rides its section whatever its rule; one already out
+                // on its rule was skipped above.
+                break
+            case .mediaControls:
+                // Audio-driven unless it always shows.
                 guard spec.resolvedShowRule == .always else { continue }
             case .appLauncher:
                 // The running edge has its own placement walk; only a plain
                 // launcher (or one already running) rides the section.
                 guard spec.resolvedShowRule != .whenActive || Self.isRunning(spec) else { continue }
-            case .timeMachine:
-                guard spec.resolvedShowRule != .whenActive || timeMachine?.status.running == true else { continue }
-            case .mediaControls:
-                // Audio-driven unless it always shows.
-                guard spec.resolvedShowRule == .always else { continue }
             case .cameraMicIndicator: continue  // hardware-driven
             }
             guard revealing.contains(model.section(of: Self.itemID(for: spec))) else { continue }
@@ -1576,6 +1579,13 @@ final class CameraMicMonitor {
     private(set) var audioOutputActive = false
     private(set) var lastAudioActiveAt: Date = .distantPast
     private var timer: Timer?
+    /// Output running this long counts as playing. A system sound keeps the
+    /// device running near 3s (a Tink, 2.8s measured 2026-10-12), so each
+    /// screenshot shutter brought the media item up for the whole linger.
+    static let sustainedAudio: TimeInterval = 5
+    private var audioRunningSince: Date?
+    /// Runs the wait out: no device event says it is over.
+    private var sustainedTimer: Timer?
     private let onChange: () -> Void
     // nonisolated(unsafe): mutated only on the main actor (install/remove),
     // but deinit must read them to unhook the HAL — Swift 6 bars isolated
@@ -1616,7 +1626,12 @@ final class CameraMicMonitor {
     /// swallow the resume button. (Apple keeps Now Playing for the paused
     /// session via private API; the linger is the honest approximation.)
     var mediaRelevant: Bool {
-        audioOutputActive || Date().timeIntervalSince(lastAudioActiveAt) < 300
+        audioSustained || Date().timeIntervalSince(lastAudioActiveAt) < 300
+    }
+
+    /// Output running long enough to be playback, not a UI sound.
+    private var audioSustained: Bool {
+        audioRunningSince.map { Date().timeIntervalSince($0) >= Self.sustainedAudio } ?? false
     }
 
     init(onChange: @escaping () -> Void) {
@@ -1648,6 +1663,8 @@ final class CameraMicMonitor {
     func stop() {
         timer?.invalidate()
         timer = nil
+        sustainedTimer?.invalidate()
+        sustainedTimer = nil
         removeListeners()
     }
 
@@ -1792,8 +1809,21 @@ final class CameraMicMonitor {
     private func poll() {
         let camera = Self.anyCameraRunning()
         let mic = Self.anyMicRunning()
+        let wasSustained = audioSustained
         let audio = Self.anyOutputRunning()
-        if audio { lastAudioActiveAt = Date() }
+        if audio, audioRunningSince == nil {
+            audioRunningSince = Date()
+            sustainedTimer?.invalidate()
+            sustainedTimer = Timer.scheduledTimer(withTimeInterval: Self.sustainedAudio + 0.1, repeats: false) { [weak self] _ in
+                self?.poll()
+            }
+        } else if !audio {
+            audioRunningSince = nil
+            sustainedTimer?.invalidate()
+            sustainedTimer = nil
+        }
+        // The linger runs from the moment playback stopped.
+        if audioSustained || wasSustained { lastAudioActiveAt = Date() }
         let relevantNow = mediaRelevant
         if camera != cameraActive || mic != micActive || audio != audioOutputActive
             || relevantNow != lastMediaRelevant {

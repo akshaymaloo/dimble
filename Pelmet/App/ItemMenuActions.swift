@@ -12,7 +12,12 @@ import PelmetEngine
 enum ItemMenuActions {
     static var openMenuTitle: String { String(localized: "Open Menu") }
     static var showInBarTitle: String { String(localized: "Show in Menu Bar") }
-    static var aliasTitle: String { String(localized: "Alias and Shortcut…") }
+    /// The icon's row in Settings › Search, named for the shortcut it holds
+    /// (the row has its alias too).
+    static func shortcutTitle(_ id: ItemID, appState: AppState) -> String {
+        appState.settings.itemHotkeys[id.sectionKey.rawValue] == nil
+            ? String(localized: "Add a Shortcut…") : String(localized: "Change Shortcut…")
+    }
 
     static func quitTitle(_ appName: String) -> String { String(localized: "Quit \(appName)") }
 
@@ -44,11 +49,11 @@ enum ItemMenuActions {
         !id.isPelmetSeparator && !id.isPelmetChevron
     }
 
-    /// Alias and Shortcut…: Settings › Search with the icon listed and its
-    /// alias field ready. `source` names the surface in the log.
-    static func editAlias(_ key: ItemID, appState: AppState, source: String) {
-        PelmetLog.log("\(source): alias and shortcut for \(key.rawValue)")
-        appState.openAliasAndShortcut(for: key)
+    /// Add a Shortcut…: Settings › Search with the icon's row in view.
+    /// `source` names the surface in the log.
+    static func editShortcut(_ key: ItemID, appState: AppState, source: String) {
+        PelmetLog.log("\(source): shortcut for \(key.rawValue)")
+        appState.openShortcut(for: key)
     }
 
     /// An app the person installed: Open and Quit mean something for it.

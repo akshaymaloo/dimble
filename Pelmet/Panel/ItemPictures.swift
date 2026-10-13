@@ -97,7 +97,7 @@ final class ItemPictures {
 
     /// A one-colour glyph as a white mask, or nil when it is not one: every
     /// changed pixel lighter than the bar (or every one darker), barely any
-    /// colour. Each pixel's alpha is how far it is from the bar, over how
+    /// colour of its own (`inkTint`). Each pixel's alpha is how far it is from the bar, over how
     /// far the glyph's core is: antialiased edges come out partial, not in
     /// the bar's colour, and a grey capsule inside the frame comes out as a
     /// faint fill (one the frame cuts through drops out, `capsuleFill`).
@@ -130,6 +130,7 @@ final class ItemPictures {
             fill = nil
         }
         var changed = 0, strong = 0, tinted = 0, lighter = 0, darker = 0
+        var tintedLight = 0, tintedDark = 0
         var spread = [Int](repeating: 0, count: 256)
         for i in stride(from: 0, to: w * h * 4, by: 4) {
             let d = distance(s, b, i)
@@ -140,10 +141,12 @@ final class ItemPictures {
             guard d >= 26 else { continue }
             strong += 1
             spread[min(255, abs(dl))] += 1
-            if chroma(s, i) > 40 { tinted += 1 }
+            if inkTint(s, b, i, sign: 1) > 60 { tintedLight += 1 }
+            if inkTint(s, b, i, sign: -1) > 60 { tintedDark += 1 }
         }
         let sign = lighter * 20 >= changed * 19 ? 1 : darker * 20 >= changed * 19 ? -1 : 0
         guard sign != 0 else { return nil }
+        tinted = sign > 0 ? tintedLight : tintedDark
         func base(_ i: Int) -> Int {
             guard let fill else { return luma(b, i) }
             return sign > 0 ? max(luma(b, i), fill + 4) : min(luma(b, i), fill - 4)
@@ -210,6 +213,25 @@ final class ItemPictures {
 
     private static func luma(_ p: UnsafeMutablePointer<UInt8>, _ i: Int) -> Int {
         (Int(p[i]) * 3 + Int(p[i + 1]) * 6 + Int(p[i + 2])) / 10
+    }
+
+    /// How far pixel `i` is from plain ink over the bar, 0 when it is white
+    /// (`sign` > 0) or black ink at some alpha: the spread of the alpha each
+    /// channel gives. Measured on its own colour, Wi-Fi's dim arcs over a
+    /// purple bar read tinted, the glyph failed the check and its tile kept
+    /// the bar's purple; un-blended they spread 3 at most, a red or blue
+    /// glyph 170 and up (2026-10-12). A channel the bar already holds near
+    /// the ink's end says nothing and is left out.
+    private static func inkTint(_ s: UnsafeMutablePointer<UInt8>, _ b: UnsafeMutablePointer<UInt8>, _ i: Int, sign: Int) -> Int {
+        var lo = Int.max, hi = Int.min
+        for c in 0..<3 {
+            let pixel = Int(s[i + c]), bar = Int(b[i + c])
+            let room = sign > 0 ? 255 - bar : bar
+            guard room >= 24 else { continue }
+            let alpha = (sign > 0 ? pixel - bar : bar - pixel) * 255 / room
+            lo = min(lo, alpha); hi = max(hi, alpha)
+        }
+        return hi >= lo ? hi - lo : 0
     }
 
     private static func chroma(_ p: UnsafeMutablePointer<UInt8>, _ i: Int) -> Int {

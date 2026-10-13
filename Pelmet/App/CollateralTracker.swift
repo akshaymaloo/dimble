@@ -72,6 +72,11 @@ struct CollateralTracker {
             candidates.removeAll()
             return
         }
+        // Hidden on purpose now: a verdict reached while the bookkeeping had
+        // lost the item is withdrawn.
+        for key in confirmed where key.bundleID.map(concealing.contains) == true {
+            confirmed.remove(key)
+        }
         // Back in the bar under a live assertion: nothing killed it.
         for key in live {
             candidates.removeValue(forKey: key)

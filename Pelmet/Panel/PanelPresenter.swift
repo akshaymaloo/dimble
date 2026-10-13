@@ -1615,10 +1615,10 @@ final class PanelPresenter: RevealPresenter {
                 }
             }
             rows.append(.divider)
-            rows.append(.action(ItemMenuActions.aliasTitle) { [weak appState] in
+            rows.append(.action(ItemMenuActions.shortcutTitle(key, appState: appState)) { [weak appState] in
                 guard let appState else { return }
                 appState.concealNow()
-                ItemMenuActions.editAlias(key, appState: appState, source: "panel")
+                ItemMenuActions.editShortcut(key, appState: appState, source: "panel")
             })
             let app = corpus.first { if case .item(let id) = $0.action { id == key } else { false } }?.app
             if let app, ItemMenuActions.isRunning(app.bundleID) {

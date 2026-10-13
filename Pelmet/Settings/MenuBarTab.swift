@@ -542,8 +542,8 @@ private struct ItemTile: View {
         }
         if ItemMenuActions.canAlias(item.id) {
             Divider()
-            Button(ItemMenuActions.aliasTitle) {
-                ItemMenuActions.editAlias(item.id, appState: appState, source: "editor")
+            Button(ItemMenuActions.shortcutTitle(item.id, appState: appState)) {
+                ItemMenuActions.editShortcut(item.id, appState: appState, source: "editor")
             }
         }
         if let app = ItemMenuActions.app(for: item, title: displayName), ItemMenuActions.isRunning(app.bundleID) {
@@ -721,7 +721,7 @@ private struct ItemTile: View {
         .popover(isPresented: $popoverShown, arrowEdge: .bottom) {
             TilePopover(id: item.id, name: displayName, rule: showWhen) {
                 popoverShown = false
-                ItemMenuActions.editAlias(item.id, appState: appState, source: "editor")
+                ItemMenuActions.editShortcut(item.id, appState: appState, source: "editor")
             }
         }
         .popover(isPresented: $optionsShown, arrowEdge: .bottom) {
@@ -984,6 +984,19 @@ private struct PelmetItemsStrip: View {
         )
     }
 
+    /// Media's "While playing" or "Always shows": an indicator like the
+    /// camera's, so it lives on its own row, not in Show when it matters.
+    private func ruleBinding(_ kind: ExtraKind) -> Binding<ExtraShowRule> {
+        Binding(
+            get: { appState.settings.extraItems.first { $0.kind == kind }?.resolvedShowRule ?? kind.defaultShowRule },
+            set: { rule in
+                guard let index = appState.settings.extraItems.firstIndex(where: { $0.kind == kind }) else { return }
+                appState.settings.extraItems[index].showRule = rule
+                appState.settingsChanged()
+            }
+        )
+    }
+
     private func toggleKind(_ kind: ExtraKind, on: Bool) {
         if on, !hasKind(kind) {
             appState.addExtra(ExtraItemSpec(kind: kind))
@@ -1026,10 +1039,11 @@ private struct PelmetItemsStrip: View {
 
             VStack(alignment: .leading, spacing: 12) {
                 PelmetItemRow(
-                    symbol: ShowWhenSubject.media.symbol, title: ShowWhenSubject.media.title,
+                    symbol: "playpause.fill", title: "Media controls",
                     caption: "Play, pause and switch tracks without leaving the bar.",
                     isOn: hasKind(.mediaControls),
-                    style: styleBinding(.mediaControls)
+                    style: styleBinding(.mediaControls),
+                    rule: ruleBinding(.mediaControls)
                 ) { toggleKind(.mediaControls, on: $0) }
                 PelmetItemRow(
                     symbol: "video.fill", title: "Camera & mic indicator",
@@ -1186,12 +1200,21 @@ private struct PelmetItemRow: View {
     /// Static or animated glyph (media controls only), offered once the
     /// item is on — the same in-row borderless menu the launcher rows use.
     var style: Binding<ExtraStyle>? = nil
+    /// While playing or always (media controls only), same menu, same moment.
+    var rule: Binding<ExtraShowRule>? = nil
     let onToggle: (Bool) -> Void
 
     var body: some View {
         ItemRowShell(symbol: symbol, image: image, title: title) {
             Text(caption)
         } trailing: {
+            if isOn, let rule {
+                PelmetMenuPicker(
+                    selection: rule,
+                    options: [(.whenActive, "While playing"), (.always, "Always shows")],
+                    borderless: true
+                )
+            }
             if isOn, let style {
                 PelmetMenuPicker(
                     selection: style,

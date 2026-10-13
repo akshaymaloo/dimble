@@ -29,6 +29,30 @@ import Testing
 
     // MARK: - Membership and order
 
+    @Test func anIconOutAloneKeepsTheDrawnOrder() {
+        let order = ["shortcuts", "snib", "media", "battery"].map(key)
+        #expect(PanelModel.mergedDrawnOrder(order, drawn: [key("media")]) == order)
+    }
+
+    @Test func iconsOutAloneSwapOnlyTheirOwnSlots() {
+        let order = ["shortcuts", "media", "snib", "battery"].map(key)
+        let merged = PanelModel.mergedDrawnOrder(order, drawn: [key("battery"), key("media")])
+        #expect(merged == ["shortcuts", "battery", "snib", "media"].map(key))
+    }
+
+    @Test func aWholeReadReplacesTheOrder() {
+        let merged = PanelModel.mergedDrawnOrder(["a", "b", "c"].map(key), drawn: ["c", "a", "b"].map(key))
+        #expect(merged == ["c", "a", "b"].map(key))
+    }
+
+    @Test func aNewIconGoesAfterTheOneDrawnBeforeIt() {
+        #expect(PanelModel.mergedDrawnOrder(["a", "b", "c"].map(key), drawn: ["a", "n", "b"].map(key))
+            == ["a", "n", "b", "c"].map(key))
+        #expect(PanelModel.mergedDrawnOrder(["a", "b"].map(key), drawn: ["n", "b"].map(key))
+            == ["a", "n", "b"].map(key))
+        #expect(PanelModel.mergedDrawnOrder([], drawn: ["n"].map(key)) == [key("n")])
+    }
+
     @Test func tilesFollowTheRosterNotTheWalk() {
         let model = PanelModel.build(
             roster: roster(hidden: ["a", "b"], always: ["c"]),

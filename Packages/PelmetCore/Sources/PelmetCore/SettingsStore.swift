@@ -200,9 +200,11 @@ public enum ExtraShowRule: String, Codable, CaseIterable, Sendable {
     /// Present whether or not the thing is active. A launcher's default — a
     /// launcher you can't click when the app is closed isn't a launcher.
     case always
-    /// Present only while active: mirrors the app's own icon, or Apple's
-    /// Focus item. Raw value predates the 2026-09-16 generalisation from
-    /// launchers — kept so saved settings still decode.
+    /// A launcher, media controls or the camera indicator: present only
+    /// while active, the way the app's own icon or Apple's Now Playing is.
+    /// Focus and Time Machine: present in their section, and out on the bar
+    /// on their own while active ("Show when it matters"). Raw value predates the 2026-09-16 generalisation
+    /// from launchers — kept so saved settings still decode.
     case whenActive = "whileRunning"
 }
 
@@ -221,11 +223,11 @@ public extension ExtraKind {
 
 public extension ExtraKind {
     /// The kinds whose rule is "Show when it matters" (Settings › Menu Bar):
-    /// on the bar only while the thing they watch is happening, in whatever
-    /// section they sit. A launcher's rule is its own row's.
+    /// in their section like any icon, and out on the bar on their own while
+    /// the thing they watch is happening. A launcher's rule is its own row's.
     var showsWhenItMatters: Bool {
         switch self {
-        case .mediaControls, .focus, .timeMachine: true
+        case .focus, .timeMachine: true
         default: false
         }
     }

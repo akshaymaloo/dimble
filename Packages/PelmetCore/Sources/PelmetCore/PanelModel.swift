@@ -206,4 +206,32 @@ public struct PanelModel: Equatable, Sendable {
         var seen = Set<T>()
         return list.filter { seen.insert($0).inserted }
     }
+
+    /// A section's drawn order after a read of the bar. `drawn` is what the
+    /// bar just drew of it, left to right, and can be only a part: an icon
+    /// or two out on their own (Media while playing, Battery on battery)
+    /// while the rest stay concealed. The drawn icons take the slots they
+    /// held in `previous`, in the order the bar drew them, and the others
+    /// keep theirs, so one icon out alone carries no order and moves nothing
+    /// (it went first in the panel, 2026-10-12). One `previous` never had
+    /// goes right after the drawn icon before it.
+    public static func mergedDrawnOrder(_ previous: [ItemID], drawn: [ItemID]) -> [ItemID] {
+        let previous = unique(previous)
+        let drawn = unique(drawn)
+        let known = Set(previous)
+        let drawnSet = Set(drawn)
+        var queue = drawn.filter(known.contains)[...]
+        var out = previous.map { drawnSet.contains($0) ? queue.removeFirst() : $0 }
+        for (index, key) in drawn.enumerated() where !known.contains(key) {
+            if index > 0, let before = out.firstIndex(of: drawn[index - 1]) {
+                out.insert(key, at: before + 1)
+            } else if let next = drawn.dropFirst(index + 1).first(where: out.contains),
+                      let at = out.firstIndex(of: next) {
+                out.insert(key, at: at)
+            } else {
+                out.append(key)
+            }
+        }
+        return out
+    }
 }

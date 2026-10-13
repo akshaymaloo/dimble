@@ -96,13 +96,11 @@ struct SettingsView: View {
     @State private var highlightedRow: String?
 
     private var content: some View {
-        ScrollViewReader { proxy in
-            scrollArea
-                .environment(\.highlightedSetting, highlightedRow)
-                .onChange(of: appState.settingsFocusRow, initial: true) { _, row in
-                    if let row { jump(to: row, proxy: proxy) }
-                }
-        }
+        scrollArea
+            .environment(\.highlightedSetting, highlightedRow)
+            .onChange(of: appState.settingsFocusRow, initial: true) { _, row in
+                if let row { jump(to: row) }
+            }
     }
 
     private var scrollArea: some View {
@@ -191,17 +189,32 @@ extension SettingsView {
     /// Scroll a row the command bar named into view and tint it once. The
     /// pane under a fresh scroll view is not laid out for a beat, so the
     /// scroll waits for it.
-    fileprivate func jump(to row: String, proxy: ScrollViewProxy) {
+    fileprivate func jump(to row: String) {
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(150))
             guard appState.settingsFocusRow == row else { return }
             appState.settingsFocusRow = nil
-            withAnimation(.easeInOut(duration: 0.3)) {
-                proxy.scrollTo(SettingAnchor.scrollID(row), anchor: .center)
+            // Through AppKit: SwiftUI's scrollTo never moved the pane for a
+            // row inside it (the pane is one child of a lazy stack), and the
+            // row stayed out of view (2026-10-12).
+            guard let view = SettingAnchorViews.table.object(forKey: row as NSString),
+                  let scroll = view.enclosingScrollView else {
+                PelmetLog.log("settings: jump to \(row) — no such row on screen")
+                return
             }
+            let clip = scroll.contentView
+            let frame = view.convert(view.bounds, to: clip)
+            let centred = NSRect(origin: NSPoint(x: clip.bounds.minX, y: frame.midY - clip.bounds.height / 2), size: clip.bounds.size)
+            let target = clip.constrainBoundsRect(centred).origin
+            PelmetLog.log("settings: jump to \(row), y \(Int(clip.bounds.minY)) → \(Int(target.y))")
             highlightedRow = row
-            // Held a moment, then the tint fades out over a second.
-            try? await Task.sleep(for: .milliseconds(500))
+            NSAnimationContext.runAnimationGroup({ context in
+                context.duration = 0.35
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                clip.animator().setBoundsOrigin(target)
+            }, completionHandler: nil)
+            // Held while the pane slides there, then the tint fades out over a second.
+            try? await Task.sleep(for: .milliseconds(650))
             if highlightedRow == row { highlightedRow = nil }
         }
     }
@@ -229,8 +242,6 @@ extension View {
 }
 
 private struct SettingAnchor: ViewModifier {
-    static func scrollID(_ id: String) -> String { "setting.\(id)" }
-
     let id: String
     @Environment(\.highlightedSetting) private var highlighted
 
@@ -245,7 +256,31 @@ private struct SettingAnchor: ViewModifier {
                     .animation(lit ? .easeOut(duration: 0.15) : .easeOut(duration: 1.0), value: lit)
                     .allowsHitTesting(false)
             }
-            .id(Self.scrollID(id))
+            .background(SettingAnchorMarker(id: id).allowsHitTesting(false))
+    }
+}
+
+/// Each anchored row's AppKit view: what a jump scrolls to.
+@MainActor
+private enum SettingAnchorViews {
+    static let table = NSMapTable<NSString, NSView>.strongToWeakObjects()
+}
+
+private struct SettingAnchorMarker: NSViewRepresentable {
+    let id: String
+
+    final class Marker: NSView {
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    }
+
+    func makeNSView(context: Context) -> Marker {
+        let view = Marker()
+        SettingAnchorViews.table.setObject(view, forKey: id as NSString)
+        return view
+    }
+
+    func updateNSView(_ view: Marker, context: Context) {
+        SettingAnchorViews.table.setObject(view, forKey: id as NSString)
     }
 }
 

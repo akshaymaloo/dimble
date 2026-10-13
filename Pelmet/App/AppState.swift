@@ -53,12 +53,10 @@ final class AppState {
     /// One-shot: the setting row (`SettingsIndex` id) Settings should scroll
     /// to and mark. Set by `openSettings(tab:row:)`, cleared by the view.
     var settingsFocusRow: String?
-    /// Icons "Alias and Shortcut…" sent to Settings › Search (section keys).
+    /// Icons "Add a Shortcut…" sent to Settings › Search (section keys).
     /// The pane's list of icons without an alias yet is its own state, so it
     /// takes these when they arrive and clears them.
     var pendingAliasItems: [String] = []
-    /// The icon whose alias field takes the focus once its row shows.
-    var aliasFocusItem: String?
     /// Bumped when the command bar saves or resets its history, so the
     /// Settings row that offers the reset knows whether there is any.
     var searchHistoryRevision = 0
@@ -276,6 +274,25 @@ final class AppState {
         settings.revealTriggers.hoverDelay = (min(max(settings.revealTriggers.hoverDelay, 0.1), 0.5) * 10).rounded() / 10
         settings.rehideDelay = (min(max(settings.rehideDelay, 0), 5) * 2).rounded() / 2
 
+        // One-shot (#86): the "while active" rule of Focus and Time Machine
+        // used to take the icon away when idle; now it only brings it out. Every bar stays as it was: one in Visible moves to Hidden,
+        // where it still shows only while active, and one already hidden
+        // drops the rule, so it doesn't start coming out on its own.
+        if !UserDefaults.standard.bool(forKey: "pelmet.migratedShowRuleMeaning") {
+            for index in settings.extraItems.indices {
+                let spec = settings.extraItems[index]
+                guard spec.kind.showsWhenItMatters, spec.resolvedShowRule == .whenActive else { continue }
+                let key = ExtrasManager.itemID(for: spec).sectionKey
+                if settings.sectionModel.section(of: key) == .visible {
+                    settings.sectionModel.enroll(key, in: .hidden)
+                } else {
+                    settings.extraItems[index].showRule = .always
+                }
+                PelmetLog.log("start: \(spec.itemTitle) rule now only brings it out, \(settings.sectionModel.section(of: key)) \(settings.extraItems[index].resolvedShowRule)")
+            }
+            UserDefaults.standard.set(true, forKey: "pelmet.migratedShowRuleMeaning")
+        }
+
         // Migrate the model to canonical (bundle-level) keys — collapses any
         // title-variant twin entries left by older builds.
         settings.sectionModel.canonicalize()
@@ -424,7 +441,62 @@ final class AppState {
             guard let bundle = app.bundleIdentifier, Self.isBundleMainProcess(app) else { return }
             MainActor.assumeIsolated { self?.adoptRelaunchedBundle(bundle) }
         }
+        // Battery, Wi-Fi and Apple's other icons come and go from System
+        // Settings › Menu Bar with no launch to announce them: MenuBarAgent
+        // was running all along. Leaving System Settings is when the bar may
+        // have changed, so it is walked then, and an icon that came or went
+        // lands as itemsChanged like any other (2026-10-12).
+        systemSettingsObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didDeactivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+                  app.bundleIdentifier == "com.apple.systempreferences" else { return }
+            MainActor.assumeIsolated { self?.walkAfterSystemSettings() }
+        }
+        readAppleMenuBarSwitches()
         observeRunningApplications()
+    }
+
+    /// One walk a second after the last time System Settings lost focus:
+    /// granting a permission flips between it and Pelmet a few times.
+    private func walkAfterSystemSettings() {
+        readAppleMenuBarSwitches()
+        systemSettingsWalk?.cancel()
+        systemSettingsWalk = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled, let self else { return }
+            PelmetLog.log("bar: left System Settings, walking for icons it added or removed")
+            _ = await self.engine.freshSnapshot()
+        }
+    }
+
+    private var systemSettingsWalk: Task<Void, Never>?
+
+    /// Battery's and Wi-Fi's switches in System Settings › Menu Bar, by
+    /// item. A concealed icon is out of the AX tree, so no walk tells one
+    /// switched off from one hidden (both in Always Hidden, 2026-10-12).
+    /// Empty until read, and where macOS keeps no value.
+    private(set) var appleMenuBarSwitches: [ItemID: Bool] = [:]
+
+    /// `-currentHost com.apple.controlcenter` holds 2 for an icon shown in
+    /// the bar and 8 for one switched off, written as the box is ticked
+    /// (read live on macOS 27.2, 2026-10-12).
+    private func readAppleMenuBarSwitches() {
+        let domain = "com.apple.controlcenter" as CFString
+        CFPreferencesSynchronize(domain, kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
+        var switches: [ItemID: Bool] = [:]
+        for (id, key) in [(ShowRules.battery, "Battery"), (ShowRules.wifi, "WiFi")] {
+            guard let value = CFPreferencesCopyValue(
+                key as CFString, domain, kCFPreferencesCurrentUser, kCFPreferencesCurrentHost
+            ) as? Int else { continue }
+            switches[id.sectionKey] = value & 2 != 0
+        }
+        guard switches != appleMenuBarSwitches else { return }
+        appleMenuBarSwitches = switches
+        let line = switches.map { "\($0.key.rawValue)=\($0.value ? "on" : "off")" }.sorted().joined(separator: " ")
+        PelmetLog.log("bar: System Settings › Menu Bar switches \(line)")
     }
 
     /// The process is the app itself, not a child LaunchServices filed
@@ -450,6 +522,7 @@ final class AppState {
     }
 
     private var relaunchObserver: NSObjectProtocol?
+    private var systemSettingsObserver: NSObjectProtocol?
     private var runningAppsObservation: NSKeyValueObservation?
     private var lastRelaunchQueue: [String: Date] = [:]
     private var siblingLaunchLogged: Set<String> = []
@@ -1255,12 +1328,12 @@ final class AppState {
         SettingsWindowController.shared.show(appState: self, tab: tab)
     }
 
-    /// "Alias and Shortcut…" on an icon: Settings › Search lists it, scrolls
-    /// to it and puts the cursor in its alias field.
-    func openAliasAndShortcut(for id: ItemID) {
+    /// "Add a Shortcut…" on an icon: Settings › Search lists it, scrolls to
+    /// its row and tints it. Nothing takes the focus: the pane arrives at
+    /// rest, and the row says where to look.
+    func openShortcut(for id: ItemID) {
         let key = id.sectionKey.rawValue
         if !pendingAliasItems.contains(key) { pendingAliasItems.append(key) }
-        aliasFocusItem = key
         openSettings(tab: .search, row: SearchPane.rowAnchor(for: key))
     }
 
@@ -2548,7 +2621,13 @@ final class AppState {
         // here it kept the drawing pending and Apply lit after the grouper
         // had placed everything (Today, Figma, four idle separators,
         // 2026-10-07).
+        // A concealed icon is on the bar, out of the AX tree: counted absent,
+        // every reorder inside a hidden section cleared the moment it was
+        // dropped and never applied (Battery, Wi-Fi in Always Hidden,
+        // 2026-10-12). It counts where a frame remembers its slot.
+        let remembered = Set(bar)
         let present = Set(snapshot.items.map { $0.id.sectionKey })
+            .union(snapshot.concealed.map(\.sectionKey).filter(remembered.contains))
         // Relative order says nothing about the chevron: an icon drawn into
         // Hidden but still on the Visible side matched its drawing, the edit
         // cleared before the grouper ran, and it went to the chevron end
@@ -2663,14 +2742,27 @@ final class AppState {
     /// The icon has a place on the bar right now: live in the snapshot, or
     /// concealed (it drops out of AX then), or seen a moment ago (the same
     /// grace the editor's board gives a tile in a gap). False for one of
-    /// Apple's switched off in System Settings › Menu Bar. True while nothing
-    /// has been read yet, so a missing icon is never claimed on a guess.
+    /// Apple's switched off in System Settings › Menu Bar, read off its
+    /// switch where macOS keeps one. True while nothing has been read yet,
+    /// so a missing icon is never claimed on a guess.
     func isInMenuBar(_ id: ItemID) -> Bool {
+        if let on = appleMenuBarSwitches[id.sectionKey] { return on }
         guard let snapshot else { return true }
         let key = id.sectionKey
         if snapshot.items.contains(where: { $0.id.sectionKey == key })
             || snapshot.concealed.contains(where: { $0.sectionKey == key }) { return true }
         return Date.now.timeIntervalSince(lastSeenAt[key] ?? .distantPast) < Self.storedTileGrace
+    }
+
+    /// When `isInMenuBar` stops counting a gone icon as there. Nil while the
+    /// walk sees it, and once the grace is over.
+    func menuBarGraceEnds(_ id: ItemID) -> Date? {
+        guard appleMenuBarSwitches[id.sectionKey] == nil, let snapshot, let seen = lastSeenAt[id.sectionKey] else { return nil }
+        let key = id.sectionKey
+        if snapshot.items.contains(where: { $0.id.sectionKey == key })
+            || snapshot.concealed.contains(where: { $0.sectionKey == key }) { return nil }
+        let end = seen.addingTimeInterval(Self.storedTileGrace + 0.1)
+        return end > .now ? end : nil
     }
 
     // (Alias healing removed: the model keys on ItemID.sectionKey — bundle-
@@ -3038,6 +3130,21 @@ final class AppState {
     /// Canonical keys of icons the bar kept showing after Pelmet concealed
     /// them — the editor's "can't hide" badge. See UnhideableTracker.
     private(set) var unhideableKeys: Set<ItemID> = []
+
+    /// The bundles hidden on purpose while an assertion stands: the items
+    /// it carries, and every icon drawn into a section concealed right now.
+    /// A pass's reveal can push an icon behind the native « and the carried
+    /// set loses it; counted unprotected, Velja, Unclutter and DBngin in
+    /// Always Hidden read as destroyed by the bar (2026-10-12).
+    private func concealingBundles(_ snap: EngineSnapshot) -> Set<String> {
+        let carried = Set(snap.concealed.compactMap(\.bundleID))
+        guard !carried.isEmpty else { return [] }
+        let revealed = currentRevealedSections
+        let drawnHidden = settings.sectionModel.assignments
+            .filter { !revealed.contains($0.value) }
+            .compactMap { $0.key.bundleID }
+        return carried.union(drawnHidden)
+    }
     private var collateralTracker = CollateralTracker()
     /// Canonical keys of icons the bar destroyed although the allowlist
     /// protects them (#30) — same badge, and the editor keeps their tile
@@ -3167,13 +3274,16 @@ final class AppState {
     /// revealed. Reads the snapshot already in hand: no walk, nothing
     /// awaited. Concealed items have no frame (they leave the AX tree), so
     /// only a section on the bar gets an order, and a walk that saw none of
-    /// a section's items keeps the order it had.
+    /// a section's items keeps the order it had. One that saw a part (icons
+    /// out on their own) is merged in, not taken as the whole order.
     func recordDrawnOrder(_ snap: EngineSnapshot, revealed sections: Set<PelmetCore.Section>) {
         let roster = settings.sectionModel.roster
-        let bar = ApplyPass.barOrder(ApplyPass.primaryFrames(snap))
+        let bar = ApplyPass.barOrder(ApplyPass.primaryFrames(snap)).map(\.sectionKey)
         for section in sections where section != .visible {
             let drawn = bar.filter { roster.section(of: $0) == section }
-            if !drawn.isEmpty { lastDrawnOrder[section] = drawn }
+            guard !drawn.isEmpty else { continue }
+            let previous = lastDrawnOrder[section] ?? settings.sectionModel.order[section] ?? []
+            lastDrawnOrder[section] = PanelModel.mergedDrawnOrder(previous, drawn: drawn)
         }
     }
 
@@ -3255,7 +3365,7 @@ final class AppState {
                     .map(\.id.sectionKey)
                     .filter { $0.bundleID.map { !PelmetBundle.ownIDs.contains($0) } ?? false }
             ),
-            concealing: Set(snap.concealed.compactMap(\.bundleID)),
+            concealing: concealingBundles(snap),
             running: { NSRunningApplication.runningApplications(withBundleIdentifier: $0).isEmpty == false }
         )
         if collateralTracker.confirmed != destroyedKeys {
