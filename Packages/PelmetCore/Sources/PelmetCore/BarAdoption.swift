@@ -311,12 +311,17 @@ public enum BarAdoption {
             // all its neighbours. Re-sorted among the others only, a drag
             // past one of Pelmet's own items changed no order, nothing was
             // adopted, and the editor stopped matching the bar (live test,
-            // 2026-10-13). With no framed neighbour it keeps its slot.
+            // 2026-10-13). It goes after its nearest left neighbour on the
+            // bar, else before its nearest right one: own items hold their
+            // slots, so the order is not sorted by X. With no framed
+            // neighbour it keeps its slot.
             if let dragged = draggedID?.sectionKey, let from = newOrder.firstIndex(of: dragged), let x = barX[dragged] {
                 var rest = newOrder
                 rest.remove(at: from)
-                let after = rest.lastIndex { barX[$0].map { $0 < x } == true }
-                if let to = after.map({ $0 + 1 }) ?? rest.firstIndex(where: { barX[$0] != nil }) {
+                let framed = rest.indices.compactMap { index in barX[rest[index]].map { (index: index, x: $0) } }
+                let left = framed.filter { $0.x < x }.max { $0.x < $1.x }
+                let right = framed.filter { $0.x > x }.min { $0.x < $1.x }
+                if let to = left.map({ $0.index + 1 }) ?? right?.index {
                     rest.insert(dragged, at: to)
                     newOrder = rest
                 }

@@ -486,6 +486,36 @@ struct BarAdoptionTests {
         #expect(held?.model.order[.visible] == [velja.sectionKey, media.sectionKey, figma.sectionKey])
     }
 
+    @Test func draggedIconLandsAfterItsBarNeighbourWhenOwnItemsSitOutOfOrder() {
+        // Shortcuts holds its slot at the end of the drawing but sits first
+        // on the bar: it is no left neighbour of A (review, 2026-10-13).
+        let shortcuts = ItemID(rawValue: "status:app.fif7y.Pelmet::Pelmet.Shortcuts")
+        let (a, b, c, d) = (velja, figma, anchor, ItemID(rawValue: "status:com.example.D::Item-0"))
+        var model = SectionModel()
+        for id in [a, b, c, d, shortcuts] { model.assignments[id.sectionKey] = .hidden }
+        model.order[.hidden] = [a, b, c, d, shortcuts].map(\.sectionKey)
+        let result = BarAdoption.reconcile(
+            items: [(id: shortcuts, minX: 300), (id: b, minX: 340), (id: a, minX: 380),
+                    (id: c, minX: 420), (id: d, minX: 460), (id: chevron, minX: 1000)],
+            model: model, previousZones: [a.rawValue: .hidden], userDragged: true,
+            pelmetBundleID: pelmet, draggedID: a
+        )
+        #expect(result?.model.order[.hidden] == [b, a, c, d, shortcuts].map(\.sectionKey))
+    }
+
+    @Test func draggedIconWithNoLeftNeighbourGoesBeforeItsRightOne() {
+        let shortcuts = ItemID(rawValue: "status:app.fif7y.Pelmet::Pelmet.Shortcuts")
+        var model = SectionModel()
+        for id in [velja, figma, shortcuts] { model.assignments[id.sectionKey] = .hidden }
+        model.order[.hidden] = [shortcuts, figma, velja].map(\.sectionKey)
+        let result = BarAdoption.reconcile(
+            items: [(id: velja, minX: 300), (id: figma, minX: 340), (id: shortcuts, minX: 380), (id: chevron, minX: 1000)],
+            model: model, previousZones: [velja.rawValue: .hidden], userDragged: true,
+            pelmetBundleID: pelmet, draggedID: velja
+        )
+        #expect(result?.model.order[.hidden] == [shortcuts, velja, figma].map(\.sectionKey))
+    }
+
     @Test func draggedIconWithNoFramedNeighbourKeepsItsSlot() {
         var model = SectionModel()
         model.assignments[velja.sectionKey] = .hidden
