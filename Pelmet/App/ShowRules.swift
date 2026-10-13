@@ -35,6 +35,9 @@ final class ShowRules {
     private var wifiDown = false
     private var wifiGraceTask: Task<Void, Never>?
     private var sleepObservers: [NSObjectProtocol] = []
+    /// Between willSleep and didWake: a grace that runs out then does
+    /// nothing, didWake starts it over.
+    private var asleep = false
     private var shown: Set<ItemID>?
     private var lastLine: [String: String] = [:]
 
@@ -138,20 +141,27 @@ final class ShowRules {
         // The grace sleeps on a clock that runs while the Mac does: one
         // started as the lid closed ran out the moment it woke, before
         // Wi-Fi had rejoined, and the icon flashed. A grace running at
-        // sleep starts over on wake, against the link as it is then.
+        // wake starts over, against the link as it is then, and so does
+        // one that started after willSleep, Wi-Fi powering down for it
+        // (review B5). Its end does nothing while asleep: it can come
+        // before didWake.
         let workspace = NSWorkspace.shared.notificationCenter
         sleepObservers = [
             workspace.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated {
-                    guard let self, self.wifiGraceTask != nil else { return }
-                    self.wifiGraceTask?.cancel()
-                    self.wifiGraceTask = nil
-                    self.wifiDown = false
-                    self.note("wifi", "Wi-Fi grace stopped for sleep, starts over on wake")
-                }
+                MainActor.assumeIsolated { self?.asleep = true }
             },
             workspace.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.evaluate() }
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.asleep = false
+                    if self.wifiGraceTask != nil {
+                        self.wifiGraceTask?.cancel()
+                        self.wifiGraceTask = nil
+                        self.wifiDown = false
+                        self.note("wifi", "Wi-Fi grace ran across sleep, starts over on wake")
+                    }
+                    self.evaluate()
+                }
             },
         ]
     }
@@ -166,6 +176,7 @@ final class ShowRules {
         wifiGraceTask = nil
         sleepObservers.forEach(NSWorkspace.shared.notificationCenter.removeObserver)
         sleepObservers = []
+        asleep = false
         lastLine.removeValue(forKey: "wifi")
     }
 
@@ -204,7 +215,7 @@ final class ShowRules {
                 wifiGraceTask?.cancel()
                 wifiGraceTask = Task { [weak self] in
                     try? await Task.sleep(for: Self.wifiGrace)
-                    guard !Task.isCancelled, let self else { return }
+                    guard !Task.isCancelled, let self, !self.asleep else { return }
                     self.wifiGraceTask = nil
                     self.evaluate()
                 }
