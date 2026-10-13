@@ -97,6 +97,46 @@ import Testing
         #expect(ApplyCount.count(abPlan, edits: ab, trapped: [], drawn: { _ in false }, concealed: hiddenABC).total == 1)
     }
 
+    @Test func anOutAndBackBesideAMoveOutOfItsSectionReadsOneThenNothing() {
+        // Vorssaint moved from a concealed Hidden to Visible, then Snib
+        // dragged out of Hidden and back to its slot. A pass had forgotten
+        // Snib's frame, so the plan cannot see it: "Apply (2)" for a moment,
+        // then the grouper landed Vorssaint and a ghost "Apply (1)" stayed
+        // for Snib until an Apply that moved nothing (live test,
+        // 2026-10-13 18:14:44 and 18:14:47).
+        let snib = ItemID.bundleKey("app.fif7y.Snib"), vorssaint = ItemID.bundleKey("com.vorssaint.utils")
+        let media = ItemID(rawValue: "status:app.fif7y.Pelmet::Pelmet.MediaControls")
+        let roster = Roster(members: [a: .hidden, sound: .hidden, snib: .hidden, vorssaint: .visible, media: .visible])
+        var edits = OrderEdits(
+            order: [.hidden: [a, sound, snib], .visible: [media, vorssaint]],
+            previousSection: [vorssaint: .hidden],
+            previousOrder: [.hidden: [a, vorssaint, sound, snib], .visible: [media]],
+            dropped: [vorssaint, snib]
+        )
+        let concealed: (ItemID) -> Bool = { isConcealed($0, concealedKeys: [a, sound, snib]) }
+        let before = MovePlan.compute(bar: [a, vorssaint, sound, chevron, media], edits: edits, roster: roster, chevron: chevron)
+        #expect(before.moves.map(\.item) == [vorssaint])
+        #expect(ApplyCount.count(before, edits: edits, trapped: [], drawn: { _ in false }, concealed: concealed)
+            == ApplyCount.Count(trapped: [], concealed: [], total: 1))
+        // Hidden waits while Vorssaint's crossing is pending: Discard puts
+        // it back from Hidden's baseline.
+        #expect(OrderEditSettle.settledSections(
+            edits, bar: [a, vorssaint, sound, chevron, media], live: [vorssaint, media], concealed: [a, sound, snib],
+            roster: roster
+        ) == [])
+        // The grouper lands Vorssaint and the walk after the pass reads
+        // the bar at rest: both sections settle, nothing is left to count.
+        edits.previousSection.removeValue(forKey: vorssaint)
+        let bar = [a, sound, chevron, media, vorssaint]
+        let settled = OrderEditSettle.settledSections(
+            edits, bar: bar, live: [media, vorssaint], concealed: [a, sound, snib], roster: roster
+        )
+        #expect(settled == [.hidden, .visible])
+        for section in settled { edits.clearOrder(for: section) }
+        let after = MovePlan.compute(bar: bar, edits: edits, roster: roster, chevron: chevron)
+        #expect(ApplyCount.count(after, edits: edits, trapped: [], drawn: { _ in false }, concealed: concealed).total == 0)
+    }
+
     @Test func aTrappedDropCountsAndATrappedNeighbourDoesNot() {
         // b dropped after c, both behind the «: the pass expands it for b,
         // and c is only where b lands.

@@ -37,17 +37,22 @@ public enum ApplyCount {
     /// (live test, 2026-10-13). Only a floor: counted per drop, a real move
     /// and an out-and-back in one concealed section read "Apply (2)" for
     /// one move (review, 2026-10-13).
+    /// A drop drawn back at its slot (`OrderEditSettle.dropsInPlace`) is
+    /// no move, in the count or the floor: Snib's out-and-back, its frame
+    /// forgotten after a pass, read "Apply (2)" beside one real move and
+    /// "Apply (1)" once the grouper landed it (live test, 2026-10-13).
     public static func count(
         _ plan: MovePlan.Plan, edits: OrderEdits, trapped: Set<ItemID>,
         drawn: (ItemID) -> Bool, concealed: (ItemID) -> Bool
     ) -> Count {
         let drawnKeys = Set(edits.order.values.joined())
-        let unseen = Set(plan.skipped.filter { $0.1 == .notOnScreen }.map(\.0)).intersection(edits.dropped)
+        let moved = edits.dropped.subtracting(OrderEditSettle.dropsInPlace(edits))
+        let unseen = Set(plan.skipped.filter { $0.1 == .notOnScreen }.map(\.0)).intersection(moved)
         let hidden = unseen.filter(concealed)
         let behind = unseen.intersection(trapped).subtracting(hidden)
         let total = plan.moves.count + behind.count + hidden.count
         let drawnBehind = trapped.intersection(drawnKeys).filter(drawn)
-        let concealedDrop = edits.dropped.intersection(drawnKeys).contains(where: concealed)
+        let concealedDrop = moved.intersection(drawnKeys).contains(where: concealed)
         let floor = total == 0 && (!drawnBehind.isEmpty || concealedDrop)
         return Count(trapped: behind, concealed: hidden, total: floor ? 1 : total)
     }

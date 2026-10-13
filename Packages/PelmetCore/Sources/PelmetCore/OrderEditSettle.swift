@@ -60,9 +60,14 @@ public enum OrderEditSettle {
         // instead of its drawn slot (vorssaint, Snib, 2026-10-07). A drop
         // between sections stays unsettled until a pass lands it
         // (`previousSection` cleared), so its section's drawing waits.
+        // So does the section it left: its baseline is where Discard puts
+        // the icon back. Cleared first, Vorssaint moved out of a concealed
+        // Hidden beside Snib's out-and-back would have come back with no
+        // slot and been drawn last (live test, 2026-10-13 18:14:44).
         let crossing = Set(edits.previousSection.keys)
+        let left = Set(edits.previousSection.values)
         var settled: Set<Section> = []
-        for (section, allDrawn) in edits.order {
+        for (section, allDrawn) in edits.order where !left.contains(section) {
             // An icon not on the bar at all (its app not running, an idle
             // extra) is no edit, as Apply drops it (`dropAbsentSkips`):
             // counted, it kept the drawing pending and Apply lit after the
@@ -87,13 +92,45 @@ public enum OrderEditSettle {
             // back in a concealed Hidden kept Discard and a plain "Apply" lit
             // until Hidden came out (live test, 2026-10-13). The icons the
             // bar does place still have to match.
+            // The baseline is read over the icons still drawn here: one a
+            // pass moved out (its crossing landed) is no longer this
+            // section's. Counted, Vorssaint moved from Hidden to Visible
+            // kept Snib's out-and-back in Hidden pending once the grouper
+            // landed it, a ghost "Apply (1)" until an Apply moved nothing
+            // (live test, 2026-10-13 18:14:47).
             let unplaced = drawnSet.subtracting(placed)
             if !unplaced.isEmpty {
-                guard edits.previousOrder[section]?.filter({ onBar.contains($0.sectionKey) }) == drawn
-                else { continue }
+                guard edits.previousOrder[section]?.filter(drawnSet.contains) == drawn else { continue }
             }
             if placed.filter(drawnSet.contains) == drawn.filter({ !unplaced.contains($0) }) { settled.insert(section) }
         }
         return settled
+    }
+
+    /// The dropped icons drawn back where their section's edit found them:
+    /// the same neighbours in the drawing as in the baseline
+    /// (`previousOrder`), read over the icons both list. No move, so no
+    /// count (`ApplyCount`): a pass had forgotten Snib's frame, and its
+    /// out-and-back beside a real move in a concealed Hidden read
+    /// "Apply (2)", then "Apply (1)" once the move landed (live test,
+    /// 2026-10-13 18:14:44). An icon that left or joined the section is
+    /// that icon's move, not its neighbour's; one new to the section is
+    /// never in place.
+    public static func dropsInPlace(_ edits: OrderEdits) -> Set<ItemID> {
+        var inPlace: Set<ItemID> = []
+        for (section, allDrawn) in edits.order {
+            guard let previous = edits.previousOrder[section] else { continue }
+            let drawnSet = Set(allDrawn), previousSet = Set(previous)
+            let drawing = allDrawn.filter(previousSet.contains)
+            let baseline = previous.filter(drawnSet.contains)
+            for (i, key) in drawing.enumerated() where edits.dropped.contains(key) {
+                guard let j = baseline.firstIndex(of: key) else { continue }
+                let left = (i > 0 ? drawing[i - 1] : nil, j > 0 ? baseline[j - 1] : nil)
+                let right = (drawing.indices.contains(i + 1) ? drawing[i + 1] : nil,
+                             baseline.indices.contains(j + 1) ? baseline[j + 1] : nil)
+                if left.0 == left.1, right.0 == right.1 { inPlace.insert(key) }
+            }
+        }
+        return inPlace
     }
 }

@@ -211,6 +211,28 @@ import Testing
         ).isEmpty)
     }
 
+    @Test func aSectionAnIconLeftWaitsForTheCrossingThenSettlesWithoutIt() {
+        // Its baseline is what Discard puts back, the icon that left
+        // included: cleared before the crossing lands, the icon came back
+        // to the section with no slot and was drawn last.
+        let snib = ItemID.bundleKey("app.fif7y.Snib"), y = ItemID.bundleKey("com.y")
+        let roster = Roster(members: [a: .hidden, snib: .hidden, y: .visible])
+        var edits = OrderEdits(
+            order: [.hidden: [a, snib], .visible: [y]],
+            previousSection: [y: .hidden],
+            previousOrder: [.hidden: [a, y, snib], .visible: []],
+            dropped: [y, snib]
+        )
+        #expect(OrderEditSettle.settledSections(
+            edits, bar: [a, snib, y], live: [y], concealed: [a, snib], roster: roster
+        ).isEmpty)
+        // Landed, the icon is no longer Hidden's.
+        edits.previousSection.removeValue(forKey: y)
+        #expect(OrderEditSettle.settledSections(
+            edits, bar: [a, snib, y], live: [y], concealed: [a, snib], roster: roster
+        ) == [.hidden, .visible])
+    }
+
     @Test func iconsOfOtherSectionsDoNotCount() {
         let visible = ItemID.bundleKey("com.visible")
         #expect(settled([a, b], bar: [a, visible, b], onBar: [a, b, visible]) == [.alwaysHidden])
