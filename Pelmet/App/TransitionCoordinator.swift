@@ -1400,6 +1400,9 @@ extension TransitionCoordinator {
     /// bar; the capture dot shows for about a second. Pictures by section
     /// key; nil when the pass never saw the icons (the bar revealed, no
     /// Screen Recording, none drawn), so nothing counts as unpicturable.
+    /// `failed`: the `wanting` keys the pass tried and got no picture of,
+    /// empty without an empty-bar picture to cut against; a key whose round
+    /// was skipped (a waiter, another press's icon) is not one.
     /// `dump` writes them to ~/Library/Logs/Pelmet/pass/.
     ///
     /// A section wider than the room right of the notch draws only some of
@@ -1411,7 +1414,7 @@ extension TransitionCoordinator {
     /// with or without them, and with none to follow up nothing extra runs.
     func picturePass(
         _ sections: Set<PelmetCore.Section>, wanting: Set<ItemID> = [], dump: Bool = false
-    ) async -> [ItemID: ItemPictures.Picture]? {
+    ) async -> (pictures: [ItemID: ItemPictures.Picture], failed: Set<ItemID>)? {
         guard let appState else { return nil }
         let dump = dump || UserDefaults.standard.bool(forKey: "pelmet.debug.dumpPass")
         let start = Date()
@@ -1543,6 +1546,8 @@ extension TransitionCoordinator {
         // Everything else (every wanted item clear, a blank cut, a side
         // display) is as it always was, and nothing below runs.
         var leftovers = Set<ItemID>()
+        // Left over and never given a round: not tried, not failed.
+        var deferred = Set<ItemID>()
         if pictures != nil, !wanting.isEmpty {
             let asking = Set(wanting.filter(wanted))
             leftovers = PicturePassBatches.leftovers(
@@ -1556,7 +1561,10 @@ extension TransitionCoordinator {
             // Another press's ids stay out of the rounds: putting them back
             // would pull an icon from under the menu it opened.
             let theirs = await engine.itemsRevealedOnTheirOwn()
+            deferred = leftovers
             leftovers.subtract(theirs)
+            deferred.subtract(leftovers)
+            var roundsAsked = Set<ItemID>()
             let ceiling = AppTiming.transitionCoverSafety + Double(PicturePassBatches.maxFollowUps) * AppTiming.picturePassBatch
             var sectionsOut = true
             var itemsOut = Set<ItemID>()
@@ -1570,6 +1578,7 @@ extension TransitionCoordinator {
                     elapsed: elapsed, batch: AppTiming.picturePassBatch, ceiling: ceiling
                 ) {
                     PelmetLog.log("pass: batch skipped — \(blocker.reason) (batch \(followUps + 1), \(leftovers.count) left)")
+                    deferred.formUnion(leftovers.subtracting(roundsAsked))
                     break
                 }
                 followUps += 1
@@ -1578,6 +1587,7 @@ extension TransitionCoordinator {
                 // One swap a round: the items come out before the sections go
                 // back, and later rounds only put away what got its picture.
                 let asked = leftovers
+                roundsAsked.formUnion(asked)
                 let out = asked.subtracting(itemsOut)
                 if !out.isEmpty { await engine.reveal(items: out) }
                 if sectionsOut {
@@ -1623,7 +1633,11 @@ extension TransitionCoordinator {
         } else {
             endBarHold()
         }
-        return pictures
+        guard let pictures else { return nil }
+        // Against no empty bar nothing could be cut: says nothing either
+        // (review WRAP-1, every tile stood in for 15 minutes).
+        let failed = empty.isEmpty ? [] : wanting.subtracting(pictures.keys).subtracting(deferred)
+        return (pictures, failed)
     }
 
     /// An Apply a panel drop started, with the panel left open: the bar goes

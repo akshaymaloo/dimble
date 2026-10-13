@@ -1965,11 +1965,14 @@ final class PanelPresenter: RevealPresenter {
                 PelmetLog.log("panel: pass saw no icons, \(wanted.count) wanted")
                 return
             }
-            self.pictures.store(found)
+            self.pictures.store(found.pictures)
             let now = Date()
-            for key in wanted where found[key] == nil { self.unpicturable[key] = now }
-            let lost = wanted.filter { found[$0] == nil }.map(\.rawValue)
-            PelmetLog.log("panel: pass pictured \(found.count) of \(wanted.count) wanted\(lost.isEmpty ? "" : " — none for \(lost)")")
+            // Only what the pass tried and missed waits out `maxAge`; a key
+            // a skipped round never reached is asked for again next open.
+            for key in found.failed { self.unpicturable[key] = now }
+            let lost = wanted.filter { found.pictures[$0] == nil }.map(\.rawValue)
+            let again = max(0, lost.count - found.failed.count)
+            PelmetLog.log("panel: pass pictured \(found.pictures.count) of \(wanted.count) wanted\(lost.isEmpty ? "" : " — none for \(lost)")\(again > 0 ? ", \(again) asked again next open" : "")")
             guard self.isOpen else { return }
             // A widen or an unfold while it ran can want more.
             let shown = self.refresh()
