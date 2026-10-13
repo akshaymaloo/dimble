@@ -126,8 +126,8 @@ import Testing
         ) == [])
         // The grouper lands Vorssaint and the walk after the pass reads
         // the bar at rest: both sections settle, nothing is left to count.
-        edits.previousSection.removeValue(forKey: vorssaint)
         let bar = [a, sound, chevron, media, vorssaint]
+        edits.land(vorssaint, bar: bar)
         let settled = OrderEditSettle.settledSections(
             edits, bar: bar, live: [media, vorssaint], concealed: [a, sound, snib], roster: roster
         )
@@ -135,6 +135,20 @@ import Testing
         for section in settled { edits.clearOrder(for: section) }
         let after = MovePlan.compute(bar: bar, edits: edits, roster: roster, chevron: chevron)
         #expect(ApplyCount.count(after, edits: edits, trapped: [], drawn: { _ in false }, concealed: concealed).total == 0)
+    }
+
+    @Test func aSwapOfTwoUnseenIconsStillCounts() {
+        // a and b swapped in a concealed Hidden, neither framed: each has a
+        // new neighbour, so neither is a drop drawn back in place.
+        let edits = OrderEdits(order: [.hidden: [b, a, c]], previousOrder: [.hidden: [a, b, c]], dropped: [a, b])
+        #expect(OrderEditSettle.dropsInPlace(edits).isEmpty)
+        let plan = MovePlan.compute(bar: [c, chevron, v1], edits: edits, roster: roster, chevron: chevron)
+        let count = ApplyCount.count(
+            plan, edits: edits, trapped: [], drawn: { _ in false },
+            concealed: { isConcealed($0, concealedKeys: [a, b, c]) }
+        )
+        #expect(count.concealed == [a, b])
+        #expect(count.total > 0)
     }
 
     @Test func aTrappedDropCountsAndATrappedNeighbourDoesNot() {

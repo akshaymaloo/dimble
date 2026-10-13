@@ -71,16 +71,19 @@ public struct OrderEdits: Codable, Equatable, Sendable {
         previousOrder.removeValue(forKey: section)
     }
 
-    /// A pass landed `key` (canonical) on its section's side: Discard has
-    /// no section to put it back to. The baselines follow, since Discard
-    /// puts each pending section back to its own: the section whose
-    /// drawing holds it takes it where `bar` (canonical keys, left to
-    /// right) has it, or at its drawn slot unframed, and a baseline it
-    /// left lets it go. Only the crossing used to be dropped: the grouper
-    /// landed Vorssaint in Hidden, Hidden stayed pending on a baseline
-    /// taken before Vorssaint joined, and Discard drew it last (live test,
+    /// A pass, or the person's own ⌘-drag, landed `key` (canonical) in the
+    /// section whose drawing holds it: Discard has no section to put it
+    /// back to. The baselines follow, since Discard puts each pending
+    /// section back to its own: that section's takes it where `bar`
+    /// (canonical keys, left to right) has it, and a baseline it left lets
+    /// it go. Only the crossing used to be dropped: the grouper landed
+    /// Vorssaint in Hidden, Hidden stayed pending on a baseline taken
+    /// before Vorssaint joined, and Discard drew it last (live test,
     /// 2026-10-13 18:16:33). Still listed in Visible's, it would come back
     /// in two sections.
+    /// An icon the baseline already lists moves to where the bar has it:
+    /// left at its old slot after a pass moved it within its section, its
+    /// drop read as a move still to make (review, 2026-10-13).
     public mutating func land(_ key: ItemID, bar: [ItemID]) {
         let origin = previousSection.removeValue(forKey: key)
         let home = order.first { $0.value.contains(key) }?.key
@@ -90,20 +93,39 @@ public struct OrderEdits: Codable, Equatable, Sendable {
                 previousOrder[section]?.removeAll { $0 == key }
             }
         }
-        guard let home, let drawing = order[home], var baseline = previousOrder[home], !baseline.contains(key)
-        else { return }
+        guard let home, var baseline = previousOrder[home] else { return }
+        let listedAt = baseline.firstIndex(of: key)
+        baseline.removeAll { $0 == key }
         let known = Set(baseline)
-        // The baseline icon beside `key` in `sequence`: after the one on
-        // its left, else before the one on its right.
-        func slot(in sequence: [ItemID]) -> Int? {
-            let around = sequence.filter { $0 == key || known.contains($0) }
+        // The baseline icon beside `key` on the bar: after the one on its
+        // left, else before the one on its right.
+        func slot() -> Int? {
+            let around = bar.filter { $0 == key || known.contains($0) }
             guard let i = around.firstIndex(of: key) else { return nil }
             if i > 0, let left = baseline.firstIndex(of: around[i - 1]) { return left + 1 }
             if i + 1 < around.count { return baseline.firstIndex(of: around[i + 1]) }
             return nil
         }
-        baseline.insert(key, at: slot(in: bar) ?? slot(in: drawing) ?? baseline.endIndex)
+        // Unframed, it keeps the slot the baseline gave it, or takes the
+        // chevron end, where the grouper puts an icon with no drawn
+        // neighbour to land beside (Visible's is its left end). Its drawn
+        // slot read as drawn back, and the section cleared with the icon
+        // elsewhere (review, 2026-10-13).
+        let chevronEnd = home == .visible ? baseline.startIndex : baseline.endIndex
+        baseline.insert(key, at: slot() ?? listedAt ?? chevronEnd)
         previousOrder[home] = baseline
+    }
+
+    /// A pass that failed nowhere but could not reach `unreachable`
+    /// (behind the «): each section whose drawing names none of them is
+    /// done, and every icon in `applied` (canonical keys) landed (`land`).
+    /// Returns the sections cleared.
+    @discardableResult
+    public mutating func settlePartialPass(applied: [ItemID], unreachable: [ItemID], bar: [ItemID]) -> [Section] {
+        let cleared = order.filter { !$0.value.contains(where: unreachable.contains) }.map(\.key)
+        for section in cleared { clearOrder(for: section) }
+        for key in applied { land(key, bar: bar) }
+        return cleared
     }
 }
 

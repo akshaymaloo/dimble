@@ -2566,14 +2566,13 @@ final class AppState {
             settings.save()
         } else if report.failed.isEmpty {
             var edits = settings.orderEdits
-            for (section, drawn) in edits.order where !drawn.contains(where: unreachable.contains) {
-                edits.clearOrder(for: section)
-                noteAppliedOrder(of: [section])
-            }
             // A landed icon joins the baseline Discard restores for a
             // section still pending (`OrderEdits.land`).
             let bar = snapshot.map { ApplyPass.barOrder(ApplyPass.rememberedFrames($0, appState: self)) } ?? []
-            for id in report.applied { edits.land(id.sectionKey, bar: bar) }
+            let cleared = edits.settlePartialPass(
+                applied: report.applied.map(\.sectionKey), unreachable: unreachable, bar: bar
+            )
+            noteAppliedOrder(of: cleared)
             settings.orderEdits = edits
             settings.save()
         }
@@ -3862,7 +3861,20 @@ final class AppState {
             var model = result.model
             // The user moved it by hand: wherever it started, the bar is
             // the truth now and Discard has nothing to put back.
-            if let draggedID { settings.orderEdits.previousSection.removeValue(forKey: draggedID.sectionKey) }
+            // Dragged into the section its drawing files it under, it lands
+            // like a pass's icon (`OrderEdits.land`): Vorssaint drawn into
+            // Hidden, then ⌘-dragged there, was still listed in Visible's
+            // baseline and missing from Hidden's, so Discard drew it last
+            // (review, 2026-10-13).
+            if let draggedID {
+                let key = draggedID.sectionKey
+                let drawnIn = settings.orderEdits.order.first { $0.value.contains(key) }?.key
+                if drawnIn != nil, drawnIn == result.model.section(of: key) {
+                    settings.orderEdits.land(key, bar: ApplyPass.barOrder(ApplyPass.rememberedFrames(snap, appState: self)))
+                } else {
+                    settings.orderEdits.previousSection.removeValue(forKey: key)
+                }
+            }
             // The editor's drawing outranks the bar until Apply. The
             // periodic pass reconciled the hidden order from the bar
             // between two drops and every tile jumped back (2026-09-20 17:28).

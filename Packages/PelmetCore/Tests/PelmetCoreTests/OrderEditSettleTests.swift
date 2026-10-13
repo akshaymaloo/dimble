@@ -256,14 +256,63 @@ import Testing
             pending, bar: [a, sound, vorssaint, snib, media], live: [], concealed: [a, sound, vorssaint, snib],
             roster: roster
         ).isEmpty)
-        // A landing the bar does not frame takes its drawn slot.
+        // A landing the bar does not frame takes the chevron end, Visible's
+        // at its left.
         var unframed = OrderEdits(
             order: [.hidden: [a, sound, vorssaint, snib]],
             previousSection: [vorssaint: .visible],
             previousOrder: [.hidden: [a, sound, snib]]
         )
         unframed.land(vorssaint, bar: [a, sound, media])
-        #expect(unframed.previousOrder[.hidden] == [a, sound, vorssaint, snib])
+        #expect(unframed.previousOrder[.hidden] == [a, sound, snib, vorssaint])
+        var toVisible = OrderEdits(
+            order: [.visible: [media, vorssaint]], previousSection: [vorssaint: .hidden],
+            previousOrder: [.visible: [media]]
+        )
+        toVisible.land(vorssaint, bar: [a, media])
+        #expect(toVisible.previousOrder[.visible] == [vorssaint, media])
+    }
+
+    @Test func anUnframedLandingAtTheChevronEndKeepsItsDrawnSlotPending() {
+        // v drawn between a and b in Hidden; the grouper had no drawn
+        // neighbour to land it beside and took the chevron end, and the walk
+        // after the pass did not frame it. Filed at its drawn slot, the
+        // baseline read as drawn back and Hidden cleared with v out of its
+        // slot (review, 2026-10-13).
+        let v = ItemID.bundleKey("com.v"), media = ItemID.bundleKey("com.media")
+        let roster = Roster(members: [a: .hidden, b: .hidden, v: .hidden, media: .visible])
+        var edits = OrderEdits(
+            order: [.hidden: [a, v, b]], previousSection: [v: .visible],
+            previousOrder: [.hidden: [a, b], .visible: [media, v]], dropped: [v]
+        )
+        edits.land(v, bar: [a, b, media])
+        #expect(edits.previousOrder[.hidden] == [a, b, v])
+        #expect(OrderEditSettle.dropsInPlace(edits).isEmpty)
+        #expect(OrderEditSettle.settledSections(
+            edits, bar: [a, b, media], live: [media], concealed: [a, b, v], roster: roster
+        ).isEmpty)
+    }
+
+    @Test func aPartialPassReslotsAnIconItMovedWithinAPendingSection() {
+        // b moved before a, x behind the « in the same section: the pass
+        // lands b and leaves the section pending for x. With b left at its
+        // old slot in the baseline, its drop read as a move still to make
+        // (review, 2026-10-13).
+        let x = ItemID.bundleKey("com.x"), y = ItemID.bundleKey("com.y"), z = ItemID.bundleKey("com.z")
+        var edits = OrderEdits(
+            order: [.hidden: [b, a, c, x], .alwaysHidden: [z, y]],
+            previousOrder: [.hidden: [a, b, c, x], .alwaysHidden: [y, z]],
+            dropped: [b, z]
+        )
+        let cleared = edits.settlePartialPass(applied: [b, z], unreachable: [x], bar: [z, y, b, a, c])
+        #expect(cleared == [.alwaysHidden])
+        #expect(edits.order[.alwaysHidden] == nil)
+        #expect(edits.previousOrder[.hidden] == [b, a, c, x])
+        #expect(OrderEditSettle.dropsInPlace(edits) == [b])
+        // An icon the bar does not frame keeps its slot.
+        var unframed = OrderEdits(order: [.hidden: [b, a, c]], previousOrder: [.hidden: [a, b, c]], dropped: [b])
+        unframed.land(b, bar: [a, c])
+        #expect(unframed.previousOrder[.hidden] == [a, b, c])
     }
 
     @Test func aSectionAnIconLeftWaitsForTheCrossingThenSettlesWithoutIt() {
