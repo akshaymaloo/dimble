@@ -872,6 +872,15 @@ final class AppState {
         }
     }
 
+    /// The panel folded away a section the reveal asked for (Always Hidden
+    /// after a ⌥-click): the machine stops counting it as out, so a ⌥-click,
+    /// a double-click or its shortcut brings it back instead of finding it
+    /// there already.
+    func sectionsPutAway(_ sections: Set<PelmetCore.Section>) {
+        dispatch(rehide.handle(.sectionsPutAway(sections)))
+        PelmetLog.log("put away \(sections.map(\.rawValue).sorted()) state=\(rehide.state)")
+    }
+
     /// When the last hover reveal's effect started — the earliest the user
     /// could see the bar open (see `toggle`).
     private var hoverRevealStartedAt: Date?

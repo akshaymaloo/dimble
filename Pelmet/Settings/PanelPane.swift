@@ -266,6 +266,8 @@ private struct PanelPreviewStage: View {
             presenter.readCorpus()
             revision += 1
         }
+        // A column drag whose end SwiftUI dropped (a key pressed mid-drag).
+        .onDisappear { presenter.saveColumnsIfUnsaved() }
         .onChange(of: target, initial: true) { _, target in switched(to: target) }
         .task(id: passKey) { picture() }
     }

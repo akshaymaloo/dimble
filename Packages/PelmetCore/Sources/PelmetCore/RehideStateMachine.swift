@@ -72,6 +72,10 @@ public enum RehideEvent: Equatable, Sendable {
     /// The pointer left the band: (re)arm the rehide countdown — never an
     /// immediate conceal, the user may be heading to a popover.
     case pointerLeft
+    /// The presenter put these sections away on its own (the panel folding
+    /// Always Hidden): nothing moves, the machine stops counting them as
+    /// out, so a later ask for them widens again.
+    case sectionsPutAway(Set<Section>)
 }
 
 public struct RehideStateMachine: Equatable, Sendable {
@@ -148,6 +152,18 @@ public struct RehideStateMachine: Equatable, Sendable {
             guard shouldRehide(on: trigger) else { return [.none] }
             state = .transitioning(target: .conceal, queued: nil)
             return [.cancelTimer, .conceal]
+
+        // ── Put away by the presenter ────────────────────────────────────────
+        // Never down to no section: that state means icons out on their own.
+        case (.revealed(let current, let reason), .sectionsPutAway(let away))
+            where !current.isDisjoint(with: away) && !current.subtracting(away).isEmpty:
+            state = .revealed(sections: current.subtracting(away), reason: reason)
+            return [.none]
+
+        case (.transitioning(target: .reveal(let inFlight, let reason), queued: nil), .sectionsPutAway(let away))
+            where !inFlight.isDisjoint(with: away) && !inFlight.subtracting(away).isEmpty:
+            state = .transitioning(target: .reveal(inFlight.subtracting(away), reason), queued: nil)
+            return [.none]
 
         // ── Mid-flight: queue, never interleave ──────────────────────────────
         case (.transitioning(let target, let queued), .revealRequested(let sections, let reason)):

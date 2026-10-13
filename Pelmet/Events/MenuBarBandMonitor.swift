@@ -76,9 +76,16 @@ final class MenuBarBandMonitor {
     private var screenGeometry: [ScreenGeometry] = []
     private var screenObserver: NSObjectProtocol?
 
-    private func rebuildScreenGeometry() {
+    private func rebuildScreenGeometry(retryingMisses: Bool = true) {
+        var missed = false
         screenGeometry = NSScreen.screens.map { screen in
-            let bandHeight = screen.frame.maxY - screen.visibleFrame.maxY
+            // Off the main display the visibleFrame keeps no band: the bar's
+            // own window has its height (30pt on an external), and a display
+            // with none drawn (Displays have separate Spaces off) has no band.
+            let visibleBand = screen.frame.maxY - screen.visibleFrame.maxY
+            let drawn = visibleBand > 0 ? nil : GlassPanel.drawnBarHeight(of: screen)
+            if visibleBand <= 0, drawn == nil { missed = true }
+            let bandHeight = visibleBand > 0 ? visibleBand : drawn ?? 0
             let band = bandHeight > 0
                 ? NSRect(x: screen.frame.minX, y: screen.frame.maxY - bandHeight, width: screen.frame.width, height: bandHeight)
                 : .zero
@@ -93,6 +100,16 @@ final class MenuBarBandMonitor {
             let bounds = CGDisplayBounds(id)
             return PointerMoveTap.Display(bounds: bounds, bandMaxY: bounds.minY + geometry.band.height)
         })
+        // A display's bar window can come a beat after the display: one more
+        // look, or hover stayed off there until the screens next changed.
+        if missed, retryingMisses {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+                guard let self else { return }
+                self.rebuildScreenGeometry(retryingMisses: false)
+                let bands = self.screenGeometry.map { "\(Int($0.band.height))" }.joined(separator: ",")
+                PelmetLog.log("band: a display had no bar drawn, read again — bands \(bands)pt")
+            }
+        }
     }
 
     private func screenGeometry(containing point: NSPoint) -> ScreenGeometry? {
@@ -238,6 +255,8 @@ final class MenuBarBandMonitor {
                     if appState.isRevealed { appState.pointerLeftBand() }
                     return
                 }
+            } else {
+                endPanelDrop(appState)
             }
             // The mouse-up was seen: the band-exit catch-all must not adopt
             // early without the drop x. MenuBarAgent's drag image under the
@@ -277,8 +296,9 @@ final class MenuBarBandMonitor {
     }
 
     private func endPanelDrop(_ appState: AppState) {
-        guard panelDropZone != nil else { return }
+        // A drag that opened the panel marked it there, armed or not.
         appState.panelPresenter.endBarDrag()
+        guard panelDropZone != nil else { return }
         dragRedirect.disarm()
         panelDropZone = nil
     }
@@ -723,7 +743,9 @@ final class MenuBarBandMonitor {
               let bounds = window[kCGWindowBounds as String] as? [String: CGFloat],
               let height = bounds["Height"], let width = bounds["Width"], let y = bounds["Y"]
         else { return nil }
-        let bandHeight = screen.frame.maxY - screen.visibleFrame.maxY
+        // The band as cached: an external's visibleFrame keeps none, and any
+        // window under the pointer there, the bar's own, would be taller.
+        let bandHeight = geometry(of: screen)?.band.height ?? (screen.frame.maxY - screen.visibleFrame.maxY)
         guard height > bandHeight + 1 else { return nil }
         // Below desktop level nothing can be occluding the bar. The hit-test
         // intermittently resolves to Finder's wallpaper window on an external

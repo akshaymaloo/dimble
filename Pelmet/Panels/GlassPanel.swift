@@ -172,18 +172,23 @@ class GlassPanel: NSPanel {
         return NSRect(x: screen.frame.minX, y: screen.frame.maxY - bar, width: screen.frame.width, height: bar)
     }
 
-    /// The bar's window on each display, as read: kept until the screens
-    /// change (a read walks every window on screen), a miss retried after a
-    /// second.
-    private static var drawnBarHeights: [CGDirectDisplayID: (height: CGFloat?, readAt: CFTimeInterval)] = [:]
+    /// The bar's window on each display, as read: kept while the display's
+    /// bounds stay the same (a read walks every window on screen; another
+    /// screens observer can run before this one clears it), a miss retried
+    /// after a second.
+    private static var drawnBarHeights: [CGDirectDisplayID: (height: CGFloat?, bounds: CGRect, readAt: CFTimeInterval)] = [:]
     private static var screensObserver: NSObjectProtocol?
 
-    /// The Window Server's bar window (layer 24) whose top is the display's.
-    private static func drawnBarHeight(of screen: NSScreen) -> CGFloat? {
+    /// The Window Server's bar window (layer 24) whose top is the display's,
+    /// nil on a display with no bar drawn (Displays have separate Spaces
+    /// off, an app full screen). `fresh` reads it again: a full-screen app
+    /// takes the bar away with no screens change.
+    static func drawnBarHeight(of screen: NSScreen, fresh: Bool = false) -> CGFloat? {
         guard let id = screen.directDisplayID else { return nil }
         let now = CACurrentMediaTime()
+        let display = CGDisplayBounds(id)
         let kept = drawnBarHeights[id]
-        if let kept, kept.height != nil || now - kept.readAt < 1 { return kept.height }
+        if !fresh, let kept, kept.bounds == display, kept.height != nil || now - kept.readAt < 1 { return kept.height }
         if screensObserver == nil {
             screensObserver = NotificationCenter.default.addObserver(
                 forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
@@ -193,18 +198,18 @@ class GlassPanel: NSPanel {
         }
         var height: CGFloat?
         if let list = ConcealGhostOverlay.onScreenWindows() {
-            let display = CGDisplayBounds(id)
             let barLevel = Int(CGWindowLevelForKey(.mainMenuWindow))
             for w in list where (w[kCGWindowLayer as String] as? Int) == barLevel && (w[kCGWindowOwnerName as String] as? String) == "Window Server" {
+                // A bar is 20pt at the least: a thinner strip there is not one.
                 guard let b = w[kCGWindowBounds as String] as? [String: CGFloat],
-                      let x = b["X"], let y = b["Y"], let h = b["Height"], h > 0, h < 100,
+                      let x = b["X"], let y = b["Y"], let h = b["Height"], h >= 20, h < 100,
                       abs(y - display.minY) < 1, x >= display.minX - 1, x < display.maxX
                 else { continue }
                 height = h
                 break
             }
         }
-        drawnBarHeights[id] = (height, now)
+        drawnBarHeights[id] = (height, display, now)
         if kept == nil || height != kept?.height {
             PelmetLog.log("glass: display \(id) bar \(height.map { "\(Int($0))pt from its window" } ?? "window not found, 24pt")")
         }

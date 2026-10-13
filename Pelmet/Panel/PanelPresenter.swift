@@ -81,6 +81,10 @@ final class PanelPresenter: RevealPresenter {
     /// The display it opened on, kept until it closes: a refresh (a key, a
     /// fold, a picture pass) never moves it to another one.
     private var openScreen: CGDirectDisplayID?
+    /// Opened by the pointer on a bar (a hover, a click, a ⌘-drag), not by
+    /// a key or Settings: the pointer's display is the one (`targetScreen`).
+    private var openedAtBar = false
+    private static let atBarReasons: Set<RevealReason> = [.hover, .displayPolicy, .click, .doubleClick, .statusItem, .barDrag]
     /// A display unplugged or rearranged while it is open.
     private var screenObserver: NSObjectProtocol?
     /// Held like a menu until the pointer is on the panel: opened from the
@@ -212,6 +216,7 @@ final class PanelPresenter: RevealPresenter {
         if !wasOpen {
             awaitsPointer = reason == .hotkey
             openScreen = nil
+            openedAtBar = reason.map(Self.atBarReasons.contains) ?? false
             foldOpen = false
             query = ""
             selected = nil
@@ -679,18 +684,23 @@ final class PanelPresenter: RevealPresenter {
     }
 
     /// The display the panel opens on, and keeps until it closes: the
-    /// pointer's, whatever opened it. The chevron's button window lives on
-    /// one display while every bar draws a copy of it, so the chevron's
-    /// display put a click, Show All or ⌘-drag on another display's bar on
-    /// that one (as AppKit does the chevron's menu, #26).
+    /// pointer's. The chevron's button window lives on one display while
+    /// every bar draws a copy of it, so the chevron's display put a click,
+    /// Show All or ⌘-drag on another display's bar on that one (as AppKit
+    /// does the chevron's menu, #26). A shortcut or Settings can come with
+    /// the pointer anywhere: its display only when a bar is drawn there, or
+    /// the panel hung under no bar, over an app (Displays have separate
+    /// Spaces off, an app full screen); the chevron's or the main one if not.
     private func targetScreen() -> NSScreen? {
         let screens = NSScreen.screens
         if let id = openScreen, let kept = screens.first(where: { $0.directDisplayID == id }) { return kept }
         let pointerScreen = screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }
-        let target = pointerScreen ?? drawnChevron()?.screen ?? NSScreen.main ?? screens.first
+        let barUnderPointer = pointerScreen.map { openedAtBar || GlassPanel.drawnBarHeight(of: $0, fresh: true) != nil } ?? false
+        let target = (barUnderPointer ? pointerScreen : nil) ?? drawnChevron()?.screen ?? NSScreen.main ?? screens.first
         openScreen = target?.directDisplayID
         if let target {
-            let from = pointerScreen != nil ? "the pointer's" : "no pointer, fallback"
+            let from = barUnderPointer ? "the pointer's"
+                : pointerScreen != nil ? "no bar under the pointer, the chevron's or main" : "no pointer, fallback"
             PelmetLog.log("panel: on display \(openScreen.map(String.init) ?? "?") (\(from)), bar \(Int(GlassPanel.barHeight(of: target)))pt")
         }
         return target
@@ -1141,13 +1151,19 @@ final class PanelPresenter: RevealPresenter {
     /// fires on it too: no press for this long.
     private static let pressGuard: CFTimeInterval = 0.35
 
-    /// From a tile's gesture. Only the start and the end come from here; the
-    /// pointer is read on screen, on a timer, so a ghost over the bar keeps
-    /// up with a pointer SwiftUI no longer reports.
+    /// From a tile's gesture: the start, the end, and the ghost kept under
+    /// every move it reports (a 60Hz tick trails a 120Hz pointer). What the
+    /// ghost is over is read on screen, on a timer, which also keeps it up
+    /// with a pointer SwiftUI no longer reports.
     private func tileDragged(_ tile: PanelTile, _ phase: PanelTileDrag) {
         switch phase {
         case .moved(let pointer, let wellCenter):
-            guard tileDrag == nil, !ignoresDragUntilRelease, NSEvent.pressedMouseButtons & 1 != 0 else { return }
+            if let drag = tileDrag {
+                let mouse = NSEvent.mouseLocation
+                drag.ghost.move(toCenter: CGPoint(x: mouse.x - drag.grab.width, y: mouse.y - drag.grab.height))
+                return
+            }
+            guard !ignoresDragUntilRelease, NSEvent.pressedMouseButtons & 1 != 0 else { return }
             beginDrag(tile, pointer: pointer, wellCenter: wellCenter)
             tickDrag()
         case .ended:
@@ -1619,12 +1635,14 @@ final class PanelPresenter: RevealPresenter {
         return (hit.section, zone)
     }
 
+    /// The ⌘-drag is over, whether the panel could take its drop or not.
     func endBarDrag() {
         barDragging = false
         barGhost?.release()
         barGhost = nil
         springTask?.cancel()
         springTask = nil
+        guard dragState.target != .none else { return }
         withAnimation(.easeOut(duration: 0.12)) { dragState.target = .none }
     }
 
@@ -1685,10 +1703,17 @@ final class PanelPresenter: RevealPresenter {
     private func endColumnDrag() {
         draggingColumns = false
         stopWatchingColumnRelease()
-        if columnsUnsaved, let appState {
-            columnsUnsaved = false
-            appState.settingsChanged()
-        }
+        saveColumnsIfUnsaved()
+    }
+
+    /// A column drag whose end never came (SwiftUI drops a gesture on a key
+    /// press; the Settings preview going with one under way): saved where it
+    /// got to.
+    func saveColumnsIfUnsaved() {
+        guard columnsUnsaved, let appState else { return }
+        columnsUnsaved = false
+        appState.settingsChanged()
+        PelmetLog.log("panel: columns saved, the drag's end never came")
     }
 
     private func watchColumnRelease() {
@@ -1855,10 +1880,11 @@ final class PanelPresenter: RevealPresenter {
         let shown = lastContent?.showsAlwaysHidden ?? false
         // Opened for Always Hidden (⌥-click, a double-click, its shortcut):
         // the ask held the fold open whatever the fold said, so folding it
-        // lets go of the ask.
+        // lets go of the ask, the machine's too: a ⌥-click then asks again.
         if shown, sections.contains(.alwaysHidden) {
             sections.remove(.alwaysHidden)
             PelmetLog.log("panel: Always Hidden folded, the open's ask for it let go")
+            appState?.sectionsPutAway([.alwaysHidden])
         }
         foldOpen = flipFold(shown: shown)
         if let appState { foldMotion = Self.foldStyle(appState.settings.revealAnimation) }

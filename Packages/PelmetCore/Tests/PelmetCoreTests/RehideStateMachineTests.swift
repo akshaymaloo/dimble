@@ -41,6 +41,21 @@ import Testing
         #expect(settled == [.none])
     }
 
+    @Test func sectionPutAwayIsAskedForAgain() {
+        var machine = RehideStateMachine(policy: .init(autoRehide: false))
+        _ = machine.handle(.revealRequested([.hidden, .alwaysHidden], .statusItem))
+        _ = machine.handle(.transitionSettled)
+        // The panel folds Always Hidden: nothing moves, the machine lets go.
+        #expect(machine.handle(.sectionsPutAway([.alwaysHidden])) == [.none])
+        #expect(machine.state == .revealed(sections: [.hidden], reason: .statusItem))
+        // A ⌥-click asks for it again: a widen, not a no-op.
+        #expect(machine.handle(.revealRequested([.hidden, .alwaysHidden], .statusItem)) == [.cancelTimer, .reveal([.hidden, .alwaysHidden])])
+        _ = machine.handle(.transitionSettled)
+        // Never down to no section: that reads as icons out on their own.
+        _ = machine.handle(.sectionsPutAway([.hidden, .alwaysHidden]))
+        #expect(machine.state == .revealed(sections: [.hidden, .alwaysHidden], reason: .statusItem))
+    }
+
     @Test func delayExpiryConceals() {
         var machine = RehideStateMachine()
         _ = machine.handle(.revealRequested([.hidden], .hover), now: now)
