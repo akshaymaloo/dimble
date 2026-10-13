@@ -78,6 +78,23 @@ import Testing
         #expect(machine.state == .revealed(sections: [.hidden, .alwaysHidden], reason: .statusItem))
     }
 
+    // Review APP-6: icons queued behind a conceal, their app quit meanwhile.
+    // The empty reveal settles as concealed, so hover works again.
+    @Test func iconsRevealWithNothingLeftSettlesConcealed() {
+        var machine = RehideStateMachine()
+        _ = machine.handle(.revealRequested([.hidden], .click), now: now)
+        _ = machine.handle(.transitionSettled, now: now)
+        _ = machine.handle(.concealRequested, now: now)
+        _ = machine.handle(.revealRequested([], .itemInBar), now: now)
+        #expect(machine.handle(.transitionSettled, now: now) == [.reveal([])])
+        #expect(machine.handle(.nothingCameOut, now: now) == [.none])
+        #expect(machine.state == .concealed)
+        #expect(machine.handle(.revealRequested([.hidden], .hover), now: now) == [.reveal([.hidden])])
+        // A section reveal never settles that way.
+        _ = machine.handle(.nothingCameOut, now: now)
+        #expect(machine.state == .transitioning(target: .reveal([.hidden], .hover), queued: nil))
+    }
+
     @Test func delayExpiryConceals() {
         var machine = RehideStateMachine()
         _ = machine.handle(.revealRequested([.hidden], .hover), now: now)

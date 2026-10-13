@@ -70,16 +70,19 @@ final class TransitionCoordinator {
     /// Pictures of the last transition still on screen (cover lift, exit
     /// strip). See `awaitPreviousLift`.
     private var liftsInFlight = 0
-    /// A picture pass has the bar revealed under its cover. See
-    /// `awaitPicturePass`.
-    private(set) var passInFlight = false {
+    /// What has the bar revealed under its cover: a picture pass or a quiet
+    /// Apply. Set and cleared with the press hold it counts as, by
+    /// `beginBarHold` / `endBarHold` only. See `awaitPicturePass`.
+    private enum BarHold { case picturePass, quietApply }
+    private var barHold: BarHold? {
         // The pass took its at-rest walk while holding: an overflow read it
         // skipped runs now, on that walk.
-        didSet { if oldValue, !passInFlight { appState?.overflowHoldEnded() } }
+        didSet { if oldValue != nil, barHold == nil { appState?.overflowHoldEnded() } }
     }
+    var passInFlight: Bool { barHold != nil }
     /// The pass in flight is a quiet Apply (`holdBarForApply`): seconds of
     /// drags, not a picture pass's one.
-    private(set) var quietApplyInFlight = false
+    var quietApplyInFlight: Bool { barHold == .quietApply }
     /// A reveal or a press arrived while the pass ran and is waiting for it
     /// (`passWaiterArrived`). The follow-up rounds check it before each
     /// round and stop: the user's bar comes first.
@@ -214,6 +217,19 @@ final class TransitionCoordinator {
         pressEpoch += 1
     }
 
+    /// Until the cover is off the bar: a reveal starting under it would film
+    /// the cover as the bar.
+    private func beginBarHold(_ hold: BarHold) {
+        barHold = hold
+        passHasWaiter = false
+        pressBegan()
+    }
+
+    private func endBarHold() {
+        pressEnded()
+        barHold = nil
+    }
+
     /// The bar is back as it was: take the idle picture a press kept from
     /// being taken.
     func pressEnded() {
@@ -284,6 +300,8 @@ final class TransitionCoordinator {
     /// placement flush / hover re-arm). Wired once at boot.
     var onRevealSettled: (() -> Void)?
     var onConcealSettled: (() -> Void)?
+    /// An icons-only reveal had nothing left to bring out.
+    var onNothingRevealed: (() -> Void)?
 
     /// Where the concealed strip last sat — icons reappear in the same spot,
     /// so this rect is the reveal cover's footprint (Instant/Fade styles).
@@ -619,8 +637,8 @@ final class TransitionCoordinator {
             // icon must not come out behind the conceal that took it back.
             let live = keys.intersection(appState.itemsInBar)
             guard !live.isEmpty else {
-                PelmetLog.log("effect reveal items — released before it started, nothing to bring out")
-                if settles { onRevealSettled?() }
+                PelmetLog.log("effect reveal items — released before it started, nothing to bring out\(settles ? ", settles concealed" : "")")
+                if settles { onNothingRevealed?() }
                 trace.finish("skipped")
                 return
             }
@@ -1412,14 +1430,18 @@ extension TransitionCoordinator {
             PelmetLog.log("pass: one is running, skipped")
             return nil
         }
+        // An icon a press revealed alone, or the « it expanded: the reveal
+        // would reflow the bar under the menu it opened (review XF-3). The
+        // next open takes the pictures.
+        guard !pressHoldsBar else {
+            PelmetLog.log("pass: an item press holds the bar, deferred")
+            return nil
+        }
         guard appState.screenRecordingGranted else {
             PelmetLog.log("pass: no Screen Recording, skipped")
             return nil
         }
-        // Until the cover is off the bar: a reveal starting under it would
-        // film the cover as the bar.
-        passInFlight = true
-        passHasWaiter = false
+        beginBarHold(.picturePass)
         // By section, not the walk's `concealed`: that misses system items
         // such as Sound, which leave the AX tree when hidden.
         let model = appState.settings.sectionModel
@@ -1476,7 +1498,6 @@ extension TransitionCoordinator {
         }
         let primaryMaxX = primaryMaxX
 
-        pressBegan()
         let coverStart = Date()
         let cover = await beginBarCover(label: "pass")
         PelmetLog.log("pass: cover \(cover == nil ? "none" : "up") at \(ms())ms")
@@ -1596,13 +1617,11 @@ extension TransitionCoordinator {
         PelmetLog.log("pass: concealed at \(ms())ms")
         if let cover {
             endBarCover(cover, label: "pass") { [weak self] in
-                self?.pressEnded()
-                self?.passInFlight = false
+                self?.endBarHold()
                 PelmetLog.log("pass: cover lifted at \(ms())ms")
             }
         } else {
-            pressEnded()
-            passInFlight = false
+            endBarHold()
         }
         return pictures
     }
@@ -1631,21 +1650,14 @@ extension TransitionCoordinator {
             PelmetLog.log("apply: quiet pass skipped, the bar is busy")
             return nil
         }
-        // Held until the cover is off the bar: another reveal starting under
-        // it would film the cover as the bar.
-        passInFlight = true
-        quietApplyInFlight = true
-        passHasWaiter = false
-        pressBegan()
+        beginBarHold(.quietApply)
         let start = Date()
         func ms() -> Int { Int(Date().timeIntervalSince(start) * 1000) }
         // The ghost of the tile just dropped is still fading over the bar.
         try? await Task.sleep(for: AppTiming.quietApplyGhostFade)
         guard let cover = await beginBarCover(label: "apply", safety: AppTiming.quietApplyCoverCeiling) else {
             PelmetLog.log("apply: quiet pass skipped, no cover")
-            pressEnded()
-            passInFlight = false
-            quietApplyInFlight = false
+            endBarHold()
             return nil
         }
         PelmetLog.log("apply: quiet (panel drop), cover held at \(ms())ms")
@@ -1667,9 +1679,7 @@ extension TransitionCoordinator {
         cover.keepUp(for: AppTiming.clockBlinkCoverDeadline + 2)
         endBarCover(cover, label: "apply") { [weak self] in
             guard let self else { return }
-            self.pressEnded()
-            self.passInFlight = false
-            self.quietApplyInFlight = false
+            self.endBarHold()
             PelmetLog.log("apply: quiet cover lifted at \(ms())ms")
             // The bar as it is now, the put-away icons gone from the walk.
             Task { @MainActor [weak self] in

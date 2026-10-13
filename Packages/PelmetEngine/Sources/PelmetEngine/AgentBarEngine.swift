@@ -121,6 +121,9 @@ public actor AgentBarEngine: MenuBarEngine {
         )
 
     private var lastSnapshot: EngineSnapshot?
+    /// `ConvergePlan.setAside` of the last converge: concealed again by the
+    /// next one that puts their section back.
+    private var setAsideConcealed: Set<ItemID> = []
     private var started = false
     /// Actor reentrancy guard: converge() suspends several times, and a stale
     /// converge resuming after a newer one must not activate an outdated
@@ -437,7 +440,7 @@ public actor AgentBarEngine: MenuBarEngine {
         let plan = ConvergePlan.compute(
             model: model,
             liveIDs: Set(snapshot.items.map(\.id)),
-            carriedConcealed: lastSnapshot?.concealed ?? [],
+            carriedConcealed: (lastSnapshot?.concealed ?? []).union(setAsideConcealed),
             runningBundles: runningBundles,
             revealedSections: revealedSections,
             revealedItems: revealedItems.union(ruleShownItems),
@@ -445,6 +448,7 @@ public actor AgentBarEngine: MenuBarEngine {
             exemptBundles: Self.identityExemptBundles
         )
         timing.planMS = Self.ms(since: phase)
+        setAsideConcealed = plan.setAside
         for (id, reason) in plan.stale {
             PelmetLog.log("converge: pruned concealed \(reason == .staleAlias ? "stale alias" : "entry for quit app") \(id.rawValue)")
         }

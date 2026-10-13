@@ -76,6 +76,9 @@ public enum RehideEvent: Equatable, Sendable {
     /// Always Hidden): nothing moves, the machine stops counting them as
     /// out, so a later ask for them widens again.
     case sectionsPutAway(Set<Section>)
+    /// An icons-only reveal found every icon already let go (its app quit
+    /// while the reveal waited behind a conceal): nothing came out.
+    case nothingCameOut
 }
 
 public struct RehideStateMachine: Equatable, Sendable {
@@ -164,6 +167,12 @@ public struct RehideStateMachine: Equatable, Sendable {
             where !inFlight.isDisjoint(with: away) && !inFlight.subtracting(away).isEmpty:
             state = .transitioning(target: .reveal(inFlight.subtracting(away), reason), queued: nil)
             return [.none]
+
+        case (.transitioning(.reveal(let sections, _), let queued), .nothingCameOut) where sections.isEmpty:
+            // Settles as the conceal it amounts to (review APP-6): settled as
+            // `.revealed([])`, nothing was out and hover stayed dead.
+            state = .transitioning(target: .conceal, queued: queued)
+            return handle(.transitionSettled, now: now)
 
         // ── Mid-flight: queue, never interleave ──────────────────────────────
         case (.transitioning(let target, let queued), .revealRequested(let sections, let reason)):

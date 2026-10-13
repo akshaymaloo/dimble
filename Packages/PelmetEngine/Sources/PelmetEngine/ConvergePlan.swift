@@ -25,6 +25,15 @@ struct ConvergePlan: Equatable {
     var allowedBundles: Set<String>
     /// The concealed set to stamp on the snapshot after the swap.
     var concealed: Set<ItemID>
+    /// Third-party items carried but not live, no longer concealed only
+    /// because their section is out. The engine carries them into the next
+    /// converge with the concealed set: a full reveal can push an icon
+    /// behind the native «, out of the AX tree, and the conceal after it
+    /// found it neither live nor carried, so presses and presence checks
+    /// lost it (review ALT-1). One the walk sees is not set aside: if its
+    /// app drops it meanwhile it is gone, not carried. Pruned like any
+    /// carried id (app quit, stale alias).
+    var setAside: Set<ItemID>
 
     static func compute(
         model: SectionModel,
@@ -113,6 +122,12 @@ struct ConvergePlan: Equatable {
             return concealable.contains(bundle)
         })
 
+        let setAside = Set(carried.filter { id in
+            guard let bundle = id.bundleID, !exemptBundles.contains(bundle),
+                  !liveIDs.contains(id), !concealed.contains(id) else { return false }
+            return revealedSections.contains(model.section(of: id))
+        })
+
         return ConvergePlan(
             stale: stale,
             observedIDs: observedIDs,
@@ -121,7 +136,8 @@ struct ConvergePlan: Equatable {
             allowedSystem: allowedSystem,
             dropAssertion: dropAssertion,
             allowedBundles: allowedBundles,
-            concealed: dropAssertion ? [] : concealed
+            concealed: dropAssertion ? [] : concealed,
+            setAside: setAside
         )
     }
 }

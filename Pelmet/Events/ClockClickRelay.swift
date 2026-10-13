@@ -338,6 +338,28 @@ nonisolated final class ClockClickRelay: @unchecked Sendable {
         PelmetLog.log("clock: the press does not keep the panel open on \(osBuild) — clicks are replayed from now on")
     }
 
+    /// Presses this run saw the panel leave on its own, user input aside.
+    /// One can be a close the input check missed: the build is marked on the
+    /// second (review APP-5).
+    @MainActor private static var panelLeftSamples = 0
+
+    @MainActor static func notePanelLeftAfterPress() {
+        panelLeftSamples += 1
+        guard panelLeftSamples >= 2 else {
+            PelmetLog.log("clock: panel left on its own once on \(osBuild) — marked after a second time")
+            return
+        }
+        notePressNeverOpensPanel()
+    }
+
+    /// A click or a key since `date`, from the hardware: a panel gone after
+    /// one was closed by the user, not by macOS.
+    static func userInput(since date: Date) -> Bool {
+        let elapsed = -date.timeIntervalSinceNow
+        let types: [CGEventType] = [.leftMouseDown, .rightMouseDown, .otherMouseDown, .keyDown]
+        return types.contains { CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: $0) < elapsed }
+    }
+
     @MainActor static func notePressHoldsPanel() {
         guard !pressHoldsPanel else { return }
         UserDefaults.standard.set(osBuild, forKey: pressHoldsKey)

@@ -96,6 +96,46 @@ import PelmetCore
         #expect(plan.allowedBundles.contains("com.example.otterkeep"))
     }
 
+    @Test func fullRevealSetsAsideWhatTheConcealAfterFindsAgain() {
+        // Review ALT-1: a full reveal pushes Velja behind the native «, out
+        // of the AX tree. Set aside at the reveal, it is concealed again by
+        // the conceal whose walk can't see it.
+        let running: Set<String> = ["com.sindresorhus.Velja", "com.example.otterkeep"]
+        let reveal = ConvergePlan.compute(
+            model: model([velja: .alwaysHidden, otterkeep: .hidden, sound: .hidden]),
+            liveIDs: [sound], carriedConcealed: [velja, otterkeep, sound],
+            runningBundles: running, revealedSections: [.hidden, .alwaysHidden],
+            steadyExtras: true, exemptBundles: exempt
+        )
+        #expect(reveal.concealed.isEmpty)
+        // Pelmet's and Apple's exempt hosts are never pruned: not carried.
+        #expect(reveal.setAside == [velja, otterkeep])
+        // One the walk sees is not: if its app drops it, it is gone.
+        let seen = ConvergePlan.compute(
+            model: model([velja: .alwaysHidden, otterkeep: .hidden]),
+            liveIDs: [otterkeep], carriedConcealed: [velja, otterkeep],
+            runningBundles: running, revealedSections: [.hidden, .alwaysHidden],
+            steadyExtras: true, exemptBundles: exempt
+        )
+        #expect(seen.setAside == [velja])
+        let conceal = ConvergePlan.compute(
+            model: model([velja: .alwaysHidden, otterkeep: .hidden, sound: .hidden]),
+            liveIDs: [otterkeep, sound], carriedConcealed: reveal.setAside,
+            runningBundles: running, revealedSections: [],
+            steadyExtras: true, exemptBundles: exempt
+        )
+        #expect(conceal.concealed == [velja, otterkeep, sound])
+        #expect(conceal.setAside.isEmpty)
+        // Quit meanwhile: pruned like any carried id.
+        let quit = ConvergePlan.compute(
+            model: model([velja: .alwaysHidden]),
+            liveIDs: [], carriedConcealed: reveal.setAside,
+            runningBundles: ["com.example.otterkeep"], revealedSections: [],
+            steadyExtras: true, exemptBundles: exempt
+        )
+        #expect(!quit.concealed.contains(velja))
+    }
+
     @Test func revealedItemLeavesTheConcealableSetAlone() {
         // A press brings one icon back: its bundle comes off the concealable
         // set, its section stays concealed, the neighbour stays hidden.

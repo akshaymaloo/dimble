@@ -239,6 +239,15 @@ final class AppState {
                 bandMonitor?.rearmHoverAfterConceal()
             }
         }
+        // Settled as concealed: left `.revealed([])`, hover stayed dead.
+        transitions.onNothingRevealed = { [weak self] in
+            guard let self else { return }
+            dispatch(rehide.handle(.nothingCameOut))
+            settleCatchUp()
+            if case .concealed = rehide.state {
+                bandMonitor?.rearmHoverAfterConceal()
+            }
+        }
     }
 
     /// `X.Y.Z-beta.N` builds (RELEASE.md § Beta).
@@ -1518,6 +1527,14 @@ final class AppState {
             }
             clockBlinkInFlight = true
             defer { clockBlinkInFlight = false }
+            // A picture pass has the bar revealed under its cover: the blink
+            // waits for it as a press does (`openItemMenu`), or its drop
+            // would reflow Always Hidden under the pass (review APP-7).
+            if transitions.passInFlight {
+                transitions.passWaiterArrived()
+                PelmetLog.log("clock: waits for the picture pass")
+                await transitions.awaitPicturePass()
+            }
             panelOpenedAt = Date()
             let cover = await transitions.beginBarCover()
             // The physical click is swallowed, so the panel starts sliding
@@ -1588,9 +1605,14 @@ final class AppState {
                     }
                     if held {
                         ClockClickRelay.notePressHoldsPanel()
+                    } else if ClockClickRelay.userInput(since: pressedAt) {
+                        // A second ⌥⌘N or a click closed it: that says
+                        // nothing about the press, and a replay would open
+                        // the panel they just closed (review APP-5).
+                        PelmetLog.log("clock: the panel left after the press, closed by the user — not counted, no replay")
                     } else {
                         PelmetLog.log("clock: the panel left on its own after the press")
-                        ClockClickRelay.notePressNeverOpensPanel()
+                        ClockClickRelay.notePanelLeftAfterPress()
                         opened = false
                     }
                 }
