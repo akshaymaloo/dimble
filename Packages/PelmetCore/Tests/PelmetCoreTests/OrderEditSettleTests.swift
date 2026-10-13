@@ -53,6 +53,11 @@ import Testing
         #expect(OrderEditSettle.settledSections(
             edits, bar: [a, b], live: [a, b, separator], concealed: [], roster: Roster(members: members)
         ).isEmpty)
+        // Last seen behind the «, it is on the bar with no frame: pending.
+        #expect(OrderEditSettle.settledSections(
+            edits, bar: [a, b], live: [a, b], concealed: [separator],
+            ownBehindOverflow: [separator.sectionKey], roster: Roster(members: members)
+        ).isEmpty)
     }
 
     @Test func iconsOfOtherSectionsDoNotCount() {

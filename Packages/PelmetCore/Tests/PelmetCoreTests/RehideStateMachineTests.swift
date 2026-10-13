@@ -14,6 +14,28 @@ import Testing
         #expect(machine.state == .revealed(sections: [.hidden], reason: .hover))
     }
 
+    @Test func aPassEndsAtExactlyThePolicysRevealThroughAConceal() {
+        // A display set to always show: Hidden out for the policy, a pass
+        // opens both sections for a Settings preview.
+        var machine = RehideStateMachine(policy: .init(autoRehide: false))
+        _ = machine.handle(.revealRequested([.hidden], .displayPolicy))
+        _ = machine.handle(.transitionSettled)
+        _ = machine.handle(.revealRequested([.hidden, .alwaysHidden], .settingsPreview))
+        _ = machine.handle(.transitionSettled)
+        // A plain request keeps the wider set and its reason: Always Hidden
+        // would stay out with no rehide.
+        var plain = machine
+        _ = plain.handle(.revealRequested([.hidden], .displayPolicy))
+        #expect(plain.state == .revealed(sections: [.hidden, .alwaysHidden], reason: .settingsPreview))
+        // The pass's restore (`restoreDisplayPolicyAfterPass`): conceal, the
+        // policy's reveal queued behind it, ends at its set and reason.
+        #expect(machine.handle(.concealRequested) == [.cancelTimer, .conceal])
+        #expect(machine.handle(.revealRequested([.hidden], .displayPolicy)) == [.none])
+        #expect(machine.handle(.transitionSettled) == [.reveal([.hidden])])
+        _ = machine.handle(.transitionSettled)
+        #expect(machine.state == .revealed(sections: [.hidden], reason: .displayPolicy))
+    }
+
     @Test func clickDuringHoverRevealMakesItTheClicks() {
         var machine = RehideStateMachine(policy: .init(autoRehide: true, delay: 5))
         #expect(machine.handle(.revealRequested([.hidden], .hover)) == [.reveal([.hidden])])

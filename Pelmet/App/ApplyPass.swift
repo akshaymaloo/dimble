@@ -383,8 +383,8 @@ enum ApplyPass {
             try? await Task.sleep(for: AppTiming.tidyRevealWait)
         }
         // What the pass opened, the pass closes (a display set to always
-        // show keeps its policy).
-        defer { if revealedForPass { appState.applyPointerDisplayPolicyAfterDismissal() } }
+        // show gets exactly its policy's reveal back).
+        defer { if revealedForPass { appState.restoreDisplayPolicyAfterPass() } }
         // Separators drawn in another section re-host here, not at the
         // editor drop: a fresh registration on the new helper lands where
         // the agent puts it, and the drag below moves it into its slot.

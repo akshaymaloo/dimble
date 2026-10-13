@@ -1832,6 +1832,21 @@ final class AppState {
         }
     }
 
+    /// What a pass opened, the pass closes: back to exactly what the pointer
+    /// display's policy shows. A plain request keeps a wider reveal and its
+    /// reason, so on a display set to always show, the pass's Always Hidden
+    /// stayed out (`.settingsPreview`, whose rehide that policy defers for
+    /// good) and every grouping pass after it waited on "the bar is
+    /// revealed" (2026-10-13). The engine's reveal only adds, so the bar
+    /// conceals first and the policy's reveal queues behind it, as `reveal`
+    /// does when the panel closes.
+    func restoreDisplayPolicyAfterPass() {
+        concealNow()
+        guard pointerDisplayBehavior == .alwaysShowAll else { return }
+        reveal([.hidden], reason: .displayPolicy)
+        PelmetLog.log("displays: pass over — back to the policy's reveal, state=\(rehide.state)")
+    }
+
     /// A Displays-tab picker changed: apply the pointer display's new policy
     /// live. Only the reveal side acts here — while the settings window is
     /// open nothing collapses under the user (existing rule); the collapse
@@ -2426,6 +2441,11 @@ final class AppState {
     /// 2026-09-20 21:39) reads right of the new chevron and lit the button
     /// again for nothing. The count shifts each frame by the chevron delta.
     private(set) var rememberedChevronMidX: [ItemID: CGFloat] = [:]
+    /// Own items (canonical keys) the last walk that saw them live found
+    /// behind the «: no frame is remembered there, so once concealed they
+    /// read as let go and a reorder of only that separator cleared at once
+    /// (`OrderEditSettle`).
+    @ObservationIgnored private var ownItemsBehindOverflow: Set<ItemID> = []
 
     /// Apply has something to do: a drawing not yet applied, or the bar
     /// disagreeing with the sections.
@@ -2734,7 +2754,7 @@ final class AppState {
         let bar = ApplyPass.barOrder(ApplyPass.rememberedFrames(snapshot, appState: self))
         let settled = OrderEditSettle.settledSections(
             settings.orderEdits, bar: bar, live: Set(snapshot.items.map(\.id)), concealed: snapshot.concealed,
-            roster: settings.sectionModel.roster
+            ownBehindOverflow: ownItemsBehindOverflow, roster: settings.sectionModel.roster
         )
         guard !settled.isEmpty else { return }
         var edits = settings.orderEdits
@@ -3470,6 +3490,16 @@ final class AppState {
         for (key, frame) in primary where !notInSlot.contains(key) {
             rememberedFrames[key] = frame
             rememberedChevronMidX[key] = chevronMidX
+        }
+        let ownLive = Set(snap.items.compactMap { item in
+            item.id.bundleID.map(PelmetBundle.ownIDs.contains) == true ? item.id.sectionKey : nil
+        })
+        let ownBehind = ownLive.contains { primary[$0] == nil }
+            ? ownLive.intersection(ApplyPass.trapped(snap, appState: self)) : []
+        let behindNow = ownItemsBehindOverflow.subtracting(ownLive).union(ownBehind)
+        if behindNow != ownItemsBehindOverflow {
+            ownItemsBehindOverflow = behindNow
+            PelmetLog.log("apply: own \(behindNow.map(\.rawValue).sorted()) last seen behind the «, their drawing waits")
         }
         let alone = snap.shownAlone.map(\.sectionKey).filter { primary[$0] != nil }.map(\.rawValue).sorted()
         if alone != lastAloneLine {
