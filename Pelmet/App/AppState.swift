@@ -2816,9 +2816,17 @@ final class AppState {
         )
         guard !settled.isEmpty else { return }
         var edits = settings.orderEdits
+        let cleared = Set(settled.flatMap { edits.order[$0] ?? [] })
         for section in settled { edits.clearOrder(for: section) }
         settings.orderEdits = edits
         PelmetLog.log("editor: drawing matches the bar again — edit cleared (\(settled.map { "\($0)" }.sorted().joined(separator: ", ")))")
+        // "N not moved" spoke of edits that are gone now: it goes with them.
+        if let report = applyReport {
+            let notMoved = Set(report.failed.map(\.sectionKey)
+                + report.skipped.filter { $0.why == .notOnScreen }.map(\.item.sectionKey))
+            let pending = Set(edits.order.values.joined())
+            if !notMoved.isDisjoint(with: cleared), notMoved.isDisjoint(with: pending) { applyReport = nil }
+        }
     }
 
     /// A removed separator or extra leaves its drawn slot behind in the
