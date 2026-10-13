@@ -398,8 +398,20 @@ enum ApplyPass {
             let ghosts = appState.attachIdleExtrasForApply()
             if !ghosts.isEmpty {
                 PelmetLog.log("apply: \(ghosts.count) idle extra(s) attached for the pass")
-                // The agent lays a new item out on its own beat.
+                // The agent lays a new item out on its own beat, and the
+                // stand-ins on a bar without real buttons trail the app's
+                // extras bar: a walk in between finds the counts apart and
+                // names none of Pelmet's icons there (unnamed 107–570ms
+                // after a show, 2026-10-13), so the plan read them all as
+                // not on screen. Read until every attached extra has a frame
+                // on the main bar, for as long as a reveal is given.
+                let started = ContinuousClock.now
                 try? await Task.sleep(for: AppTiming.postDragSettleFloor)
+                while started.duration(to: .now) < AppTiming.tidyRevealWait {
+                    let frames = primaryFrames(await engine.freshSnapshot(), appState: appState)
+                    if ghosts.allSatisfy({ frames[$0.sectionKey] != nil }) { break }
+                    try? await Task.sleep(for: AppTiming.postDragQuiescePoll)
+                }
             }
         }
         defer { if case .wholeBar = scope { appState.detachIdleExtrasAfterApply() } }
