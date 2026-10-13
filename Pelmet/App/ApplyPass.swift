@@ -118,10 +118,16 @@ enum ApplyPass {
             let section = roster.section(of: key)
             return section == .visible || revealed.contains(section)
         }
-        let live = Set(snap.items.map(\.id.sectionKey))
+        // An icon out on its own sits beside the chevron, not in its slot:
+        // it counts where it was last seen in place, like a concealed one.
+        // Read live, a picture pass round lit Apply (2) for Velja and Pure
+        // Paste with the editor open (2026-10-12 23:30).
+        let alone = Set(snap.shownAlone.map(\.sectionKey))
+        for key in alone { frames.removeValue(forKey: key) }
+        let live = Set(snap.items.map(\.id.sectionKey)).subtracting(alone)
         let chevronNow = appState.pelmetChevronItem(in: snap).flatMap { frames[$0.id.sectionKey]?.midX }
         var rememberedAlwaysHidden = Set<ItemID>()
-        for id in snap.concealed where !live.contains(id.sectionKey) {
+        for id in snap.concealed.union(snap.shownAlone) where !live.contains(id.sectionKey) {
             let key = id.sectionKey
             guard var f = appState.rememberedFrames[key] else { continue }
             // Concealed icons slide with the chevron: re-anchor the frame
