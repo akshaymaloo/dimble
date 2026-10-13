@@ -45,6 +45,11 @@ nonisolated final class HoverTypingTap: @unchecked Sendable {
         self.onType = onType
     }
 
+    /// Posted by a window whose field took the focus late, after the key
+    /// change this tap looked at (the command bar's retried focus): it
+    /// looks again.
+    static let focusMoved = Notification.Name("app.fif7y.Pelmet.typingFocusMoved")
+
     /// `zone` in Cocoa screen points (y up), `window` the panel's. False when
     /// the tap can't be made.
     @MainActor
@@ -79,6 +84,9 @@ nonisolated final class HoverTypingTap: @unchecked Sendable {
                 DispatchQueue.main.async { MainActor.assumeIsolated { self?.noteKeyWindow() } }
             }
         }
+        keyObservers.append(NotificationCenter.default.addObserver(forName: Self.focusMoved, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.noteKeyWindow() }
+        })
         // A click or a Tab in one of Pelmet's windows moves the focus into a
         // field or out of it with no notification: looked at again once the
         // event has done its work.

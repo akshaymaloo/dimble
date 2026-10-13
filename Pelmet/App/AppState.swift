@@ -156,12 +156,12 @@ final class AppState {
         observeDebugToggle()
     }
 
-    /// Panel dev trigger: with `pelmet.debug.panel` set at launch, the
+    /// Panel dev trigger: with `pelmet.debug.toggle` set at launch, the
     /// distributed notification `app.fif7y.Pelmet.debug.toggle` toggles the
     /// reveal as if its object (`hover`, `hotkey`, else a click) asked;
     /// `bar` reveals Hidden on the real bar, as ⌘↩ in Search does.
     private func observeDebugToggle() {
-        guard UserDefaults.standard.string(forKey: "pelmet.debug.panel") != nil else { return }
+        guard UserDefaults.standard.bool(forKey: "pelmet.debug.toggle") else { return }
         debugToggleObserver = DistributedNotificationCenter.default().addObserver(
             forName: Notification.Name("app.fif7y.Pelmet.debug.toggle"), object: nil, queue: .main
         ) { [weak self] note in
@@ -3088,13 +3088,10 @@ final class AppState {
         }
     }
 
-    /// "Show hidden icons in". While the panel is built, a dev override
-    /// wins: `defaults write app.fif7y.Pelmet pelmet.debug.panel -string
-    /// panel` (or `row`; delete the key to go back to the setting).
-    var revealTarget: RevealTarget {
-        UserDefaults.standard.string(forKey: "pelmet.debug.panel").flatMap(RevealTarget.init(rawValue:))
-            ?? settings.hiddenIconsIn
-    }
+    /// "Show hidden icons in". The build-time override
+    /// (`pelmet.debug.panel`) is gone: left set, it beat the setting
+    /// (review SIMP-7).
+    var revealTarget: RevealTarget { settings.hiddenIconsIn }
 
     /// The panel finished opening or closing: the machine's transition is
     /// over, as when the bar's reveal or conceal settles.

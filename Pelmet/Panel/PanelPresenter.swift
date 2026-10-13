@@ -1848,11 +1848,9 @@ final class PanelPresenter: RevealPresenter {
         ]
     }
 
-    /// The layout picked from the panel's menu is the setting from then on:
-    /// the dev override gives way to it.
+    /// The layout picked from the panel's menu is the setting from then on.
     func setTarget(_ target: RevealTarget) {
         guard let appState else { return }
-        UserDefaults.standard.removeObject(forKey: "pelmet.debug.panel")
         appState.settings.hiddenIconsIn = target
         appState.settingsChanged()
         PelmetLog.log("panel: layout \(target.rawValue)")

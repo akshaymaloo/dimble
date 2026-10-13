@@ -118,7 +118,14 @@ final class CommandBarController {
         panel.invalidateShadow()
         if !focusField() {
             DispatchQueue.main.async { [weak self] in
-                if self?.focusField() != true { PelmetLog.log("search: the field was not ready to take focus") }
+                guard self?.focusField() == true else {
+                    PelmetLog.log("search: the field was not ready to take focus")
+                    return
+                }
+                // Focused after the hover panel's typing tap looked at the
+                // key window: letters typed over the panel went to the
+                // panel's search until it looked again.
+                NotificationCenter.default.post(name: HoverTypingTap.focusMoved, object: nil)
             }
         }
         let keyMs = elapsed()
