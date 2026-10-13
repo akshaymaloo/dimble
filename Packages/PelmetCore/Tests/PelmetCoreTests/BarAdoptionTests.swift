@@ -699,4 +699,91 @@ extension BarAdoptionTests {
         #expect(BarAdoption.refill([passwords, siri, utils, weather, snib], inBarOrder: [utils, passwords, snib, weather])
             == [utils, siri, passwords, snib, weather])
     }
+
+    // Live test 2026-10-13 19:29:50: the BenQ left (bar at y=-113), the
+    // built-in main, the LG ultrawide right. The LG shows every section;
+    // Vorssaint, drawn into Hidden, ⌘-dragged by hand on the LG's bar
+    // before Snib. The walk keeps the built-in's copies.
+    var builtIn: CGRect { CGRect(x: 0, y: 0, width: 1800, height: 1169) }
+    var lg: CGRect { CGRect(x: 1800, y: 0, width: 3440, height: 1440) }
+    var benq: CGRect { CGRect(x: -1920, y: -113, width: 1920, height: 1080) }
+    var utils: ItemID { ItemID(rawValue: "status:com.vorssaint.utils::Item-0") }
+    var snib: ItemID { ItemID(rawValue: "status:app.fif7y.Snib::Item-0") }
+    var shortcuts: ItemID { ItemID(rawValue: "status:app.fif7y.Pelmet::Pelmet.Shortcuts") }
+    var clock: ItemID { ItemID(rawValue: "status:com.apple.MenuBarAgent::com.apple.menuextra.clock") }
+
+    func icon(_ x: CGFloat, y: CGFloat = 0) -> CGRect { CGRect(x: x, y: y, width: 24, height: 24) }
+
+    /// The walk (one copy each, the built-in's where it has one; Hidden is
+    /// concealed there) and every display's copies.
+    var lgDrop: (items: [(id: ItemID, frame: CGRect?)], copies: [ItemID: [CGRect]]) {
+        let copies: [ItemID: [CGRect]] = [
+            shortcuts: [icon(4900), icon(-400, y: -113)],
+            utils: [icon(4928), icon(-372, y: -113)],
+            snib: [icon(4960), icon(-340, y: -113)],
+            sound: [icon(4990), icon(-310, y: -113)],
+            chevron: [icon(1601), icon(5020), icon(-280, y: -113)],
+            clock: [icon(1700), icon(5100), icon(-200, y: -113)],
+        ]
+        let items: [(id: ItemID, frame: CGRect?)] = [
+            (shortcuts, icon(-400, y: -113)), (utils, icon(4928)), (snib, icon(4960)),
+            (sound, icon(4990)), (chevron, icon(1601)), (clock, icon(1700)),
+        ]
+        return (items, copies)
+    }
+
+    @Test func aDropOnAnotherDisplaysBarReadsThatBar() {
+        let (items, copies) = lgDrop
+        let bar = BarAdoption.dropBar(items: items, copies: copies, display: lg, primaryMaxX: builtIn.maxX)
+        #expect(bar.map(\.id) == items.map(\.id))
+        #expect(bar.map { $0.frame?.minX } == [4900, 4928, 4960, 4990, 5020, 5100])
+        #expect(BarAdoption.droppedItem(at: 4920, on: bar, grabbed: "com.vorssaint.utils", grabbedOnly: true) == utils)
+        #expect(BarAdoption.barOrder(bar) == [shortcuts, utils, snib, sound, chevron, clock].map(\.sectionKey))
+        // Read on the built-in, as before: nothing under the drop, and only
+        // the built-in's chevron and clock are measured.
+        let main = BarAdoption.dropBar(items: items, copies: copies, display: nil, primaryMaxX: builtIn.maxX)
+        #expect(main.map { $0.frame?.minX } == [nil, nil, nil, nil, 1601, 1700])
+        #expect(BarAdoption.droppedItem(at: 4920, on: main, grabbed: "com.vorssaint.utils") == nil)
+        // The BenQ's bar is a bar of its own too.
+        let left = BarAdoption.dropBar(items: items, copies: copies, display: benq, primaryMaxX: builtIn.maxX)
+        #expect(BarAdoption.droppedItem(at: -366, on: left, grabbed: nil) == utils)
+        // A display that lists no copy reads nothing.
+        let none = BarAdoption.dropBar(items: items, copies: [:], display: lg, primaryMaxX: builtIn.maxX)
+        #expect(none.allSatisfy { $0.frame == nil })
+    }
+
+    @Test func theDropLandsAsTheGrabbedAppsIcon() {
+        let bar: [(id: ItemID, frame: CGRect?)] = [(chevron, icon(1500)), (figma, icon(1520))]
+        // The chevron sits nearer the drop; the grabbed app wins.
+        #expect(BarAdoption.droppedItem(at: 1515, on: bar, grabbed: "com.figma.Desktop") == figma)
+        #expect(BarAdoption.droppedItem(at: 1515, on: bar, grabbed: nil) == chevron)
+        // Landed only once the grabbed app's icon is under it: a neighbour
+        // there is the drop animation still running.
+        #expect(BarAdoption.droppedItem(at: 1495, on: bar, grabbed: "com.figma.Desktop") == chevron)
+        #expect(BarAdoption.droppedItem(at: 1495, on: bar, grabbed: "com.figma.Desktop", grabbedOnly: true) == nil)
+        #expect(BarAdoption.droppedItem(at: 1495, on: bar, grabbed: nil, grabbedOnly: true) == chevron)
+        #expect(BarAdoption.droppedItem(at: 1600, on: bar, grabbed: nil) == nil)
+    }
+
+    @Test func aDragOnTheLGsBarFoldsInAgainstItsChevron() {
+        let (items, copies) = lgDrop
+        var model = SectionModel(assignments: [
+            shortcuts.sectionKey: .hidden, utils.sectionKey: .hidden,
+            snib.sectionKey: .hidden, sound.sectionKey: .hidden,
+        ])
+        model.order[.hidden] = [shortcuts, snib, utils, sound].map(\.sectionKey)
+        let bar = BarAdoption.dropBar(items: items, copies: copies, display: lg, primaryMaxX: builtIn.maxX)
+        let result = BarAdoption.reconcile(
+            items: bar.map { (id: $0.id, minX: $0.frame?.minX) },
+            model: model,
+            previousZones: [utils.rawValue: .hidden, snib.rawValue: .hidden, sound.rawValue: .hidden, clock.rawValue: .visible],
+            userDragged: true,
+            pelmetBundleID: pelmet,
+            draggedID: BarAdoption.droppedItem(at: 4920, on: bar, grabbed: "com.vorssaint.utils")
+        )
+        #expect(result?.chevronX == 5020)
+        #expect(result?.model.section(of: utils) == .hidden)
+        #expect(result?.model.order[.hidden] == [shortcuts, utils, snib, sound].map(\.sectionKey))
+        #expect(result?.changed == true)
+    }
 }

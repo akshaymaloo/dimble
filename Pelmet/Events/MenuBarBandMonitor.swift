@@ -266,15 +266,24 @@ final class MenuBarBandMonitor {
             dropAdoptionPending = true
             // The drop x identifies WHICH item was dragged (it lands under
             // the cursor) — chevron-less zone adoption needs that identity.
-            let dropX = NSEvent.mouseLocation.x
+            // x is global (Cocoa and CG share it). The display under the drop
+            // goes with it when it is not the main one: the walk keeps the
+            // main display's copies, and Vorssaint dropped on the LG's bar
+            // (x=4920) was matched against the built-in's (live test,
+            // 2026-10-13 19:29:50).
+            let dropPoint = NSEvent.mouseLocation
+            let dropX = dropPoint.x
+            let dropDisplay = NSScreen.containing(dropPoint)?.directDisplayID
+                .flatMap { $0 == CGMainDisplayID() ? nil : CGDisplayBounds($0) }
             let owner = dragOwner
-            PelmetLog.log("band: ⌘-drag ended → adopting (dropX=\(Int(dropX)), grabbed \(owner ?? "unknown"))")
+            PelmetLog.log("band: ⌘-drag ended → adopting (dropX=\(Int(dropX)), grabbed \(owner ?? "unknown"))"
+                + (dropDisplay.map { ", on the display at x=\(Int($0.minX))…\(Int($0.maxX))" } ?? ""))
             // Give MenuBarAgent a beat to finalize the new position, then
             // adopt before rehide can run a stale conceal.
             DispatchQueue.main.asyncAfter(deadline: .now() + AppTiming.dragAdoptDelay) { [weak self] in
                 guard let self, let appState = self.appState else { return }
                 self.dropAdoptionPending = false
-                appState.adoptSectionsFromBar(dragEndX: dropX, draggedBundle: owner)
+                appState.adoptSectionsFromBar(dragEndX: dropX, dropDisplay: dropDisplay, draggedBundle: owner)
                 if appState.isRevealed {
                     appState.pointerLeftBand()  // re-arm the countdown
                 }

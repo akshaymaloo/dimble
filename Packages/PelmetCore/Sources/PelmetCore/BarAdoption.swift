@@ -66,6 +66,68 @@ public enum BarAdoption {
         return result
     }
 
+    /// The bar a ⌘-drag dropped on, read the way `reconcile` reads it.
+    /// `items` is the walk, one copy of each item (the main display's when
+    /// it has one); `copies` is every display's copy, by full id
+    /// (`barCopies`). On the main display (`display` nil) an item keeps
+    /// only a primary-band frame: another display's bar sits in the band
+    /// too, and a left display's copy pinned Sconce to the front of Visible
+    /// (2026-09-02). On another display every item reads its copy on that
+    /// display's bar, Pelmet's chevron included, nil where it has none
+    /// there. Matched against the main copies, Vorssaint dropped on the
+    /// LG's bar (x=4920) found nothing under the drop for 8 rounds, then
+    /// the pass measured the built-in's chevron, and Discard drew it back
+    /// in Visible (live test, 2026-10-13 19:29:50).
+    public static func dropBar(
+        items: [(id: ItemID, frame: CGRect?)],
+        copies: [ItemID: [CGRect]],
+        display: CGRect?,
+        primaryMaxX: CGFloat
+    ) -> [(id: ItemID, frame: CGRect?)] {
+        guard let display else {
+            return items.map { item in
+                (item.id, item.frame.flatMap { MenuBarGeometry.isInPrimaryBand($0, primaryMaxX: primaryMaxX) ? $0 : nil })
+            }
+        }
+        return items.map { item in
+            (item.id, copies[item.id].flatMap { MenuBarGeometry.copy(onDisplay: display, among: $0) })
+        }
+    }
+
+    /// The icon a drop at `x` (global, the drop bar's own space) landed as
+    /// on `bar` (`dropBar`): a frame under it, 8pt of slack either side,
+    /// nearest by its centre. The grabbed app's icon wins over a neighbour
+    /// under the same x: Pelmet's own icon next to the drop took the credit
+    /// for One Thing's drag (2026-09-25). `grabbedOnly`: with the grabbed
+    /// app known, only its icon counts, as the drop's landing check wants
+    /// (MenuBarAgent's drop animation runs up to 1.6s).
+    public static func droppedItem(
+        at x: CGFloat,
+        on bar: [(id: ItemID, frame: CGRect?)],
+        grabbed: String?,
+        grabbedOnly: Bool = false
+    ) -> ItemID? {
+        bar.compactMap { item -> (id: ItemID, distance: CGFloat)? in
+            guard let frame = item.frame, frame.minX - 8 <= x, x <= frame.maxX + 8 else { return nil }
+            let isGrabbed = grabbed.map { item.id.bundleID == $0 } ?? false
+            if grabbedOnly, grabbed != nil, !isGrabbed { return nil }
+            return (item.id, abs(frame.midX - x) - (isGrabbed ? 10_000 : 0))
+        }
+        .min { $0.distance < $1.distance }?.id
+    }
+
+    /// The bar's left-to-right order in canonical keys, leftmost copy of
+    /// each key, as `OrderEdits.land` takes it.
+    public static func barOrder(_ bar: [(id: ItemID, frame: CGRect?)]) -> [ItemID] {
+        var minX: [ItemID: CGFloat] = [:]
+        for item in bar {
+            guard let x = item.frame?.minX else { continue }
+            let key = item.id.sectionKey
+            minX[key] = min(minX[key] ?? .greatestFiniteMagnitude, x)
+        }
+        return minX.sorted { $0.value < $1.value }.map(\.key)
+    }
+
     public static func reconcile(
         items: [(id: ItemID, minX: CGFloat?)],
         model startModel: SectionModel,

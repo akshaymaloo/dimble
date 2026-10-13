@@ -3209,6 +3209,7 @@ final class AppState {
     /// ⌘-dragged into Hidden while the 10s pass ran — the drop was lost and
     /// the item never adopted, 2026-09-08). Replayed when the chain ends.
     private var queuedDragEndX: CGFloat?
+    private var queuedDropDisplay: CGRect?
     /// A drop's chain is running: the bar stays revealed until it has read
     /// where the icon landed (the band's `.drag` rehide hold). A conceal
     /// mid-chain took the dropped icon, still in its old section, off the
@@ -3222,7 +3223,10 @@ final class AppState {
     /// supervisor stays out of the way while that adoption lands.
     private(set) var lastUserDragEndedAt: Date?
 
-    func adoptSectionsFromBar(retry: Int = 0, dragEndX: CGFloat? = nil, draggedBundle: String? = nil) {
+    /// `dropDisplay`: the bounds (CG global) of the display a drop landed
+    /// on when it is not the main one. The pass reads that display's bar
+    /// (`BarAdoption.dropBar`).
+    func adoptSectionsFromBar(retry: Int = 0, dragEndX: CGFloat? = nil, dropDisplay: CGRect? = nil, draggedBundle: String? = nil) {
         if retry == 0, dragEndX != nil {
             lastUserDragEndedAt = .now
             dropAdoptionInFlight = true
@@ -3230,7 +3234,10 @@ final class AppState {
         }
         if retry == 0 {
             guard !adoptionInFlight else {
-                if let dragEndX { queuedDragEndX = dragEndX }
+                if let dragEndX {
+                    queuedDragEndX = dragEndX
+                    queuedDropDisplay = dropDisplay
+                }
                 return
             }
             adoptionInFlight = true
@@ -3247,12 +3254,12 @@ final class AppState {
                     dropAdoptionInFlight = false
                     if let queued = queuedDragEndX {
                         queuedDragEndX = nil
-                        adoptSectionsFromBar(dragEndX: queued)
+                        adoptSectionsFromBar(dragEndX: queued, dropDisplay: queuedDropDisplay)
                     }
                     return
                 }
                 try? await Task.sleep(for: AppTiming.adoptDeferralDelay)
-                adoptSectionsFromBar(retry: retry + 1, dragEndX: dragEndX)
+                adoptSectionsFromBar(retry: retry + 1, dragEndX: dragEndX, dropDisplay: dropDisplay)
                 return
             }
             let snap = await engine.snapshot()
@@ -3265,16 +3272,24 @@ final class AppState {
             if snap.items.isEmpty, retry < AppTiming.adoptMaxDeferrals {
                 PelmetLog.log("adopt: empty snapshot — deferring (retry=\(retry))")
                 try? await Task.sleep(for: AppTiming.adoptDeferralDelay)
-                adoptSectionsFromBar(retry: retry + 1, dragEndX: dragEndX)
+                adoptSectionsFromBar(retry: retry + 1, dragEndX: dragEndX, dropDisplay: dropDisplay)
                 return
             }
+            // A drop on another display's bar is read on that bar, with
+            // its own copies and chevron: the walk keeps the main display's
+            // (live test, 2026-10-13 19:29:50, `BarAdoption.dropBar`).
+            let copies = dropDisplay == nil ? [:] : await engine.barCopies()
+            let bar = Self.dropBar(snap, copies: copies, display: dropDisplay)
             // The dropped icon is still in MenuBarAgent's drop animation (up
             // to 1.6s on a crowded bar): nothing under the drop yet, and a
-            // pass now loses which icon the user moved (2026-09-25).
-            if let dragEndX, !Self.dropLanded(snap, at: dragEndX, bundle: lastDropBundle), retry < AppTiming.adoptMaxDeferrals {
+            // pass now loses which icon the user moved (2026-09-25). With
+            // the grabbed app known, it must be that app's icon.
+            if let dragEndX,
+               BarAdoption.droppedItem(at: dragEndX, on: bar.map { ($0.id, $0.frame) }, grabbed: lastDropBundle, grabbedOnly: true) == nil,
+               retry < AppTiming.adoptMaxDeferrals {
                 PelmetLog.log("adopt: nothing under the drop yet — waiting (retry=\(retry))")
                 try? await Task.sleep(for: AppTiming.adoptDeferralDelay)
-                adoptSectionsFromBar(retry: retry + 1, dragEndX: dragEndX)
+                adoptSectionsFromBar(retry: retry + 1, dragEndX: dragEndX, dropDisplay: dropDisplay)
                 return
             }
             defer {
@@ -3283,12 +3298,13 @@ final class AppState {
                 if let queued = queuedDragEndX {
                     queuedDragEndX = nil
                     PelmetLog.log("adopt: replaying queued drop x=\(Int(queued))")
-                    adoptSectionsFromBar(dragEndX: queued)
+                    adoptSectionsFromBar(dragEndX: queued, dropDisplay: queuedDropDisplay)
                 }
             }
             updateSnapshot(snap)
-            PelmetLog.log("adopt: pass (retry=\(retry), items=\(snap.items.count))")
-            adopt(from: snap, dragEndX: dragEndX)
+            PelmetLog.log("adopt: pass (retry=\(retry), items=\(snap.items.count))"
+                + (dropDisplay.map { " on the drop's display x=\(Int($0.minX))…\(Int($0.maxX))" } ?? ""))
+            adopt(from: snap, bar: bar, dragEndX: dragEndX, offMain: dropDisplay != nil)
         }
     }
 
@@ -3781,56 +3797,42 @@ final class AppState {
         return hosts
     }
 
-    /// A primary-band frame sits under the drop x: the dropped icon has
-    /// landed where `adopt` looks for it.
-    /// With the grabbed app known, it must be that app's icon.
-    private static func dropLanded(_ snap: EngineSnapshot, at x: CGFloat, bundle: String?) -> Bool {
+    /// The walk's items as the bar a drop landed on draws them
+    /// (`BarAdoption.dropBar`): primary-band frames on the main display
+    /// (`display` nil), each item's copy on `display`'s bar otherwise.
+    private static func dropBar(_ snap: EngineSnapshot, copies: [ItemID: [CGRect]], display: CGRect?) -> [ObservedItem] {
         let primaryMaxX = NSScreen.screens.first?.frame.maxX ?? .greatestFiniteMagnitude
-        return snap.items.contains { item in
-            guard let frame = item.frame, MenuBarGeometry.isInBand(frame),
-                  frame.midX > 0, frame.midX < primaryMaxX,
-                  bundle.map({ item.id.bundleID == $0 }) ?? true
-            else { return false }
-            return frame.minX - 8 <= x && x <= frame.maxX + 8
+        let bar = BarAdoption.dropBar(
+            items: snap.items.map { ($0.id, $0.frame) }, copies: copies, display: display, primaryMaxX: primaryMaxX
+        )
+        return zip(snap.items, bar).map { item, read in
+            ObservedItem(id: item.id, frame: read.frame, appName: item.appName, hostIsBundleless: item.hostIsBundleless, pid: item.pid)
         }
     }
 
-    private func adopt(from snap: EngineSnapshot, dragEndX: CGFloat? = nil) {
+    /// `bar`: the walk read on the bar the drop landed on (`dropBar`).
+    /// `offMain`: that bar is another display's, whose x says nothing
+    /// against the main bar's: the chevron and positions baselines are
+    /// the main bar's, neither compared nor replaced. Zones are the same
+    /// on every bar and carry over.
+    private func adopt(from snap: EngineSnapshot, bar items: [ObservedItem], dragEndX: CGFloat? = nil, offMain: Bool = false) {
         // No showStatusItem guard: with the Pelmet icon hidden reconcile
         // falls back to cluster-edge boundaries, where zone adoption applies
         // only to the item the user just dragged — identified here by the
-        // drop x (the dragged item lands under the cursor; x is
-        // origin-agnostic, so no Cocoa→AX y-flip needed).
+        // drop x (the dragged item lands under the cursor; x is global in
+        // both Cocoa and CG space, so no y-flip needed).
         // adoptSectionsFromBar defers while transitioning/settling; this is
         // the last line of defense if called on a stale path.
         guard !isTransitioning else { return }
-        // Primary-band frames only. The AX walk carries other displays' bars
-        // too (Sconce at x=-265 AND x=1535 in one snapshot, 2026-09-02), and
-        // the order fold-in keys "leftmost frame wins" — a left-display copy
-        // pinned Sconce to the front of Visible no matter where the user
-        // dropped it. Off-band copies read as unmeasured.
-        let primaryMaxX = NSScreen.screens.first?.frame.maxX ?? .greatestFiniteMagnitude
-        let items: [ObservedItem] = snap.items.map { item in
-            guard let frame = item.frame,
-                  MenuBarGeometry.isInBand(frame),
-                  frame.midX > 0, frame.midX < primaryMaxX
-            else { return ObservedItem(id: item.id, frame: nil, appName: item.appName, hostIsBundleless: item.hostIsBundleless) }
-            return item
-        }
+        // One bar's frames only (`dropBar`). The AX walk carries other
+        // displays' bars too (Sconce at x=-265 AND x=1535 in one snapshot,
+        // 2026-09-02), and the order fold-in keys "leftmost frame wins" — a
+        // left-display copy pinned Sconce to the front of Visible no matter
+        // where the user dropped it. Other bars' copies read as unmeasured.
         let draggedID: ItemID? = dragEndX.flatMap { x in
-            let hit = items
-                .compactMap { item -> (id: ItemID, distance: CGFloat)? in
-                    guard let frame = item.frame else { return nil }
-                    guard frame.minX - 8 <= x, x <= frame.maxX + 8 else { return nil }
-                    // The grabbed app's icon wins over a neighbour under the
-                    // same x: Pelmet's own icon next to the drop took the
-                    // credit for One Thing's drag (2026-09-25).
-                    let grabbed = lastDropBundle.map { item.id.bundleID == $0 } ?? false
-                    return (item.id, abs(frame.midX - x) - (grabbed ? 10_000 : 0))
-                }
-                .min { $0.distance < $1.distance }
-            if let hit { PelmetLog.log("adopt: dragged=\(hit.id.rawValue)") }
-            return hit?.id
+            let hit = BarAdoption.droppedItem(at: x, on: items.map { ($0.id, $0.frame) }, grabbed: lastDropBundle)
+            if let hit { PelmetLog.log("adopt: dragged=\(hit.rawValue)") }
+            return hit
         }
         // The user just moved it by hand: whatever swallowed Pelmet's drags
         // before, the mark no longer describes the item.
@@ -3839,8 +3841,8 @@ final class AppState {
             items: items.map { (id: $0.id, minX: $0.frame?.minX) },
             model: settings.sectionModel,
             previousZones: lastAdoptionZones,
-            previousChevronX: lastAdoptionChevronX,
-            previousPositions: lastAdoptionPositions,
+            previousChevronX: offMain ? nil : lastAdoptionChevronX,
+            previousPositions: offMain ? [:] : lastAdoptionPositions,
             pendingZones: lastAdoptionPending,
             userDragged: dragEndX != nil,
             pelmetBundleID: PelmetBundle.mainID,
@@ -3854,8 +3856,10 @@ final class AppState {
             .map { "\($0.id.sectionKey)@\(Int($0.frame!.minX))" }
         PelmetLog.log("adopt: visible live=\(liveVisible) model=\((settings.sectionModel.order[.visible] ?? []).map(\.rawValue))")
         lastAdoptionZones = result.zones
-        lastAdoptionChevronX = result.chevronX
-        lastAdoptionPositions = result.positions
+        if !offMain {
+            lastAdoptionChevronX = result.chevronX
+            lastAdoptionPositions = result.positions
+        }
         lastAdoptionPending = result.pendingZones
         if result.changed {
             var model = result.model
@@ -3870,7 +3874,13 @@ final class AppState {
                 let key = draggedID.sectionKey
                 let drawnIn = settings.orderEdits.order.first { $0.value.contains(key) }?.key
                 if drawnIn != nil, drawnIn == result.model.section(of: key) {
-                    settings.orderEdits.land(key, bar: ApplyPass.barOrder(ApplyPass.rememberedFrames(snap, appState: self)))
+                    // Off the main display, the bar it was dropped on: the
+                    // main bar may conceal the section, its frames
+                    // remembered from before the drag.
+                    let bar = offMain
+                        ? BarAdoption.barOrder(items.map { ($0.id, $0.frame) })
+                        : ApplyPass.barOrder(ApplyPass.rememberedFrames(snap, appState: self))
+                    settings.orderEdits.land(key, bar: bar)
                 } else {
                     settings.orderEdits.previousSection.removeValue(forKey: key)
                 }
