@@ -451,7 +451,12 @@ final class ItemPress {
             walks += 1
             let item = Self.onBar(key, in: snap)
             if let item, let read = await aimed(item, display: display) {
-                if PressAim.settles(last?.aim, read.aim, tolerance: tolerance, awaitingDisplay: read.awaitingDisplay) {
+                // A bar read at rest that still names no copy there never
+                // will (an unnamed stand-in, a phantom): the main copy is
+                // clicked from then on, ~0.5s in, not at the 1s cap (review,
+                // 2026-10-13).
+                let awaiting = read.awaitingDisplay && !snap.itemsAtRest
+                if PressAim.settles(last?.aim, read.aim, tolerance: tolerance, awaitingDisplay: awaiting) {
                     return (item, snap, read.aim, walks, true)
                 }
                 last = (item, snap, read.aim)
