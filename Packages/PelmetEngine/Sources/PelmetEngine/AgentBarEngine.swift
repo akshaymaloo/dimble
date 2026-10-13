@@ -222,6 +222,14 @@ public actor AgentBarEngine: MenuBarEngine {
         await converge()
     }
 
+    /// Take back every revealed section but these, the rest staying out:
+    /// one swap. `reveal` only adds, so narrowing by a conceal and a fresh
+    /// reveal reflowed the bar twice.
+    public func narrowReveal(to sections: Set<Section>) async {
+        revealedSections.formIntersection(sections)
+        await converge()
+    }
+
     /// Reveal these items only: their bundles leave the concealable set,
     /// every section stays as it is, nothing else reflows.
     public func reveal(items: Set<ItemID>) async {

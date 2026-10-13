@@ -1876,10 +1876,19 @@ final class AppState {
     /// reason, so on a display set to always show, the pass's Always Hidden
     /// stayed out (`.settingsPreview`, whose rehide that policy defers for
     /// good) and every grouping pass after it waited on "the bar is
-    /// revealed" (2026-10-13). The engine's reveal only adds, so the bar
-    /// conceals first and the policy's reveal queues behind it, as `reveal`
-    /// does when the panel closes.
+    /// revealed" (2026-10-13). The engine's reveal only adds: a settled
+    /// reveal on the bar narrows to the policy's in one swap (Always Hidden
+    /// goes back, Hidden stays). Concealing first and queueing the policy's
+    /// reveal behind it reflowed the bar twice, read a transient "trapped
+    /// Sound" and let a settle check see neither bar (live test,
+    /// 2026-10-13). Anything else still conceals and re-reveals.
     func restoreDisplayPolicyAfterPass() {
+        if pointerDisplayBehavior == .alwaysShowAll, revealPresenter === barPresenter,
+           case .revealed(let current, _) = rehide.state, current.contains(.hidden), current.count > 1 {
+            dispatch(rehide.handle(.narrowRequested([.hidden], .displayPolicy)))
+            PelmetLog.log("displays: pass over — narrowed to the policy's reveal, state=\(rehide.state)")
+            return
+        }
         concealNow()
         guard pointerDisplayBehavior == .alwaysShowAll else { return }
         reveal([.hidden], reason: .displayPolicy)
@@ -3049,6 +3058,13 @@ final class AppState {
                 }
                 revealPresenter = presenter
                 presenter.reveal(sections, reason: reason, trace: trace)
+            case .narrow(let sections):
+                // Asked only while the bar holds a settled reveal
+                // (`restoreDisplayPolicyAfterPass`): the rest goes back in
+                // the same swap, nothing is presented anew.
+                var reason: RevealReason?
+                if case .transitioning(target: .reveal(_, let r), _) = rehide.state { reason = r }
+                transitions.performNarrow(sections, trace: PerfTrace(kind: "narrow", reason: reason))
             case .conceal:
                 let trace = PerfTrace(kind: "conceal", reason: nil)
                 // Icons Show in Menu Bar had out go back with whatever else

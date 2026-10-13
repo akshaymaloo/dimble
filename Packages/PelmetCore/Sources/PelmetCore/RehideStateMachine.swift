@@ -55,6 +55,9 @@ public enum RehideEffect: Equatable, Sendable {
     case reveal(Set<Section>)
     /// Ask the engine to conceal everything non-visible. Report back with `.transitionSettled`.
     case conceal
+    /// Ask the engine to take back every section but these, which stay out.
+    /// Report back with `.transitionSettled`.
+    case narrow(Set<Section>)
     /// (Re)arm the rehide timer for this deadline.
     case armTimer(Date)
     case cancelTimer
@@ -79,6 +82,10 @@ public enum RehideEvent: Equatable, Sendable {
     /// An icons-only reveal found every icon already let go (its app quit
     /// while the reveal waited behind a conceal): nothing came out.
     case nothingCameOut
+    /// Keep only these sections out, for this reason (an Apply pass over
+    /// on a display set to always show: Always Hidden goes back, Hidden
+    /// stays). Acts on a settled reveal wider than `sections` only.
+    case narrowRequested(Set<Section>, RevealReason)
 }
 
 public struct RehideStateMachine: Equatable, Sendable {
@@ -155,6 +162,15 @@ public struct RehideStateMachine: Equatable, Sendable {
             guard shouldRehide(on: trigger) else { return [.none] }
             state = .transitioning(target: .conceal, queued: nil)
             return [.cancelTimer, .conceal]
+
+        // ── Narrow ───────────────────────────────────────────────────────────
+        // One swap takes the extra sections back. A conceal with the policy's
+        // reveal queued behind it reflowed the bar twice, and reads between
+        // the two saw a bar that was neither (live test, 2026-10-13).
+        case (.revealed(let current, _), .narrowRequested(let sections, let reason))
+            where !sections.isEmpty && sections.isStrictSubset(of: current):
+            state = .transitioning(target: .reveal(sections, reason), queued: nil)
+            return [.cancelTimer, .narrow(sections)]
 
         // ── Put away by the presenter ────────────────────────────────────────
         // Never down to no section: that state means icons out on their own.

@@ -36,6 +36,33 @@ import Testing
         #expect(machine.state == .revealed(sections: [.hidden], reason: .displayPolicy))
     }
 
+    @Test func aPassEndsAtThePolicysRevealInOneNarrowing() {
+        // Live test, 2026-10-13: the conceal-then-reveal restore reflowed the
+        // bar twice. Narrowing takes Always Hidden back and leaves Hidden out.
+        var machine = RehideStateMachine(policy: .init(autoRehide: true, delay: 5))
+        _ = machine.handle(.revealRequested([.hidden, .alwaysHidden], .settingsPreview), now: now)
+        _ = machine.handle(.transitionSettled, now: now)
+        #expect(machine.handle(.narrowRequested([.hidden], .displayPolicy), now: now) == [.cancelTimer, .narrow([.hidden])])
+        #expect(machine.state == .transitioning(target: .reveal([.hidden], .displayPolicy), queued: nil))
+        #expect(machine.handle(.transitionSettled, now: now) == [.armTimer(now.addingTimeInterval(5))])
+        #expect(machine.state == .revealed(sections: [.hidden], reason: .displayPolicy))
+    }
+
+    @Test func narrowingActsOnlyOnASettledWiderReveal() {
+        var machine = RehideStateMachine(policy: .init(autoRehide: false))
+        // Concealed: nothing to take back.
+        #expect(machine.handle(.narrowRequested([.hidden], .displayPolicy)) == [.none])
+        #expect(machine.state == .concealed)
+        // Mid-flight: never interleaved with the engine's transition.
+        _ = machine.handle(.revealRequested([.hidden, .alwaysHidden], .settingsPreview))
+        #expect(machine.handle(.narrowRequested([.hidden], .displayPolicy)) == [.none])
+        _ = machine.handle(.transitionSettled)
+        // Already exactly that set, or nothing at all: not a narrowing.
+        #expect(machine.handle(.narrowRequested([.hidden, .alwaysHidden], .displayPolicy)) == [.none])
+        #expect(machine.handle(.narrowRequested([], .displayPolicy)) == [.none])
+        #expect(machine.state == .revealed(sections: [.hidden, .alwaysHidden], reason: .settingsPreview))
+    }
+
     @Test func clickDuringHoverRevealMakesItTheClicks() {
         var machine = RehideStateMachine(policy: .init(autoRehide: true, delay: 5))
         #expect(machine.handle(.revealRequested([.hidden], .hover)) == [.reveal([.hidden])])

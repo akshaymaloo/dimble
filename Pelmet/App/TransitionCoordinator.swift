@@ -528,6 +528,32 @@ final class TransitionCoordinator {
         }
     }
 
+    /// A revealed bar keeps only `sections` out: the others go back in one
+    /// swap, under no cover (the agent's own exit animates them, as a
+    /// conceal does), and Pelmet's extras follow inside it through the
+    /// companion. Settles like a reveal of `sections`.
+    func performNarrow(_ sections: Set<PelmetCore.Section>, trace: PerfTrace) {
+        passWaiterArrived()
+        Task {
+            guard let appState else { return }
+            await awaitPicturePass()
+            await awaitPreviousLift()
+            lastRevealedSections = sections
+            PelmetLog.log("effect narrow to \(sections.map(\.rawValue).sorted()) → engine")
+            await engine.narrowReveal(to: sections)
+            trace.mark("engine")
+            trace.note(await engine.lastConvergeTiming)
+            let settled = await engine.snapshot()
+            appState.updateSnapshot(settled)
+            appState.recordDrawnOrder(settled, revealed: sections)
+            PelmetLog.log("effect narrow settled")
+            onRevealSettled?()
+            trace.mark("settled")
+            trace.finish("uncovered")
+            scheduleRevealedStripPrecapture()
+        }
+    }
+
     /// `released`: icons Show in Menu Bar had out on their own. They go back
     /// in the same swap, and the hold they put on the idle picture ends here.
     func performConceal(trace: PerfTrace, releasing released: Set<ItemID> = []) {
