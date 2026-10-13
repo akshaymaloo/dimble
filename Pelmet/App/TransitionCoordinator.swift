@@ -169,12 +169,11 @@ final class TransitionCoordinator {
     /// Battery and Wi-Fi a show rule keeps on the bar (#86), as last sent to
     /// the engine.
     private var ruleShown: Set<ItemID> = []
-    /// Those out on their own, their section concealed: like an icon Show in
-    /// Menu Bar has out, they are on the "empty" bar the pass and the
-    /// finished picture would be taken against.
-    private var ruleShownOut: Bool {
-        guard let model = appState?.settings.sectionModel else { return false }
-        return ruleShown.contains { model.section(of: $0) != .visible }
+    /// Those out on their own, their section concealed, by section key: on
+    /// the empty bar the pass cuts its crops against (see picturePass).
+    private var ruleShownOut: Set<ItemID> {
+        guard let model = appState?.settings.sectionModel else { return [] }
+        return Set(ruleShown.map(\.sectionKey).filter { model.section(of: $0) != .visible })
     }
 
     /// A show rule put an icon on the bar or took it back. Both pictures
@@ -1224,11 +1223,13 @@ final class TransitionCoordinator {
                 try? await Task.sleep(for: AppTiming.precaptureGhostClearance)
             }
             guard !Task.isCancelled, appState.currentRevealedSections == [.hidden] else { return }
-            // An icon Show in Menu Bar (or a show rule) has out on top of the
-            // section would be in the picture, and the next reveal would
-            // flash it.
-            guard appState.itemsInBar.isEmpty, !ruleShownOut else {
-                PelmetLog.log("finished: an icon is out on the bar\(ruleShownOut ? " on a show rule" : ""), no picture at settle")
+            // An icon Show in Menu Bar has out on top of the section would
+            // be in the picture, and the next reveal would flash it. One a
+            // show rule has out is on the bar for every reveal while the
+            // rule holds, and a rule change drops the picture
+            // (showRuleChanged): it may be in it (review B5).
+            guard appState.itemsInBar.isEmpty else {
+                PelmetLog.log("finished: an icon is out on the bar, no picture at settle")
                 return
             }
             await takeRevealedStripPicture(reason: "settle")
@@ -1423,10 +1424,10 @@ extension TransitionCoordinator {
             PelmetLog.log("pass: bar is revealed, skipped")
             return nil
         }
-        // An icon Show in Menu Bar (or a show rule) has out is on the
-        // "empty" bar the pass films its crops against.
-        guard appState.itemsInBar.isEmpty, !ruleShownOut else {
-            PelmetLog.log("pass: an icon is out on the bar\(ruleShownOut ? " on a show rule" : ""), skipped")
+        // An icon Show in Menu Bar has out is on the "empty" bar the pass
+        // films its crops against.
+        guard appState.itemsInBar.isEmpty else {
+            PelmetLog.log("pass: an icon is out on the bar, skipped")
             return nil
         }
         guard !passInFlight else {
@@ -1448,7 +1449,19 @@ extension TransitionCoordinator {
         // By section, not the walk's `concealed`: that misses system items
         // such as Sound, which leave the AX tree when hidden.
         let model = appState.settings.sectionModel
-        func wanted(_ id: ItemID) -> Bool { sections.contains(model.section(of: id.sectionKey)) }
+        // Battery or Wi-Fi a show rule has out (#86) is on the empty bar
+        // too, where it sits concealed: not a target, and a crop filmed
+        // over that spot would be cut against it. Both wait out `maxAge`
+        // like any icon that won't picture; the rest picture as ever
+        // (review B5, the pass used to skip while a rule had one out).
+        let ruleOut = ruleShownOut
+        let ruleFrames = (appState.snapshot?.items ?? []).compactMap { ruleOut.contains($0.id.sectionKey) ? $0.frame : nil }
+        func clearOfRule(_ frame: CGRect) -> Bool {
+            !ruleFrames.contains { min($0.maxX, frame.maxX) - max($0.minX, frame.minX) > 2 }
+        }
+        func wanted(_ id: ItemID) -> Bool {
+            sections.contains(model.section(of: id.sectionKey)) && !ruleOut.contains(id.sectionKey)
+        }
         var empty = freshEmptyBarSnapshots(cropped: false)
         let emptySource = empty.isEmpty ? "captured" : "precaptured"
         if empty.isEmpty {
@@ -1530,7 +1543,11 @@ extension TransitionCoordinator {
         if !first.phantoms.isEmpty {
             PelmetLog.log("pass: \(first.phantoms.count) behind the «, not cropped")
         }
-        let shown = primaryFrames.filter { first.solid[$0.key] == $0.frame }
+        let solid = primaryFrames.filter { first.solid[$0.key] == $0.frame }
+        let shown = solid.filter { clearOfRule($0.frame) }
+        if shown.count < solid.count {
+            PelmetLog.log("pass: \(solid.count - shown.count) where a show rule's icon sits on the empty bar, not cropped")
+        }
         var movedWhileFilmed = Set<ItemID>()
         if !shown.isEmpty {
             let film = await filmAndCut(shown, empty: empty, dump: dump, ms: ms)
@@ -1611,7 +1628,7 @@ extension TransitionCoordinator {
                 if !now.phantoms.isEmpty {
                     PelmetLog.log("pass: batch \(followUps) has \(now.phantoms.count) behind the «, not cropped")
                 }
-                let cut = bar.filter { now.solid[$0.key] == $0.frame }
+                let cut = bar.filter { now.solid[$0.key] == $0.frame && clearOfRule($0.frame) }
                 let got = cut.isEmpty ? [:] : await filmAndCut(cut, empty: empty, dump: false, ms: ms).pictures
                 for (key, picture) in got { pictures?[key] = picture }
                 lastPictured = got.count
