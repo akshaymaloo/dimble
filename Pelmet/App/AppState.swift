@@ -1648,6 +1648,7 @@ final class AppState {
         PelmetLog.log("audiovideo: bar \(settled(snap) ? "settled" : "still unsettled at the deadline") after \(walks) walk(s)")
         updateSnapshot(snap)
         audioVideoRelayActive = false
+        overflowHoldEnded()
         // A transition in flight re-applies at its settle catch-up.
         guard !isTransitioning else { return }
         extras?.apply(model: settings.sectionModel, revealed: currentRevealedSections, systemCameraPillVisible: systemCameraPillVisible)
@@ -2487,12 +2488,15 @@ final class AppState {
     var fluxReason: String? {
         if let moving = barMovingReason { return moving }
         if panelPresenter.isOpen { return "panel open" }
-        // A reveal the user holds (a hover, the chevron, a shortcut, a
-        // display set to always show), or icons Show in Menu Bar brought out
-        // (`.revealed` with no sections). An icon a show rule keeps out
-        // (Battery on battery) is no hold: it can stay out all day, and the
-        // pass's reveal puts it back in its slot anyway.
-        if isRevealed { return itemsInBar.isEmpty ? "the bar is revealed" : "icons out on their own" }
+        // A reveal the user holds (a hover, the chevron, a shortcut), or
+        // icons Show in Menu Bar brought out (`.revealed` with no sections).
+        // Not a display set to always show: that reveal never ends, and the
+        // pass puts the policy back after it (`applyPointerDisplayPolicy…`).
+        // Nor an icon a show rule keeps out (Battery on battery): it can stay
+        // out all day, and the pass's reveal puts it back in its slot anyway.
+        if case .revealed(_, let reason) = rehide.state, reason != .displayPolicy {
+            return itemsInBar.isEmpty ? "the bar is revealed (\(reason))" : "icons out on their own"
+        }
         return nil
     }
 
@@ -2702,9 +2706,9 @@ final class AppState {
     private func pruneSettledOrderEdits() {
         guard let snapshot, !settings.orderEdits.isEmpty else { return }
         let bar = ApplyPass.barOrder(ApplyPass.rememberedFrames(snapshot, appState: self))
-        let onBar = Set(snapshot.items.map { $0.id.sectionKey }).union(snapshot.concealed.map(\.sectionKey))
         let settled = OrderEditSettle.settledSections(
-            settings.orderEdits, bar: bar, onBar: onBar, roster: settings.sectionModel.roster
+            settings.orderEdits, bar: bar, live: Set(snapshot.items.map(\.id)), concealed: snapshot.concealed,
+            roster: settings.sectionModel.roster
         )
         guard !settled.isEmpty else { return }
         var edits = settings.orderEdits
@@ -3285,6 +3289,21 @@ final class AppState {
     @ObservationIgnored private var bootOverflowRead: Task<Void, Never>?
     /// The hold the last skipped overflow read was skipped for (logged once).
     @ObservationIgnored private var overflowSkipLogged: String?
+    /// A read a hold skipped and no read has made up for yet: it runs when
+    /// the hold ends (`overflowHoldEnded`). The picture pass and the Camera
+    /// & mic relay take their at-rest walk while still holding, and no walk
+    /// follows: "Didn't fit" and the overflow gate kept the bar of before the
+    /// hold, and a boot read under a picture pass was lost.
+    @ObservationIgnored private var overflowReadPending = false
+
+    /// A hold that may have skipped an overflow read is over: read the
+    /// snapshot in hand, the one the hold's owner took at rest. Waits on if
+    /// another hold is still on (the next one's end, or any read, takes it).
+    func overflowHoldEnded() {
+        guard overflowReadPending, picturePassSections == nil, overflowReadHold == nil, let snapshot else { return }
+        PelmetLog.log("overflow: reading the bar the hold left")
+        noteOverflow(in: snapshot)
+    }
 
     /// Whether the bar draws `id` right now, for every read of the «
     /// (`ApplyPass.primaryFrames`, `noteOverflow`, the editor's board). A
@@ -3293,16 +3312,21 @@ final class AppState {
     /// place for 0.7s), which put Siri and Shortcuts in "Didn't fit" after a
     /// picture pass, and an idle indicator a pass attached and let go, which
     /// read Camera & mic and the chevron as two icons behind the «
-    /// (2026-10-12). An icon out on its own is drawn whatever its section.
+    /// (2026-10-12). An icon out on its own is drawn whatever its section,
+    /// and so is one macOS will not hide (`unhideableKeys`, a bundle-less
+    /// host): it stays on the bar with its section concealed.
     func drawnNow(in snap: EngineSnapshot) -> (ItemID) -> Bool {
         let out = currentRevealedSections
         let model = settings.sectionModel
         let alone = Set(snap.shownAlone.map(\.sectionKey))
+        let unhideable = unhideableKeys
+        let bundleless = bundlelessHosts
         let extras = self.extras
         let ownExtras = Set((extras?.managedItemIDs ?? []).map(\.sectionKey))
         return { id in
             let key = id.sectionKey
-            if alone.contains(key) { return true }
+            if alone.contains(key) || unhideable.contains(key) { return true }
+            if let bundle = id.bundleID, bundleless.contains(bundle) { return true }
             if ownExtras.contains(key), extras?.isShowing(key) == false { return false }
             let section = model.section(of: key)
             return section == .visible || out.contains(section)
@@ -3314,11 +3338,15 @@ final class AppState {
         // pushes behind the « is not the bar anyone sees, and "Didn't fit"
         // flashed Snib and the chevron mid-pass (2026-10-12 23:20). The read
         // after it conceals decides again.
-        guard picturePassSections == nil else { return }
+        guard picturePassSections == nil else {
+            overflowReadPending = true
+            return
+        }
         // Apply and the item menu relay expand the « themselves: read then,
         // it held nothing, the notice reset at once and needed two reads and
         // 2s to come back after (2026-10-13). The read after the hold decides.
         if let hold = overflowReadHold {
+            overflowReadPending = true
             if overflowSkipLogged != hold {
                 overflowSkipLogged = hold
                 PelmetLog.log("overflow: read skipped — \(hold)")
@@ -3326,6 +3354,7 @@ final class AppState {
             return
         }
         overflowSkipLogged = nil
+        overflowReadPending = false
         // The bar is still attaching for `bootOwnItemLead` after the own
         // items arrive: the chevron lands on its neighbours, and now-playing,
         // Fast User Switching and the chevron read as behind the « for 0.8s

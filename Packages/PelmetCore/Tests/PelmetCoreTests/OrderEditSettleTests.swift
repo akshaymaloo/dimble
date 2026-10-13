@@ -9,7 +9,7 @@ import Testing
     func settled(_ drawn: [ItemID], bar: [ItemID], onBar: Set<ItemID>, crossing: [ItemID] = []) -> Set<Section> {
         var edits = OrderEdits(order: [.alwaysHidden: drawn])
         for id in crossing { edits.previousSection[id] = .hidden }
-        return OrderEditSettle.settledSections(edits, bar: bar, onBar: onBar, roster: roster)
+        return OrderEditSettle.settledSections(edits, bar: bar, live: [], concealed: onBar, roster: roster)
     }
 
     @Test func aReorderInASectionNeverRevealedStaysPending() {
@@ -38,6 +38,21 @@ import Testing
 
     @Test func aDropBetweenSectionsWaitsForThePass() {
         #expect(settled([a, b], bar: [a, b], onBar: [a, b], crossing: [b]).isEmpty)
+    }
+
+    @Test func anOwnItemConcealedWithNoFrameIsNoEdit() {
+        // A helper-hosted separator that drew once and let go: concealed,
+        // never framed again.
+        let separator = ItemID(rawValue: "status:\(PelmetBundle.alwaysHiddenHostID)::Pelmet.Separator.1")
+        let members: [ItemID: Section] = [a: .alwaysHidden, b: .alwaysHidden, separator.sectionKey: .alwaysHidden]
+        let edits = OrderEdits(order: [.alwaysHidden: [a, separator.sectionKey, b]])
+        #expect(OrderEditSettle.settledSections(
+            edits, bar: [a, b], live: [a, b], concealed: [separator], roster: Roster(members: members)
+        ) == [.alwaysHidden])
+        // Live, it counts like any icon: unframed, it keeps the edit.
+        #expect(OrderEditSettle.settledSections(
+            edits, bar: [a, b], live: [a, b, separator], concealed: [], roster: Roster(members: members)
+        ).isEmpty)
     }
 
     @Test func iconsOfOtherSectionsDoNotCount() {

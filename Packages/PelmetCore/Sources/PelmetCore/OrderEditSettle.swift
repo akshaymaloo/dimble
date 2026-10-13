@@ -12,11 +12,22 @@ public enum OrderEditSettle {
     /// - `bar`: canonical keys left to right, every icon the bar can place:
     ///   live frames, plus the remembered frame of a concealed icon
     ///   (`ApplyPass.rememberedFrames`).
-    /// - `onBar`: canonical keys of every icon on the bar at all, live or
-    ///   concealed (out of the AX tree, still on the bar).
+    /// - `live`: the walk's icons; `concealed`: the engine's concealed set
+    ///   (out of the AX tree, still on the bar).
     public static func settledSections(
-        _ edits: OrderEdits, bar: [ItemID], onBar: Set<ItemID>, roster: Roster
+        _ edits: OrderEdits, bar: [ItemID], live: Set<ItemID>, concealed: Set<ItemID>, roster: Roster
     ) -> Set<Section> {
+        // Pelmet's own items hide by their own visibility. One a helper drew
+        // once and let go stays in the concealed set with no frame (helper
+        // bundles are never pruned as stale): counted, its section stayed
+        // pending and Apply lit for good. Like an idle extra, it is on the
+        // bar where it is live or a frame remembers it.
+        let placed = Set(bar)
+        let onBar = Set(live.map(\.sectionKey)).union(
+            concealed.filter { id in
+                !(id.bundleID.map(PelmetBundle.ownIDs.contains) ?? false) || placed.contains(id.sectionKey)
+            }.map(\.sectionKey)
+        )
         // Relative order says nothing about the chevron: an icon drawn into
         // Hidden but still on the Visible side matched its drawing, the edit
         // cleared before the grouper ran, and it went to the chevron end

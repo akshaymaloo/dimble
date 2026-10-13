@@ -72,7 +72,11 @@ final class TransitionCoordinator {
     private var liftsInFlight = 0
     /// A picture pass has the bar revealed under its cover. See
     /// `awaitPicturePass`.
-    private(set) var passInFlight = false
+    private(set) var passInFlight = false {
+        // The pass took its at-rest walk while holding: an overflow read it
+        // skipped runs now, on that walk.
+        didSet { if oldValue, !passInFlight { appState?.overflowHoldEnded() } }
+    }
     /// The pass in flight is a quiet Apply (`holdBarForApply`): seconds of
     /// drags, not a picture pass's one.
     private(set) var quietApplyInFlight = false
