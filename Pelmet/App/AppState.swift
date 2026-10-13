@@ -2471,18 +2471,27 @@ final class AppState {
     /// screen to move).
     var pendingMoveCount: Int {
         guard let snapshot else { return 0 }
-        // Drawn icons behind the « count too: the pass expands it for them.
-        let moves = ApplyPass.plan(for: self, snapshot: snapshot, remembered: true).moves
-        let trapped = ApplyPass.trappedEdited(snapshot, edits: settings.orderEdits, appState: self)
+        // Dropped icons the plan cannot see count too: behind the « (the
+        // pass expands it) or concealed with their section (the pass reveals
+        // it). The rules are `ApplyCount`'s. The pass still expands for every
+        // drawn icon behind the « (`ApplyPass.trappedEdited`).
+        let plan = ApplyPass.plan(for: self, snapshot: snapshot, remembered: true)
+        let moves = plan.moves
+        let count = ApplyCount.count(
+            plan, edits: settings.orderEdits, trapped: ApplyPass.trapped(snapshot, appState: self),
+            drawn: drawnNow(in: snapshot), concealed: concealedNow(in: snapshot)
+        )
         // Logged on change only (the button reads this every render): which
         // move pads the count when the drop read "Apply (2)" (2026-09-21).
-        let line = moves.map { "\($0.item.rawValue) after=\($0.after?.rawValue ?? "-") before=\($0.before?.rawValue ?? "-")" }.joined(separator: "; ")
-            + " | trapped=" + trapped.map(\.rawValue).sorted().joined(separator: ",")
+        let line = "\(moves.count) move(s) + \(count.trapped.count) trapped + \(count.concealed.count) concealed = \(count.total) — "
+            + moves.map { "\($0.item.rawValue) after=\($0.after?.rawValue ?? "-") before=\($0.before?.rawValue ?? "-")" }.joined(separator: "; ")
+            + " | trapped=" + count.trapped.map(\.rawValue).sorted().joined(separator: ",")
+            + " concealed=" + count.concealed.map(\.rawValue).sorted().joined(separator: ",")
         if line != lastPendingLine {
             lastPendingLine = line
-            PelmetLog.log("apply: pending \(moves.count) move(s) + \(trapped.count) trapped — \(line)")
+            PelmetLog.log("apply: pending \(line)")
         }
-        return moves.count + trapped.count
+        return count.total
     }
     private var lastPendingLine = ""
 
@@ -3452,6 +3461,26 @@ final class AppState {
             if ownExtras.contains(key), extras?.isShowing(key) == false { return false }
             let section = model.section(of: key)
             return section == .visible || out.contains(section)
+        }
+    }
+
+    /// Whether `id`'s concealed section is what keeps it off the bar right
+    /// now, not the « (`ApplyCount.isConcealed`): the walk just after a
+    /// conceal still lists Shortcuts and Sound, leftovers on top of each
+    /// other, and the Apply count read both as behind it (live test,
+    /// 2026-10-13).
+    func concealedNow(in snap: EngineSnapshot) -> (ItemID) -> Bool {
+        let drawn = drawnNow(in: snap)
+        let concealed = Set(snap.concealed.map(\.sectionKey))
+        let out = currentRevealedSections
+        let model = settings.sectionModel
+        let extras = self.extras
+        return { id in
+            ApplyCount.isConcealed(
+                id, drawn: drawn, concealedKeys: concealed,
+                wouldShow: { extras?.wouldShow($0) != false },
+                section: { model.section(of: $0) }, revealed: out
+            )
         }
     }
 
