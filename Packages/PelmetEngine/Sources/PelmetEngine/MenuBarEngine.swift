@@ -39,21 +39,24 @@ public struct EngineSnapshot: Equatable, Sendable {
     /// show rule) while their section stays concealed: they sit beside the
     /// chevron, not in their slot.
     public let shownAlone: Set<ItemID>
-    /// Stamped at a swap on the walk before it: icons the swap just revealed
-    /// are in neither `items` nor `concealed` until the walk behind the swap
-    /// lands. Fine for presence and covers; not for judging an order (the
-    /// settle cleared a pending reorder on it, live test 2026-10-13).
-    public let itemsPredateSwap: Bool
+    /// False when `items` were not read at rest: stamped at a swap on the
+    /// walk before it, or walked inside the swap's reflow (AX lists a freshly
+    /// revealed strip a part at a time). Icons the swap revealed can then be
+    /// in neither `items` nor `concealed`. Fine for presence and covers; not
+    /// for judging an order (the settle cleared a pending reorder on it,
+    /// live test 2026-10-13). A walk at rest always follows one
+    /// (`AgentBarEngine.lastSnapshot`), announced by `.mirrorAtRest`.
+    public let itemsAtRest: Bool
 
     public init(
         items: [ObservedItem], concealed: Set<ItemID>, takenAt: Date, shownAlone: Set<ItemID> = [],
-        itemsPredateSwap: Bool = false
+        itemsAtRest: Bool = true
     ) {
         self.items = items
         self.concealed = concealed
         self.takenAt = takenAt
         self.shownAlone = shownAlone
-        self.itemsPredateSwap = itemsPredateSwap
+        self.itemsAtRest = itemsAtRest
     }
 
     /// Equality ignoring `takenAt` — for observers that only care whether the
@@ -66,6 +69,11 @@ public struct EngineSnapshot: Equatable, Sendable {
 public enum EngineEvent: Equatable, Sendable {
     /// The set of menubar items changed (app launched/quit, item added/removed).
     case itemsChanged
+    /// The mirror is a walk at rest again after one that was not
+    /// (`EngineSnapshot.itemsAtRest`): re-read it, nothing to converge.
+    /// Not itemsChanged: that converges, and a swap that never goes no-op
+    /// (a dud activation drops the allowlist) would swap at every rest walk.
+    case mirrorAtRest
     /// Our hide assertion was torn down externally (DND/assessment churn).
     case assertionTornDown
     /// MenuBarClientCore availability flipped (e.g. after an OS update).

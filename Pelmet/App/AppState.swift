@@ -2813,7 +2813,7 @@ final class AppState {
         let settled = OrderEditSettle.settledSections(
             settings.orderEdits, bar: bar, live: Set(snapshot.items.map(\.id)), concealed: snapshot.concealed,
             ownBehindOverflow: ownItemsBehindOverflow, ownExtras: ownExtras,
-            itemsPredateSwap: snapshot.itemsPredateSwap, roster: settings.sectionModel.roster
+            itemsAtRest: snapshot.itemsAtRest, roster: settings.sectionModel.roster
         )
         guard !settled.isEmpty else { return }
         var edits = settings.orderEdits
@@ -3584,10 +3584,10 @@ final class AppState {
         }
         for id in snap.concealed { lastSeenAt[id.sectionKey] = now }
         pruneRetiredAppleHostSlot(snap)
-        // A walk replaces a swap's stamp even when it reads the same: kept,
-        // the stamp held every settle until the bar next changed.
-        let replacesStamp = snapshot?.itemsPredateSwap == true && !snap.itemsPredateSwap
-        guard snapshot?.contentEquals(snap) != true || replacesStamp else { return }
+        // A walk at rest replaces one that was not even when it reads the
+        // same: kept, the old one held every settle until the bar changed.
+        let comesToRest = snapshot?.itemsAtRest == false && snap.itemsAtRest
+        guard snapshot?.contentEquals(snap) != true || comesToRest else { return }
         let bundleless = snap.items.filter(\.hostIsBundleless).map(\.id.rawValue)
         if bundleless != lastBundlelessIDs {
             lastBundlelessIDs = bundleless
@@ -3964,6 +3964,12 @@ final class AppState {
                 extras?.apply(model: settings.sectionModel, revealed: currentRevealedSections, systemCameraPillVisible: systemCameraPillVisible)
                 separators?.apply(model: settings.sectionModel, revealed: currentRevealedSections)
             }
+        case .mirrorAtRest:
+            // The bar read at rest after a swap: a pending reorder the settle
+            // left alone on the stamp or the reflow walk is judged here
+            // (`pruneSettledOrderEdits` in updateSnapshot). No converge.
+            guard engineStarted else { return }
+            Task { updateSnapshot(await engine.snapshot()) }
         case .assertionTornDown:
             unhideableTracker.assertionLost()
             collateralTracker.assertionLost()

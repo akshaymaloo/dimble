@@ -110,7 +110,7 @@ import Testing
         ).isEmpty)
     }
 
-    @Test func aRevealsSwapStampedSnapshotSettlesNothing() {
+    @Test func aRevealSettlesNothingUntilTheBarIsReadAtRest() {
         // Shortcuts dragged after Sound in a concealed Hidden, then Hidden
         // revealed. The swap stamps the mirror on the walk before it:
         // Vorssaint, Snib and Sound just left the concealed set and are not
@@ -128,9 +128,15 @@ import Testing
         )
         #expect(OrderEditSettle.settledSections(
             edits, bar: [clock], live: [clock], concealed: [], ownExtras: [shortcuts],
-            itemsPredateSwap: true, roster: Roster(members: members)
+            itemsAtRest: false, roster: Roster(members: members)
         ).isEmpty)
-        // The walk behind the swap has the bar as it is: still pending.
+        // The walk behind the swap, inside the reflow, listing Vorssaint
+        // and Shortcuts but not Snib and Sound yet (review, 2026-10-13).
+        #expect(OrderEditSettle.settledSections(
+            edits, bar: [vorssaint, shortcuts, clock], live: [vorssaint, shortcuts, clock], concealed: [],
+            ownExtras: [shortcuts], itemsAtRest: false, roster: Roster(members: members)
+        ).isEmpty)
+        // The walk at rest has the bar as it is: still pending.
         #expect(OrderEditSettle.settledSections(
             edits, bar: [vorssaint, shortcuts, snib, sound, clock],
             live: [vorssaint, shortcuts, snib, sound, clock], concealed: [], ownExtras: [shortcuts],

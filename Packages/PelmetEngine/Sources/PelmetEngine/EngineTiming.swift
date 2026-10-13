@@ -16,6 +16,13 @@ enum EngineTiming {
     /// every conceal, for a bar that had not changed since the last walk.
     static let restWalkDelay: TimeInterval = 0.5
     static let restSnapshotReuse: TimeInterval = 30
+
+    /// A walk read the bar at rest when it started `restWalkDelay` past the
+    /// last swap, as that swap stands when the walk lands: one a swap
+    /// overtook mid-walk is mid-reflow too.
+    static func walkAtRest(startedAt started: Date, lastSwapAt: Date) -> Bool {
+        started.timeIntervalSince(lastSwapAt) >= restWalkDelay
+    }
     /// AX messaging timeouts — a stuck agent/app must never wedge a walk.
     static let axAgentTimeout: Float = 0.25
     static let axAppTimeout: Float = 0.5

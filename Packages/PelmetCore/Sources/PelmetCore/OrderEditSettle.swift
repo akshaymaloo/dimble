@@ -18,20 +18,21 @@ public enum OrderEditSettle {
     ///   saw them live found behind the «.
     /// - `ownExtras`: Pelmet's extras (canonical keys) that are on the bar
     ///   whenever their section is out: not idle, whatever the walk sees.
-    /// - `itemsPredateSwap`: the snapshot was stamped at a swap on the walk
-    ///   before it (`EngineSnapshot.itemsPredateSwap`).
+    /// - `itemsAtRest`: `live` was read with the bar at rest
+    ///   (`EngineSnapshot.itemsAtRest`).
     public static func settledSections(
         _ edits: OrderEdits, bar: [ItemID], live: Set<ItemID>, concealed: Set<ItemID>,
         ownBehindOverflow: Set<ItemID> = [], ownExtras: Set<ItemID> = [],
-        itemsPredateSwap: Bool = false, roster: Roster
+        itemsAtRest: Bool = true, roster: Roster
     ) -> Set<Section> {
-        // A swap stamps the mirror on the walk before it: the icons it just
-        // revealed have left the concealed set and are not walked yet, so
-        // they read as off the bar. Judged there, a drawing compared over
+        // A swap stamps the mirror on the walk before it, and the walk
+        // behind the swap reads the reflow a part at a time: icons it just
+        // revealed have left the concealed set and are not all walked yet,
+        // so they read as off the bar. Judged there, a drawing compared over
         // what was left: Shortcuts reordered in a concealed Hidden, and the
         // edit cleared the moment Hidden came out (live test, 2026-10-13).
-        // The walk behind the swap lands within ~200ms and judges instead.
-        guard !itemsPredateSwap else { return [] }
+        // The walk at rest half a second on judges instead.
+        guard itemsAtRest else { return [] }
         // Pelmet's own items hide by their own visibility. One a helper drew
         // once and let go stays in the concealed set with no frame (helper
         // bundles are never pruned as stale): counted, its section stayed

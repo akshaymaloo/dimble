@@ -120,7 +120,15 @@ public actor AgentBarEngine: MenuBarEngine {
             pelmetBundleID: PelmetBundle.mainID
         )
 
-    private var lastSnapshot: EngineSnapshot?
+    /// A mirror not read at rest always gets a walk at rest behind it,
+    /// whatever wrote it: a swap's stamp, a walk inside the reflow (behind a
+    /// swap, a superseded converge's, a dropped assertion's), or a copy of
+    /// one. The settle waits for that walk to judge a pending reorder, so a
+    /// path that skipped it left Apply lit (review of N1, 2026-10-13).
+    private var lastSnapshot: EngineSnapshot? {
+        didSet { if lastSnapshot?.itemsAtRest == false { scheduleRestWalk() } }
+    }
+    private var restWalkScheduled = false
     /// `ConvergePlan.setAside` of the last converge that stamped its
     /// concealed set: concealed again by the next one that puts their
     /// section back. Stamped with the concealed set, never before the
@@ -296,7 +304,7 @@ public actor AgentBarEngine: MenuBarEngine {
     /// app launches and user drags reach the mirror through the walks the
     /// app already runs for them.
     public var restSnapshot: EngineSnapshot? {
-        guard let last = lastSnapshot, !last.items.isEmpty,
+        guard let last = lastSnapshot, !last.items.isEmpty, last.itemsAtRest,
               last.takenAt.timeIntervalSince(lastSwapAt) >= EngineTiming.restWalkDelay,
               Date().timeIntervalSince(last.takenAt) < EngineTiming.restSnapshotReuse
         else { return nil }
@@ -592,7 +600,8 @@ public actor AgentBarEngine: MenuBarEngine {
         lastSnapshot = EngineSnapshot(
             items: after.items,
             concealed: [],
-            takenAt: after.takenAt
+            takenAt: after.takenAt,
+            itemsAtRest: after.itemsAtRest
         )
     }
 
@@ -642,7 +651,7 @@ public actor AgentBarEngine: MenuBarEngine {
             if let last = lastSnapshot, last.concealed != plan.concealed {
                 lastSnapshot = EngineSnapshot(
                     items: snapshot.items, concealed: plan.concealed, takenAt: snapshot.takenAt, shownAlone: shownAlone,
-                    itemsPredateSwap: snapshot.itemsPredateSwap
+                    itemsAtRest: snapshot.itemsAtRest
                 )
             }
             setAsideConcealed = plan.setAside
@@ -717,12 +726,14 @@ public actor AgentBarEngine: MenuBarEngine {
         // it inside its TTL right after the swap instead of walking
         // mid-reflow (a 200ms walk on the settle path, 2026-09-21 11:05),
         // and `restSnapshot` stays nil until a walk at rest replaces it.
+        // Not at rest: the icons the swap revealed are not in the items yet
+        // (a pending reorder cleared on it, live test 2026-10-13).
         lastSnapshot = EngineSnapshot(
             items: snapshot.items,
             concealed: plan.concealed,
             takenAt: Date(),
             shownAlone: shownAlone,
-            itemsPredateSwap: true
+            itemsAtRest: false
         )
         setAsideConcealed = plan.setAside
         Task { await self.walkAfterSwap(concealable: concealable, epoch: epoch) }
@@ -742,7 +753,7 @@ public actor AgentBarEngine: MenuBarEngine {
                 concealed: last.concealed.filter { $0.sectionKey != key },
                 takenAt: last.takenAt,
                 shownAlone: last.shownAlone,
-                itemsPredateSwap: last.itemsPredateSwap
+                itemsAtRest: last.itemsAtRest
             )
         }
     }
@@ -764,19 +775,32 @@ public actor AgentBarEngine: MenuBarEngine {
         if stillVisible {
             await verifyConcealment(of: concealable)
         }
-        // A walk that ran inside the reflow can list half the strip (AX
-        // adds freshly revealed items progressively). One more at rest
-        // makes the mirror whole, so the next transition can plan and
-        // measure from it instead of walking (`restSnapshot`).
-        // Not epoch-gated: the itemsChanged this walk fires runs a no-op
-        // converge (a new epoch) before the bar is at rest, and its walk is
-        // mid-reflow too. A newer SWAP moves `lastSwapAt`, so the wait
-        // below simply extends to that one's rest.
+    }
+
+    /// A walk that ran inside the reflow can list half the strip (AX adds
+    /// freshly revealed items progressively). One more at rest makes the
+    /// mirror whole, so the next transition can plan and measure from it
+    /// instead of walking (`restSnapshot`), and the settle can judge.
+    /// Scheduled by any mirror not at rest (`lastSnapshot`), never gated on
+    /// a converge's epoch: the itemsChanged the post-swap walk fires runs a
+    /// no-op converge (a new epoch) before the bar is at rest, and a swap a
+    /// newer converge overtook never stamps. A newer swap moves
+    /// `lastSwapAt`, so the wait below simply extends to that one's rest.
+    private func scheduleRestWalk() {
+        guard !restWalkScheduled else { return }
+        restWalkScheduled = true
+        Task { await self.walkAtRest() }
+    }
+
+    private func walkAtRest() async {
         var untilRest = EngineTiming.restWalkDelay - Date().timeIntervalSince(lastSwapAt)
         while untilRest > 0 {
             try? await Task.sleep(for: .seconds(untilRest))
             untilRest = EngineTiming.restWalkDelay - Date().timeIntervalSince(lastSwapAt)
         }
+        // Cleared before the walk: a swap that lands during it writes a
+        // stamp that schedules the next one.
+        restWalkScheduled = false
         guard restSnapshot == nil else { return }
         let restStarted = Date()
         _ = await refreshSnapshot()
@@ -903,18 +927,30 @@ public actor AgentBarEngine: MenuBarEngine {
     }
 
     private func refreshSnapshot() async -> EngineSnapshot {
+        let started = Date()
         let raw = await enumerator.snapshotItems()
         let previousIDs = lastSnapshot.map { Set($0.items.map(\.id)) }
+        // Judged against the swap as it stands when the walk lands: one in
+        // flight when a swap was issued read the bar before it, and landing
+        // after the stamp it put pre-swap items over the post-swap concealed
+        // set (review of N1, 2026-10-13).
         let snapshot = EngineSnapshot(
             items: raw.map {
                 ObservedItem(id: $0.id, frame: $0.frame, appName: $0.appName, hostIsBundleless: $0.hostIsBundleless, pid: $0.pid)
             },
             concealed: lastSnapshot?.concealed ?? [],
             takenAt: Date(),
-            shownAlone: shownAlone
+            shownAlone: shownAlone,
+            itemsAtRest: EngineTiming.walkAtRest(startedAt: started, lastSwapAt: lastSwapAt)
         )
         if let previousIDs, previousIDs != Set(raw.map(\.id)) {
             eventContinuation.yield(.itemsChanged)
+        }
+        // A walk at rest can list the same icons as the stamp or the
+        // reflow walk before it, and itemsChanged stays quiet then: the app
+        // kept judging from the mirror that was not at rest.
+        if lastSnapshot?.itemsAtRest == false, snapshot.itemsAtRest {
+            eventContinuation.yield(.mirrorAtRest)
         }
         lastSnapshot = snapshot
         return snapshot
