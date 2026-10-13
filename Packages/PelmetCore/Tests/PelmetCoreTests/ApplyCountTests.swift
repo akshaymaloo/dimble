@@ -45,6 +45,58 @@ import Testing
         #expect(shown.total == 1)
     }
 
+    @Test func aConcealedDropReadsOneEvenWhereAStaleFrameSaysItIsInPlace() {
+        // Sound's remembered frame is from before Snib's drag moved it, so
+        // the collapsed bar reads Sound after Snib already and the plan finds
+        // nothing. Sound dropped after Snib in a concealed Hidden read a
+        // plain "Apply", and the pass then found the move (live test,
+        // 2026-10-13).
+        let snib = ItemID.bundleKey("app.fif7y.Snib")
+        let roster = Roster(members: [a: .hidden, snib: .hidden, sound: .hidden])
+        let edits = OrderEdits(
+            order: [.hidden: [a, snib, sound]], previousOrder: [.hidden: [a, sound, snib]], dropped: [sound]
+        )
+        let concealed: (ItemID) -> Bool = {
+            isConcealed($0, concealedKeys: Set([a, snib, sound].map(\.sectionKey)), sections: [sound: .hidden])
+        }
+        let stale = MovePlan.compute(bar: [a, snib, sound, chevron, v1], edits: edits, roster: roster, chevron: chevron)
+        #expect(stale.moves.isEmpty)
+        #expect(ApplyCount.count(stale, edits: edits, trapped: [], drawn: { _ in false }, concealed: concealed).total == 1)
+        // A frame that sees it out of place: the one move, not two.
+        let seen = MovePlan.compute(bar: [a, sound, snib, chevron, v1], edits: edits, roster: roster, chevron: chevron)
+        #expect(seen.moves.map(\.item) == [sound])
+        #expect(ApplyCount.count(seen, edits: edits, trapped: [], drawn: { _ in false }, concealed: concealed)
+            == ApplyCount.Count(trapped: [], concealed: [], total: 1))
+        // A drop no drawing lists any more raises nothing.
+        let leftover = OrderEdits(dropped: [sound])
+        let none = MovePlan.compute(bar: [a, snib, sound, chevron, v1], edits: leftover, roster: roster, chevron: chevron)
+        #expect(ApplyCount.count(none, edits: leftover, trapped: [], drawn: { _ in false }, concealed: concealed).total == 0)
+    }
+
+    @Test func aRealMoveAndAnOutAndBackInOneConcealedSectionReadOne() {
+        // Sound dropped to a new slot in a concealed Hidden, then Snib
+        // dragged out and back: both dropped, one move. Counted per
+        // concealed drop it read "Apply (2)", and 1 once revealed (review,
+        // 2026-10-13).
+        let snib = ItemID.bundleKey("app.fif7y.Snib")
+        let roster = Roster(members: [a: .hidden, snib: .hidden, sound: .hidden])
+        let edits = OrderEdits(
+            order: [.hidden: [a, snib, sound]], previousOrder: [.hidden: [a, sound, snib]], dropped: [sound, snib]
+        )
+        let concealed: (ItemID) -> Bool = {
+            isConcealed($0, concealedKeys: Set([a, snib, sound].map(\.sectionKey)), sections: [sound: .hidden])
+        }
+        let collapsed = MovePlan.compute(bar: [a, sound, snib, chevron, v1], edits: edits, roster: roster, chevron: chevron)
+        #expect(ApplyCount.count(collapsed, edits: edits, trapped: [], drawn: { _ in false }, concealed: concealed).total == 1)
+        let revealed = MovePlan.compute(bar: [a, sound, snib, chevron, v1], edits: edits, roster: roster, chevron: chevron)
+        #expect(ApplyCount.count(revealed, edits: edits, trapped: [], drawn: { _ in true }, concealed: { _ in false }).total == 1)
+        // The same with two third-party icons, a then b.
+        let ab = OrderEdits(order: [.hidden: [b, a, c]], previousOrder: [.hidden: [a, b, c]], dropped: [a, b])
+        let hiddenABC: (ItemID) -> Bool = { isConcealed($0, concealedKeys: [a, b, c]) }
+        let abPlan = MovePlan.compute(bar: [a, b, c, chevron, v1], edits: ab, roster: self.roster, chevron: chevron)
+        #expect(ApplyCount.count(abPlan, edits: ab, trapped: [], drawn: { _ in false }, concealed: hiddenABC).total == 1)
+    }
+
     @Test func aTrappedDropCountsAndATrappedNeighbourDoesNot() {
         // b dropped after c, both behind the «: the pass expands it for b,
         // and c is only where b lands.
