@@ -100,6 +100,73 @@ import Testing
         ).isEmpty)
     }
 
+    @Test func aThirdPartyIconDrawnBackWhereItStartedSettlesWhileConcealed() {
+        // Snib dragged out of its slot in a concealed Hidden and back. y, a
+        // third-party icon concealed with no frame, kept the section from
+        // being judged: Discard and a plain "Apply" stayed lit until Hidden
+        // came out (live test, 2026-10-13).
+        let snib = ItemID.bundleKey("app.fif7y.Snib"), y = ItemID.bundleKey("com.y")
+        let roster = Roster(members: [a: .hidden, snib: .hidden, y: .hidden])
+        var back = OrderEdits(
+            order: [.hidden: [a, snib, y]], previousOrder: [.hidden: [a, snib, y]], dropped: [snib]
+        )
+        let settled = OrderEditSettle.settledSections(
+            back, bar: [a, snib], live: [], concealed: [a, snib, y], roster: roster
+        )
+        #expect(settled == [.hidden])
+        // The whole edit goes with it, the drop too: nothing left for
+        // Discard or the Apply count.
+        for section in settled { back.clearOrder(for: section) }
+        #expect(back == OrderEdits())
+        // Snib itself unframed: the same.
+        let unframed = OrderEdits(
+            order: [.hidden: [a, snib, y]], previousOrder: [.hidden: [a, snib, y]], dropped: [snib]
+        )
+        #expect(OrderEditSettle.settledSections(
+            unframed, bar: [a], live: [], concealed: [a, snib, y], roster: roster
+        ) == [.hidden])
+    }
+
+    @Test func aRealReorderBesideAnUnframedIconStillWaits() {
+        let snib = ItemID.bundleKey("app.fif7y.Snib"), y = ItemID.bundleKey("com.y")
+        let roster = Roster(members: [a: .hidden, snib: .hidden, y: .hidden])
+        // Snib moved for real, the framed icons already in the drawn order
+        // (a remembered frame can be stale): it waits for the pass.
+        let moved = OrderEdits(
+            order: [.hidden: [a, snib, y]], previousOrder: [.hidden: [snib, a, y]], dropped: [snib]
+        )
+        #expect(OrderEditSettle.settledSections(
+            moved, bar: [a, snib], live: [], concealed: [a, snib, y], roster: roster
+        ).isEmpty)
+        // Drawn back, but the bar places a framed icon out of the drawn order.
+        let back = OrderEdits(
+            order: [.hidden: [a, snib, y]], previousOrder: [.hidden: [a, snib, y]], dropped: [snib]
+        )
+        #expect(OrderEditSettle.settledSections(
+            back, bar: [snib, a], live: [], concealed: [a, snib, y], roster: roster
+        ).isEmpty)
+        // A section not revealed since launch (Always Hidden, 2026-10-13):
+        // a reorder waits, out and back is no edit.
+        let neverSeen = OrderEdits(order: [.alwaysHidden: [b, a]], previousOrder: [.alwaysHidden: [a, b]])
+        #expect(OrderEditSettle.settledSections(
+            neverSeen, bar: [], live: [], concealed: [a, b], roster: self.roster
+        ).isEmpty)
+        let neverSeenBack = OrderEdits(order: [.alwaysHidden: [a, b]], previousOrder: [.alwaysHidden: [a, b]])
+        #expect(OrderEditSettle.settledSections(
+            neverSeenBack, bar: [], live: [], concealed: [a, b], roster: self.roster
+        ) == [.alwaysHidden])
+        // A mid-reveal walk settles nothing, drawn back or not.
+        #expect(OrderEditSettle.settledSections(
+            back, bar: [a, snib], live: [], concealed: [a, snib, y], itemsAtRest: false, roster: roster
+        ).isEmpty)
+        // Nor does a drop between sections, drawn back in this one.
+        var crossing = back
+        crossing.previousSection[snib] = .visible
+        #expect(OrderEditSettle.settledSections(
+            crossing, bar: [a, snib], live: [], concealed: [a, snib, y], roster: roster
+        ).isEmpty)
+    }
+
     @Test func anOwnExtraDroppedBetweenSectionsWaitsForThePassEvenUnseen() {
         let shortcuts = ItemID(rawValue: "status:\(PelmetBundle.mainID)::Pelmet.Shortcuts")
         let members: [ItemID: Section] = [a: .hidden, b: .hidden, shortcuts: .hidden]

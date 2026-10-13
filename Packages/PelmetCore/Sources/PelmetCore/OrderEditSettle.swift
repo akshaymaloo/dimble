@@ -32,6 +32,9 @@ public enum OrderEditSettle {
         // what was left: Shortcuts reordered in a concealed Hidden, and the
         // edit cleared the moment Hidden came out (live test, 2026-10-13).
         // The walk at rest half a second on judges instead.
+        // The drawn-back shortcut below waits too: it reads no frame, but it
+        // compares through the same on-bar filter, and mid-reveal that
+        // filter left Shortcuts alone on both sides of a real reorder.
         guard itemsAtRest else { return [] }
         // Pelmet's own items hide by their own visibility. One a helper drew
         // once and let go stays in the concealed set with no frame (helper
@@ -76,14 +79,17 @@ public enum OrderEditSettle {
             // compared nothing with nothing and cleared, and Apply never lit
             // (Always Hidden, 2026-10-13; Velja, Pure Paste, Unclutter,
             // DBngin, 2026-09-21; Battery, Wi-Fi, 2026-10-12).
-            // An extra its concealed section hides has no frame but holds its
-            // model slot: drawn back to the order the edit started from
-            // (dragged out and back), it is no edit, where waiting for a
-            // frame lit Apply until the next reveal (review, 2026-10-13).
+            // Drawn back to the order the edit started from (dragged out and
+            // back), it is no edit, whoever the unplaced icons are: an extra
+            // its concealed section hides, waiting for a frame, lit Apply
+            // until the next reveal (review, 2026-10-13), and so did a
+            // third-party icon concealed with no frame: Snib dragged out and
+            // back in a concealed Hidden kept Discard and a plain "Apply" lit
+            // until Hidden came out (live test, 2026-10-13). The icons the
+            // bar does place still have to match.
             let unplaced = drawnSet.subtracting(placed)
             if !unplaced.isEmpty {
-                guard unplaced.isSubset(of: ownExtras),
-                      edits.previousOrder[section]?.filter({ onBar.contains($0.sectionKey) }) == drawn
+                guard edits.previousOrder[section]?.filter({ onBar.contains($0.sectionKey) }) == drawn
                 else { continue }
             }
             if placed.filter(drawnSet.contains) == drawn.filter({ !unplaced.contains($0) }) { settled.insert(section) }
