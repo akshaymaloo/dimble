@@ -3241,6 +3241,8 @@ final class AppState {
     /// on every drop and shoved the editor down (2026-10-07).
     private(set) var overflowNoticeCount = 0
     @ObservationIgnored private var overflowNoticeTask: Task<Void, Never>?
+    /// The first overflow read once the bar has attached at launch.
+    @ObservationIgnored private var bootOverflowRead: Task<Void, Never>?
 
     private func noteOverflow(in snap: EngineSnapshot) {
         // A pass's bar is under its cover, a whole bar out at once: what it
@@ -3248,6 +3250,21 @@ final class AppState {
         // flashed Snib and the chevron mid-pass (2026-10-12 23:20). The read
         // after it conceals decides again.
         guard picturePassSections == nil else { return }
+        // The bar is still attaching for `bootOwnItemLead` after the own
+        // items arrive: the chevron lands on its neighbours, and now-playing,
+        // Fast User Switching and the chevron read as behind the « for 0.8s
+        // at every launch (2026-10-12). One read when the lead is over decides.
+        let attached = ownItemsAdoptedAt.map { $0 + AppTiming.bootOwnItemLead }
+        guard let attached, ContinuousClock.now >= attached else {
+            if let attached, bootOverflowRead == nil {
+                bootOverflowRead = Task { [weak self] in
+                    try? await Task.sleep(until: attached, clock: .continuous)
+                    guard let self, let snapshot = self.snapshot else { return }
+                    self.noteOverflow(in: snapshot)
+                }
+            }
+            return
+        }
         let primaryMaxX = NSScreen.screens.first?.frame.maxX ?? .greatestFiniteMagnitude
         // Only what the bar draws now: an icon just put away lingers in the
         // walk (Pelmet's own extras collapse in place for 0.7s) on top of its
