@@ -372,10 +372,16 @@ public actor ItemEnumerator {
             let named = titles + (untitled > 0 ? Array(Self.loadedMenuExtraNames().prefix(untitled)) : [])
             return StatusExtras(name: named.isEmpty ? "Item-0" : named.joined(separator: ", "), items: [])
         }
-        guard entries.count > 1 else { return StatusExtras(name: titles.first ?? "Item-0", items: []) }
-        // Several items: never all named after the first (every Pelmet
-        // stand-in read as the chevron). Frames are read only here, so a
-        // one-icon app walks as cheaply as before.
+        // One title (or none) names every group, as before: a one-icon app
+        // can list several untitled or same-titled entries on its extras
+        // bar (Velja 6, Unclutter 8, live 2026-10-13), and position left
+        // its only icon unnamed whenever an external display was active.
+        guard entries.count > 1, Set(titles).count > 1 else {
+            return StatusExtras(name: titles.first ?? "Item-0", items: [])
+        }
+        // Several titled items: never all named after the first (every
+        // Pelmet stand-in read as the chevron). Frames are read only here,
+        // so a one-icon app walks as cheaply as before.
         return StatusExtras(name: nil, items: zip(allTitles, entries).map { ($0, frame(of: $1)) })
     }
 
