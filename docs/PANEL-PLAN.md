@@ -264,6 +264,9 @@ app.fif7y.Pelmet pelmet.debug.panel -string panel` (or `row`) overrides
 two notifications, `app.fif7y.Pelmet.debug.toggle` (object `hover`,
 `hotkey`, else a click) and `app.fif7y.Pelmet.debug.panelShot` (writes the
 open panel to `~/Library/Logs/Pelmet/pass/panel.png`).
+*Since the 0.3.2 review (SIMP-7) the `pelmet.debug.panel` override is gone:
+pick the target in Settings (Show hidden icons in). The two notifications arm with
+`-pelmet.debug.toggle YES` at launch; `-pelmet.debug.panelCap N` stays.*
 
 - Wiring: `presenter(for:)` returns `PanelPresenter`; a reveal while the bar
   is out stays on the bar, a bar-only reason while the panel is up dismisses
