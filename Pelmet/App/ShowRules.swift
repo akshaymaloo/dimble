@@ -9,7 +9,7 @@
 // stays hidden, nothing else reflows. macOS doesn't draw a hidden icon, so
 // each state is read from the system, never from the icon.
 
-import Foundation
+import AppKit
 import IOKit.ps
 import notify
 import PelmetCore
@@ -34,6 +34,7 @@ final class ShowRules {
     private var wifiInterface: String?
     private var wifiDown = false
     private var wifiGraceTask: Task<Void, Never>?
+    private var sleepObservers: [NSObjectProtocol] = []
     private var shown: Set<ItemID>?
     private var lastLine: [String: String] = [:]
 
@@ -134,6 +135,25 @@ final class ShowRules {
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         self.store = store
         storeSource = source
+        // The grace sleeps on a clock that runs while the Mac does: one
+        // started as the lid closed ran out the moment it woke, before
+        // Wi-Fi had rejoined, and the icon flashed. A grace running at
+        // sleep starts over on wake, against the link as it is then.
+        let workspace = NSWorkspace.shared.notificationCenter
+        sleepObservers = [
+            workspace.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self, self.wifiGraceTask != nil else { return }
+                    self.wifiGraceTask?.cancel()
+                    self.wifiGraceTask = nil
+                    self.wifiDown = false
+                    self.note("wifi", "Wi-Fi grace stopped for sleep, starts over on wake")
+                }
+            },
+            workspace.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.evaluate() }
+            },
+        ]
     }
 
     private func stopWifi() {
@@ -144,6 +164,8 @@ final class ShowRules {
         wifiDown = false
         wifiGraceTask?.cancel()
         wifiGraceTask = nil
+        sleepObservers.forEach(NSWorkspace.shared.notificationCenter.removeObserver)
+        sleepObservers = []
         lastLine.removeValue(forKey: "wifi")
     }
 

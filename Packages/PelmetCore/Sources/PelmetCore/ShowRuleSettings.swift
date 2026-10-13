@@ -55,6 +55,26 @@ public struct ShowRuleSettings: Codable, Equatable, Sendable {
     }
 }
 
+public extension SettingsStore {
+    /// One-shot for stores from before "Show when it matters": 0.3.1's Focus
+    /// came out on the bar while a Focus was on, whatever its section. The
+    /// new default only rides the section, so every Focus in Hidden or Always
+    /// Hidden gets `.whenActive` (its section's reveal, or a Focus on), the
+    /// bar it had. One in Visible shows either way. Returns the sections of
+    /// the items it changed, empty when there was nothing to do.
+    mutating func keepFocusOutWhileActive() -> [Section] {
+        var changed: [Section] = []
+        for index in extraItems.indices where extraItems[index].kind == .focus {
+            let key = ItemID.status(bundle: PelmetBundle.mainID, title: extraItems[index].itemTitle).sectionKey
+            let section = sectionModel.section(of: key)
+            guard section != .visible, extraItems[index].resolvedShowRule != .whenActive else { continue }
+            extraItems[index].showRule = .whenActive
+            changed.append(section)
+        }
+        return changed
+    }
+}
+
 /// Whether a rule on one of Apple's icons has anything to do. A rule that
 /// can't apply is shown off and its switch disabled; the choice itself is
 /// kept for when it can.

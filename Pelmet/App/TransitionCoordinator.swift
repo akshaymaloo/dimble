@@ -163,6 +163,40 @@ final class TransitionCoordinator {
         scheduleRevealCoverPrecapture(afterConceal: false)
     }
 
+    /// Battery and Wi-Fi a show rule keeps on the bar (#86), as last sent to
+    /// the engine.
+    private var ruleShown: Set<ItemID> = []
+    /// Those out on their own, their section concealed: like an icon Show in
+    /// Menu Bar has out, they are on the "empty" bar the pass and the
+    /// finished picture would be taken against.
+    private var ruleShownOut: Bool {
+        guard let model = appState?.settings.sectionModel else { return false }
+        return ruleShown.contains { model.section(of: $0) != .visible }
+    }
+
+    /// A show rule put an icon on the bar or took it back. Both pictures
+    /// hold the bar as it was (a ghost Battery in every reveal and clock
+    /// cover, or Battery blinking out, until the retake up to 15 minutes
+    /// later): drop them, converge, and retake the idle one on the new bar.
+    func showRuleChanged(_ items: Set<ItemID>) {
+        guard items != ruleShown else {
+            Task { await engine.setRuleShown(items) }
+            return
+        }
+        ruleShown = items
+        let concealed = appState?.currentRevealedSections.isEmpty ?? false
+        PelmetLog.log("cover: a show rule changed the bar (\(items.map(\.rawValue).sorted())) — pictures dropped\(concealed ? ", retaking" : "")")
+        revealCoverSnapshot = []
+        revealCoverTakenRect = nil
+        revealCoverWanted = concealed
+        parkedCover = nil
+        revealedStripSnapshot = []; revealedStripBackground = []; revealedStripKeep = nil
+        Task {
+            await engine.setRuleShown(items)
+            if appState?.currentRevealedSections.isEmpty == true { scheduleRevealCoverPrecapture() }
+        }
+    }
+
     /// An item press (ItemPress) has an icon revealed on its own, or the «
     /// expanded, while the rehide machine still reads "concealed": the bar is
     /// not the empty bar the idle picture is of. A picture taken meanwhile
@@ -1172,10 +1206,11 @@ final class TransitionCoordinator {
                 try? await Task.sleep(for: AppTiming.precaptureGhostClearance)
             }
             guard !Task.isCancelled, appState.currentRevealedSections == [.hidden] else { return }
-            // An icon Show in Menu Bar has out on top of the section would be
-            // in the picture, and the next reveal would flash it.
-            guard appState.itemsInBar.isEmpty else {
-                PelmetLog.log("finished: an icon is out on the bar, no picture at settle")
+            // An icon Show in Menu Bar (or a show rule) has out on top of the
+            // section would be in the picture, and the next reveal would
+            // flash it.
+            guard appState.itemsInBar.isEmpty, !ruleShownOut else {
+                PelmetLog.log("finished: an icon is out on the bar\(ruleShownOut ? " on a show rule" : ""), no picture at settle")
                 return
             }
             await takeRevealedStripPicture(reason: "settle")
@@ -1367,10 +1402,10 @@ extension TransitionCoordinator {
             PelmetLog.log("pass: bar is revealed, skipped")
             return nil
         }
-        // An icon Show in Menu Bar has out is on the "empty" bar the pass
-        // films its crops against.
-        guard appState.itemsInBar.isEmpty else {
-            PelmetLog.log("pass: an icon is out on the bar, skipped")
+        // An icon Show in Menu Bar (or a show rule) has out is on the
+        // "empty" bar the pass films its crops against.
+        guard appState.itemsInBar.isEmpty, !ruleShownOut else {
+            PelmetLog.log("pass: an icon is out on the bar\(ruleShownOut ? " on a show rule" : ""), skipped")
             return nil
         }
         guard !passInFlight else {

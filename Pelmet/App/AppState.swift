@@ -281,9 +281,12 @@ final class AppState {
         }
 
         // One-shot (#86): the "while active" rule of Focus and Time Machine
-        // used to take the icon away when idle; now it only brings it out. Every bar stays as it was: one in Visible moves to Hidden,
-        // where it still shows only while active, and one already hidden
-        // drops the rule, so it doesn't start coming out on its own.
+        // used to take the icon away when idle; now it only brings it out.
+        // One in Visible moves to Hidden, where it still shows while active.
+        // A hidden Time Machine showed only while backing up AND revealed,
+        // so it drops the rule and doesn't start coming out on its own. A
+        // hidden Focus came out on its own while on: dropping its rule
+        // inverted that, which the Focus one-shot below puts back.
         if !UserDefaults.standard.bool(forKey: "pelmet.migratedShowRuleMeaning") {
             for index in settings.extraItems.indices {
                 let spec = settings.extraItems[index]
@@ -297,6 +300,19 @@ final class AppState {
                 PelmetLog.log("start: \(spec.itemTitle) rule now only brings it out, \(settings.sectionModel.section(of: key)) \(settings.extraItems[index].resolvedShowRule)")
             }
             UserDefaults.standard.set(true, forKey: "pelmet.migratedShowRuleMeaning")
+        }
+
+        // One-shot (review REM-1, Gab: "keep their bars"): 0.3.1's Focus came
+        // out while a Focus was on from any section, and beta.5's migration
+        // above flipped a hidden one to never. Every hidden Focus gets
+        // "While a Focus is on" back; new installs keep the opt-in default.
+        if !UserDefaults.standard.bool(forKey: "pelmet.migratedFocusKeepsBar032") {
+            let changed = settings.keepFocusOutWhileActive()
+            if !changed.isEmpty { settings.save() }
+            UserDefaults.standard.set(true, forKey: "pelmet.migratedFocusKeepsBar032")
+            PelmetLog.log(changed.isEmpty
+                ? "migrate: focus keeps its bar — nothing to change"
+                : "migrate: focus keeps its bar — Focus in \(changed.map(\.rawValue)) now shows while a Focus is on (whenActive)")
         }
 
         // An icon's shortcut on ⌘A/C/V/X/Z or ⇧⌘Z took that edit from every
@@ -764,8 +780,9 @@ final class AppState {
             updateSnapshot(await engine.snapshot())
             // Startup state: everything the model says is hidden, is hidden.
             dispatch(rehide.handle(.concealRequested))
-            showRules = ShowRules { [engine] items in
-                Task { await engine.setRuleShown(items) }
+            // Through the coordinator: the pictures hold the bar as it was.
+            showRules = ShowRules { [transitions] items in
+                transitions.showRuleChanged(items)
             }
             showRules?.update(settings.showRules)
             transitions.warmAfterBoot(from: launchSnapshot)

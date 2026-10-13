@@ -45,6 +45,35 @@ struct ShowRuleSettingsTests {
         #expect(partial.wifiOn && !partial.batteryOn)
     }
 
+    // An upgrade keeps 0.3.1's Focus: out on the bar while a Focus is on,
+    // from Hidden or Always Hidden. Visible and other kinds are left alone.
+    @Test func focusMigrationKeepsItOutWhileActive() {
+        var settings = SettingsStore()
+        let focus = ExtraItemSpec(kind: .focus)
+        let timeMachine = ExtraItemSpec(kind: .timeMachine)
+        settings.extraItems = [focus, timeMachine]
+        let key = ItemID.status(bundle: PelmetBundle.mainID, title: focus.itemTitle)
+        let tmKey = ItemID.status(bundle: PelmetBundle.mainID, title: timeMachine.itemTitle)
+
+        // Visible: on the bar either way, nothing to change.
+        #expect(settings.keepFocusOutWhileActive().isEmpty)
+        #expect(settings.extraItems[0].showRule == nil)
+
+        settings.sectionModel.enroll(key, in: .alwaysHidden)
+        settings.sectionModel.enroll(tmKey, in: .hidden)
+        #expect(settings.keepFocusOutWhileActive() == [.alwaysHidden])
+        #expect(settings.extraItems[0].resolvedShowRule == .whenActive)
+        #expect(settings.extraItems[1].showRule == nil)
+        // Already out while active: a second run has nothing to do.
+        #expect(settings.keepFocusOutWhileActive().isEmpty)
+
+        // A rule the old migration dropped to "always" comes back.
+        settings.extraItems[0].showRule = .always
+        settings.sectionModel.enroll(key, in: .hidden)
+        #expect(settings.keepFocusOutWhileActive() == [.hidden])
+        #expect(settings.extraItems[0].showRule == .whenActive)
+    }
+
     // Switching the rule off keeps the condition for the next time.
     @Test func conditionSurvivesSwitchingOff() {
         var rules = ShowRuleSettings()
