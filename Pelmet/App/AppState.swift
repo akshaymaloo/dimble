@@ -2820,12 +2820,13 @@ final class AppState {
         for section in settled { edits.clearOrder(for: section) }
         settings.orderEdits = edits
         PelmetLog.log("editor: drawing matches the bar again — edit cleared (\(settled.map { "\($0)" }.sorted().joined(separator: ", ")))")
-        // "N not moved" spoke of edits that are gone now: it goes with them.
-        if let report = applyReport {
-            let notMoved = Set(report.failed.map(\.sectionKey)
-                + report.skipped.filter { $0.why == .notOnScreen }.map(\.item.sectionKey))
-            let pending = Set(edits.order.values.joined())
-            if !notMoved.isDisjoint(with: cleared), notMoved.isDisjoint(with: pending) { applyReport = nil }
+        // What the report said of icons whose edits are gone goes with them;
+        // the rest (a stray that failed elsewhere) keeps its "not moved" and
+        // its Retry.
+        if var report = applyReport {
+            report.failed.removeAll { cleared.contains($0.sectionKey) }
+            report.skipped.removeAll { cleared.contains($0.item.sectionKey) }
+            if report != applyReport { applyReport = report }
         }
     }
 
