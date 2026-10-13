@@ -81,6 +81,25 @@ import Testing
         ) == [.hidden])
     }
 
+    @Test func anOwnExtraDrawnBackWhereItStartedSettlesWhileConcealed() {
+        let shortcuts = ItemID(rawValue: "status:\(PelmetBundle.mainID)::Pelmet.Shortcuts")
+        let members: [ItemID: Section] = [a: .hidden, b: .hidden, shortcuts: .hidden]
+        // Dragged out and back to its slot: no edit, no reveal needed.
+        let back = OrderEdits(order: [.hidden: [a, shortcuts, b]], previousOrder: [.hidden: [a, shortcuts, b]])
+        #expect(OrderEditSettle.settledSections(
+            back, bar: [a, b], live: [], concealed: [a, b], ownExtras: [shortcuts], roster: Roster(members: members)
+        ) == [.hidden])
+        // Moved for real, it waits for the pass.
+        let moved = OrderEdits(order: [.hidden: [a, shortcuts, b]], previousOrder: [.hidden: [shortcuts, a, b]])
+        #expect(OrderEditSettle.settledSections(
+            moved, bar: [a, b], live: [], concealed: [a, b], ownExtras: [shortcuts], roster: Roster(members: members)
+        ).isEmpty)
+        // So does a framed icon the bar has out of the drawn order.
+        #expect(OrderEditSettle.settledSections(
+            back, bar: [b, a], live: [], concealed: [a, b], ownExtras: [shortcuts], roster: Roster(members: members)
+        ).isEmpty)
+    }
+
     @Test func anOwnExtraDroppedBetweenSectionsWaitsForThePassEvenUnseen() {
         let shortcuts = ItemID(rawValue: "status:\(PelmetBundle.mainID)::Pelmet.Shortcuts")
         let members: [ItemID: Section] = [a: .hidden, b: .hidden, shortcuts: .hidden]

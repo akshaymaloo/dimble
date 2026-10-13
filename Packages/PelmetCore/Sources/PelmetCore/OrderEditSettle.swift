@@ -65,8 +65,17 @@ public enum OrderEditSettle {
             // compared nothing with nothing and cleared, and Apply never lit
             // (Always Hidden, 2026-10-13; Velja, Pure Paste, Unclutter,
             // DBngin, 2026-09-21; Battery, Wi-Fi, 2026-10-12).
-            guard drawnSet.isSubset(of: Set(placed)) else { continue }
-            if placed.filter(drawnSet.contains) == drawn { settled.insert(section) }
+            // An extra its concealed section hides has no frame but holds its
+            // model slot: drawn back to the order the edit started from
+            // (dragged out and back), it is no edit, where waiting for a
+            // frame lit Apply until the next reveal (review, 2026-10-13).
+            let unplaced = drawnSet.subtracting(placed)
+            if !unplaced.isEmpty {
+                guard unplaced.isSubset(of: ownExtras),
+                      edits.previousOrder[section]?.filter({ onBar.contains($0.sectionKey) }) == drawn
+                else { continue }
+            }
+            if placed.filter(drawnSet.contains) == drawn.filter({ !unplaced.contains($0) }) { settled.insert(section) }
         }
         return settled
     }
