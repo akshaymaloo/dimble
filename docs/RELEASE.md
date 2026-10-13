@@ -47,8 +47,10 @@ Everything below the one-time setup is: bump version → run script → publish.
    `CFBundleVersion`, so it must strictly increase) in `project.yml`.
 2. `scripts/release.sh` — archives, exports with Developer ID, notarizes +
    staples app and DMG, writes `build/releases/Pelmet-<v>.dmg` + `appcast.xml`.
-3. Tag and publish: create GitHub release `v<version>` with the DMG attached.
-4. Push `appcast.xml` (and `*.delta` files if any) to `gh-pages`. Commit it
+3. Tag and publish: create GitHub release `v<version>` with the DMG and the
+   `*.delta` files attached (release.sh points each delta at its build's
+   release tag, never at gh-pages).
+4. Push `appcast.xml` to `gh-pages`. Commit it
    with the repo's own identity — a scratch clone picks up the global git
    config, and a push authored with the gmail address is rejected by the
    account's email-privacy setting:
