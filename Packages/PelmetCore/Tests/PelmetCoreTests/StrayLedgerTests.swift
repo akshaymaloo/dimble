@@ -38,6 +38,23 @@ import Testing
         #expect(ledger.actionable([a]) == [a])
     }
 
+    @Test func aRelaunchMetOffTheBarIsKeptUntilALookPlacesIt() {
+        var ledger = StrayLedger()
+        ledger.observe([look(a, .left, .hidden, pid: 1)])
+        // Back as a new process, not framed yet: no side, no settling.
+        ledger.observe([look(a, nil, .hidden, pid: 2)])
+        #expect(ledger.standing(of: a) == .actionable)
+        // Framed on the wrong side by the same process: still explained.
+        ledger.observe([look(a, .right, .hidden, pid: 2)], strays: [a])
+        #expect(ledger.actionable([a]) == [a])
+        // In place: settled.
+        var inPlace = StrayLedger()
+        inPlace.observe([look(a, .left, .hidden, pid: 1)])
+        inPlace.observe([look(a, nil, .hidden, pid: 2)])
+        inPlace.observe([look(a, .left, .hidden, pid: 2)])
+        #expect(inPlace.standing(of: a) == .settled)
+    }
+
     @Test func aDropAcrossSectionsIsActionableWhileTheSideStays() {
         var ledger = StrayLedger()
         ledger.observe([look(a, .left, .hidden)])

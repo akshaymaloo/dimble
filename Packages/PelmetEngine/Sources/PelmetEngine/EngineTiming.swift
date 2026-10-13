@@ -23,6 +23,15 @@ enum EngineTiming {
     static let emptyAXRetries = 6
     static let emptyAXRetryDelay: Duration = .milliseconds(500)
     static let emptyAXSlowRetryDelay: Duration = .seconds(2)
+    /// The slow retry doubles up to this: a bar that stays unreadable (a
+    /// desktop's display asleep overnight) costs a walk a minute, where 2s
+    /// flat was ≈14k walks a night.
+    static let emptyAXSlowRetryMax: Duration = .seconds(60)
+
+    /// The slow retry's delay after `previous` (nil: the first slow one).
+    static func emptyAXSlowRetry(after previous: Duration?) -> Duration {
+        previous.map { min($0 * 2, emptyAXSlowRetryMax) } ?? emptyAXSlowRetryDelay
+    }
     /// Ignore teardown signals inside this window after a swap (AX drop-out lag).
     static let teardownSettleWindow: TimeInterval = 3
     /// Assertion activation completion: deadline for a dud completion

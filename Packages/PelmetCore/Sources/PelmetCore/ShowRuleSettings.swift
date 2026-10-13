@@ -48,13 +48,10 @@ public struct ShowRuleSettings: Codable, Equatable, Sendable {
     // value, falls back to the default for that field alone.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        func field<T: Decodable>(_ type: T.Type, _ key: CodingKeys, _ fallback: T) -> T {
-            ((try? c.decodeIfPresent(type, forKey: key)) ?? nil) ?? fallback
-        }
         let defaults = ShowRuleSettings()
-        batteryOn = field(Bool.self, .batteryOn, defaults.batteryOn)
-        batteryCondition = field(BatteryShowCondition.self, .batteryCondition, defaults.batteryCondition)
-        wifiOn = field(Bool.self, .wifiOn, defaults.wifiOn)
+        batteryOn = c.field(Bool.self, .batteryOn, defaults.batteryOn)
+        batteryCondition = c.field(BatteryShowCondition.self, .batteryCondition, defaults.batteryCondition)
+        wifiOn = c.field(Bool.self, .wifiOn, defaults.wifiOn)
     }
 }
 

@@ -101,7 +101,10 @@ public struct StrayLedger: Equatable, Sendable {
             // An explanation is only good while the icon is out of place: one
             // in place is settled, so a later arrival from another display
             // (a drop BarAdoption could not read) is not mistaken for one.
-            if standing == .actionable, !strays.contains(s.id) { standing = .settled }
+            // Only a look that places it can say so: a relaunched icon not
+            // framed yet kept no explanation, and framed on the wrong side a
+            // look later (nil → side is no flip) it stayed there.
+            if standing == .actionable, s.side != nil, !strays.contains(s.id) { standing = .settled }
             next[s.id] = Record(side: s.side, section: s.section, pid: s.pid ?? prev.pid, standing: standing)
         }
         records = next

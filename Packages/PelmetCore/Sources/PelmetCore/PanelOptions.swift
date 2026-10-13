@@ -72,23 +72,20 @@ public struct PanelOptions: Codable, Equatable, Sendable {
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let defaults = PanelOptions()
-        // `try?` per field for the same reason as SettingsStore: a present but
-        // invalid value (an unknown mode from a newer build) throws out of
-        // decodeIfPresent, and it must reset that field, not the whole panel.
-        func field<T: Decodable>(_ type: T.Type, _ key: CodingKeys, _ fallback: T) -> T {
-            ((try? c.decodeIfPresent(type, forKey: key)) ?? nil) ?? fallback
-        }
+        // Per field, like the store (`KeyedDecodingContainer.field`): a present
+        // but invalid value (an unknown mode from a newer build) must reset
+        // that field, not the whole panel.
         func count(_ key: CodingKeys) -> Int? {
-            ((try? c.decodeIfPresent(Int.self, forKey: key)) ?? nil)
+            c.field(Int?.self, key, nil)
                 .map { min(max($0, Self.columnRange.lowerBound), Self.columnRange.upperBound) }
         }
-        showsNames = field(Bool.self, .showsNames, defaults.showsNames)
+        showsNames = c.field(Bool.self, .showsNames, defaults.showsNames)
         columnsWithNames = count(.columnsWithNames)
         columnsCompact = count(.columnsCompact)
-        separatorsBreakRows = field(Bool.self, .separatorsBreakRows, defaults.separatorsBreakRows)
-        alwaysHidden = field(AlwaysHiddenMode.self, .alwaysHidden, defaults.alwaysHidden)
-        alwaysHiddenOpen = field(Bool.self, .alwaysHiddenOpen, defaults.alwaysHiddenOpen)
-        alwaysHiddenFold = field(AlwaysHiddenFold.self, .alwaysHiddenFold, defaults.alwaysHiddenFold)
-        showsClosedApps = field(Bool.self, .showsClosedApps, defaults.showsClosedApps)
+        separatorsBreakRows = c.field(Bool.self, .separatorsBreakRows, defaults.separatorsBreakRows)
+        alwaysHidden = c.field(AlwaysHiddenMode.self, .alwaysHidden, defaults.alwaysHidden)
+        alwaysHiddenOpen = c.field(Bool.self, .alwaysHiddenOpen, defaults.alwaysHiddenOpen)
+        alwaysHiddenFold = c.field(AlwaysHiddenFold.self, .alwaysHiddenFold, defaults.alwaysHiddenFold)
+        showsClosedApps = c.field(Bool.self, .showsClosedApps, defaults.showsClosedApps)
     }
 }

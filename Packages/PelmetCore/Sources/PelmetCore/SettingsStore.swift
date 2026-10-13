@@ -37,7 +37,10 @@ public struct HotkeySpec: Codable, Equatable, Sendable {
     public static let searchDefault = HotkeySpec(keyCode: 0x28, modifiers: 0x900, display: "⌥⌘K")
     /// A shortcut the user turned off (#79: Pelmet's combos clashed with
     /// Keyboard Maestro). A value, not nil: a missing or null field still
-    /// decodes to the default, and no key has this code.
+    /// decodes to the default, and no key has this code. A build from before
+    /// it (0.3.1) reads it as a real key code: a manual downgrade shows a
+    /// blank shortcut "held by another app". Accepted, Sparkle never
+    /// downgrades (review PKG-6).
     public static let off = HotkeySpec(keyCode: .max, modifiers: 0)
     public var isOff: Bool { keyCode == Self.off.keyCode }
 
@@ -500,44 +503,39 @@ public struct SettingsStore: Codable, Equatable, Sendable {
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let defaults = SettingsStore()
-        // `try?` per field, not just decodeIfPresent: a present-but-invalid
-        // value (unknown enum case after a downgrade, hand-edited blob) throws
-        // out of decodeIfPresent, and one bad field must reset THAT field —
-        // not silently nuke every preference via load()'s outer `try?`.
-        func field<T: Decodable>(_ type: T.Type, _ key: CodingKeys, _ fallback: T) -> T {
-            ((try? c.decodeIfPresent(type, forKey: key)) ?? nil) ?? fallback
-        }
-        onboardingCompleted = field(Bool.self, .onboardingCompleted, defaults.onboardingCompleted)
-        launchAtLogin = field(Bool.self, .launchAtLogin, defaults.launchAtLogin)
-        showStatusItem = field(Bool.self, .showStatusItem, defaults.showStatusItem)
-        hotkey = field(HotkeySpec?.self, .hotkey, defaults.hotkey) ?? defaults.hotkey
-        settingsHotkey = field(HotkeySpec?.self, .settingsHotkey, defaults.settingsHotkey) ?? defaults.settingsHotkey
-        alwaysHiddenHotkey = field(HotkeySpec?.self, .alwaysHiddenHotkey, defaults.alwaysHiddenHotkey) ?? defaults.alwaysHiddenHotkey
-        searchHotkey = field(HotkeySpec?.self, .searchHotkey, defaults.searchHotkey) ?? defaults.searchHotkey
-        itemHotkeys = field([String: HotkeySpec].self, .itemHotkeys, defaults.itemHotkeys)
-        itemAliases = field([String: String].self, .itemAliases, defaults.itemAliases)
-        revealTriggers = field(RevealTriggers.self, .revealTriggers, defaults.revealTriggers)
-        autoRehide = field(Bool.self, .autoRehide, defaults.autoRehide)
-        rehideDelay = field(TimeInterval.self, .rehideDelay, defaults.rehideDelay)
-        rehideOnClickElsewhere = field(Bool.self, .rehideOnClickElsewhere, defaults.rehideOnClickElsewhere)
-        revealAnimation = field(RevealAnimation.self, .revealAnimation, defaults.revealAnimation)
-        hideSystemExtras = field(Bool.self, .hideSystemExtras, defaults.hideSystemExtras)
-        showMediaControls = field(Bool.self, .showMediaControls, defaults.showMediaControls)
-        extraItems = field([ExtraItemSpec].self, .extraItems, defaults.extraItems)
-        sectionModel = field(SectionModel.self, .sectionModel, defaults.sectionModel)
-        separators = field([SeparatorSpec].self, .separators, defaults.separators)
-        displayTemplate = field(DisplayBehavior.self, .displayTemplate, defaults.displayTemplate)
-        displayOverrides = field([String: DisplayBehavior].self, .displayOverrides, defaults.displayOverrides)
-        notifyOnUpdates = field(Bool.self, .notifyOnUpdates, defaults.notifyOnUpdates)
-        betaUpdates = field(Bool.self, .betaUpdates, defaults.betaUpdates)
-        barRightClickMenu = field(Bool.self, .barRightClickMenu, defaults.barRightClickMenu)
-        statusIconStyle = field(StatusIconStyle.self, .statusIconStyle, defaults.statusIconStyle)
-        clockClickOpensNotificationCenter = field(Bool.self, .clockClickOpensNotificationCenter, defaults.clockClickOpensNotificationCenter)
-        notificationCenterHotkey = field(HotkeySpec?.self, .notificationCenterHotkey, defaults.notificationCenterHotkey) ?? defaults.notificationCenterHotkey
-        orderEdits = field(OrderEdits.self, .orderEdits, defaults.orderEdits)
-        hiddenIconsIn = field(RevealTarget.self, .hiddenIconsIn, defaults.hiddenIconsIn)
-        panel = field(PanelOptions.self, .panel, defaults.panel)
-        showRules = field(ShowRuleSettings.self, .showRules, defaults.showRules)
+        // Per field (`KeyedDecodingContainer.field`): one bad field resets
+        // THAT field, not every preference via load()'s outer `try?`.
+        onboardingCompleted = c.field(Bool.self, .onboardingCompleted, defaults.onboardingCompleted)
+        launchAtLogin = c.field(Bool.self, .launchAtLogin, defaults.launchAtLogin)
+        showStatusItem = c.field(Bool.self, .showStatusItem, defaults.showStatusItem)
+        hotkey = c.field(HotkeySpec?.self, .hotkey, defaults.hotkey) ?? defaults.hotkey
+        settingsHotkey = c.field(HotkeySpec?.self, .settingsHotkey, defaults.settingsHotkey) ?? defaults.settingsHotkey
+        alwaysHiddenHotkey = c.field(HotkeySpec?.self, .alwaysHiddenHotkey, defaults.alwaysHiddenHotkey) ?? defaults.alwaysHiddenHotkey
+        searchHotkey = c.field(HotkeySpec?.self, .searchHotkey, defaults.searchHotkey) ?? defaults.searchHotkey
+        itemHotkeys = c.field([String: HotkeySpec].self, .itemHotkeys, defaults.itemHotkeys)
+        itemAliases = c.field([String: String].self, .itemAliases, defaults.itemAliases)
+        revealTriggers = c.field(RevealTriggers.self, .revealTriggers, defaults.revealTriggers)
+        autoRehide = c.field(Bool.self, .autoRehide, defaults.autoRehide)
+        rehideDelay = c.field(TimeInterval.self, .rehideDelay, defaults.rehideDelay)
+        rehideOnClickElsewhere = c.field(Bool.self, .rehideOnClickElsewhere, defaults.rehideOnClickElsewhere)
+        revealAnimation = c.field(RevealAnimation.self, .revealAnimation, defaults.revealAnimation)
+        hideSystemExtras = c.field(Bool.self, .hideSystemExtras, defaults.hideSystemExtras)
+        showMediaControls = c.field(Bool.self, .showMediaControls, defaults.showMediaControls)
+        extraItems = c.field([ExtraItemSpec].self, .extraItems, defaults.extraItems)
+        sectionModel = c.field(SectionModel.self, .sectionModel, defaults.sectionModel)
+        separators = c.field([SeparatorSpec].self, .separators, defaults.separators)
+        displayTemplate = c.field(DisplayBehavior.self, .displayTemplate, defaults.displayTemplate)
+        displayOverrides = c.field([String: DisplayBehavior].self, .displayOverrides, defaults.displayOverrides)
+        notifyOnUpdates = c.field(Bool.self, .notifyOnUpdates, defaults.notifyOnUpdates)
+        betaUpdates = c.field(Bool.self, .betaUpdates, defaults.betaUpdates)
+        barRightClickMenu = c.field(Bool.self, .barRightClickMenu, defaults.barRightClickMenu)
+        statusIconStyle = c.field(StatusIconStyle.self, .statusIconStyle, defaults.statusIconStyle)
+        clockClickOpensNotificationCenter = c.field(Bool.self, .clockClickOpensNotificationCenter, defaults.clockClickOpensNotificationCenter)
+        notificationCenterHotkey = c.field(HotkeySpec?.self, .notificationCenterHotkey, defaults.notificationCenterHotkey) ?? defaults.notificationCenterHotkey
+        orderEdits = c.field(OrderEdits.self, .orderEdits, defaults.orderEdits)
+        hiddenIconsIn = c.field(RevealTarget.self, .hiddenIconsIn, defaults.hiddenIconsIn)
+        panel = c.field(PanelOptions.self, .panel, defaults.panel)
+        showRules = c.field(ShowRuleSettings.self, .showRules, defaults.showRules)
     }
 
     // MARK: - Persistence
@@ -558,4 +556,15 @@ public struct SettingsStore: Codable, Equatable, Sendable {
     }
 
     public init() {}
+}
+
+extension KeyedDecodingContainer {
+    /// The settings blob's forgiving decode, shared by every type nested in
+    /// it. `try?` per field, not just decodeIfPresent: a present-but-invalid
+    /// value (unknown enum case after a downgrade, hand-edited blob) throws
+    /// out of decodeIfPresent, and one bad field must fall back to `fallback`
+    /// for that field alone, not throw the whole value out.
+    func field<T: Decodable>(_ type: T.Type, _ key: Key, _ fallback: T) -> T {
+        ((try? decodeIfPresent(type, forKey: key)) ?? nil) ?? fallback
+    }
 }

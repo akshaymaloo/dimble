@@ -137,12 +137,22 @@ public actor AgentBarEngine: MenuBarEngine {
     private var emptyAXRetriesRemaining = EngineTiming.emptyAXRetries
     /// Past the fast retries, a slow one keeps coming until the bar reads:
     /// nothing else walks at rest, and the bounded retries alone left a
-    /// fresh launch un-hidden until the next hover (2026-10-08, 17s).
-    private var emptyAXSlow = false
+    /// fresh launch un-hidden until the next hover (2026-10-08, 17s). Its
+    /// delay backs off (`EngineTiming.emptyAXSlowRetry`); nil until the
+    /// fast ones run out.
+    private var emptyAXSlowDelay: Duration?
     /// The one pending retry, so converges that walk empty for other
     /// reasons don't each start a chain of their own.
     private var emptyAXRetry: Task<Void, Never>?
     private var emptyAXSince: Date?
+    /// Retries stopped for a locked or switched-out session: nothing reads
+    /// until it is back, and the unlock (or a wake) starts them over.
+    private var emptyAXPaused = false
+    /// Away by loginwindow's and the workspace's notifications. Retries stop
+    /// only when this and the session dictionary agree, so a stale read on
+    /// either side of an unlock can't leave them stopped for good.
+    private var sessionAway = false
+    private var sessionObservers: [(NotificationCenter, any NSObjectProtocol)] = []
 
     /// Timings of the most recent converge that ran to a decision (PerfTrace
     /// reads it right after `reveal`/`conceal` return).
@@ -164,6 +174,7 @@ public actor AgentBarEngine: MenuBarEngine {
     public func start() async {
         guard !started else { return }
         started = true
+        observeSession()
         _ = await refreshSnapshot()
     }
 
@@ -172,6 +183,8 @@ public actor AgentBarEngine: MenuBarEngine {
     /// stays true so a later `start()` is a no-op instead of running with a
     /// dead stream.
     public func stop() async {
+        for (center, token) in sessionObservers { center.removeObserver(token) }
+        sessionObservers = []
         invalidateAssertion()
         // Ends any `for await` over `events` instead of hanging it forever.
         eventContinuation.finish()
@@ -399,7 +412,8 @@ public actor AgentBarEngine: MenuBarEngine {
             emptyAXSince = nil
         }
         emptyAXRetriesRemaining = EngineTiming.emptyAXRetries
-        emptyAXSlow = false
+        emptyAXSlowDelay = nil
+        emptyAXPaused = false
         // Running-app set: consulted by the stale prune below (quit apps) and
         // the allowlist build. Fetched once, up front.
         phase = Date()
@@ -459,26 +473,91 @@ public actor AgentBarEngine: MenuBarEngine {
     /// followed by a second animated swap when AX populates. Defer with fast
     /// retries, then slow ones until a walk reads: nothing else walks at
     /// rest, so a bound left the bar un-hidden until the next interaction.
+    /// The slow ones back off, and stop while the session is locked: a 2s
+    /// retry walked the agent tree all night (≈14k walks).
     private func deferEmptyWalkRetry() {
         if emptyAXSince == nil { emptyAXSince = Date() }
         guard emptyAXRetry == nil else { return }
+        if sessionAway, Self.sessionDictionarySaysAway {
+            if !emptyAXPaused {
+                emptyAXPaused = true
+                PelmetLog.log("converge: AX walk empty, screen locked — retries stop until unlock or wake")
+            }
+            return
+        }
         let delay: Duration
         if emptyAXRetriesRemaining > 0 {
             PelmetLog.log("converge: AX walk empty — deferring (retries left \(emptyAXRetriesRemaining))")
             emptyAXRetriesRemaining -= 1
             delay = EngineTiming.emptyAXRetryDelay
         } else {
-            if !emptyAXSlow {
-                emptyAXSlow = true
-                PelmetLog.log("converge: AX walk still empty — retrying every \(EngineTiming.emptyAXSlowRetryDelay) until the bar reads")
+            delay = EngineTiming.emptyAXSlowRetry(after: emptyAXSlowDelay)
+            if emptyAXSlowDelay == nil {
+                PelmetLog.log("converge: AX walk still empty — retrying every \(delay), backing off to \(EngineTiming.emptyAXSlowRetryMax), until the bar reads")
+            } else if delay != emptyAXSlowDelay {
+                PelmetLog.log("converge: AX walk still empty — backing off to \(delay)")
             }
-            delay = EngineTiming.emptyAXSlowRetryDelay
+            emptyAXSlowDelay = delay
         }
         emptyAXRetry = Task {
             try? await Task.sleep(for: delay)
+            // Cancelled by a restart that converges itself.
+            guard !Task.isCancelled else { return }
             self.emptyAXRetry = nil
             await self.converge()
         }
+    }
+
+    // MARK: - Session (empty-walk retries)
+
+    /// Lock, unlock, fast user switching and wake: the empty-walk retries
+    /// stop while the session is away and start over when it is back.
+    private func observeSession() {
+        sessionAway = Self.sessionDictionarySaysAway
+        func on(
+            _ center: NotificationCenter, _ name: Notification.Name,
+            _ handle: @escaping @Sendable (AgentBarEngine) async -> Void
+        ) {
+            let token = center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                guard let self else { return }
+                Task { await handle(self) }
+            }
+            sessionObservers.append((center, token))
+        }
+        let distributed = DistributedNotificationCenter.default()
+        let workspace = NSWorkspace.shared.notificationCenter
+        on(distributed, Notification.Name("com.apple.screenIsLocked")) { await $0.sessionAwayChanged(true, "screen locked") }
+        on(distributed, Notification.Name("com.apple.screenIsUnlocked")) { await $0.sessionAwayChanged(false, "screen unlocked") }
+        on(workspace, NSWorkspace.sessionDidResignActiveNotification) { await $0.sessionAwayChanged(true, "session switched out") }
+        on(workspace, NSWorkspace.sessionDidBecomeActiveNotification) { await $0.sessionAwayChanged(false, "session back") }
+        on(workspace, NSWorkspace.didWakeNotification) { await $0.restartEmptyWalkRetries("wake") }
+        on(workspace, NSWorkspace.screensDidWakeNotification) { await $0.restartEmptyWalkRetries("displays woke") }
+    }
+
+    private func sessionAwayChanged(_ away: Bool, _ reason: String) async {
+        sessionAway = away
+        if !away { await restartEmptyWalkRetries(reason) }
+    }
+
+    /// A chain stopped for the lock, or backed off to a minute, starts over
+    /// with fast retries, so the bar hides as soon as it reads again.
+    private func restartEmptyWalkRetries(_ reason: String) async {
+        guard let since = emptyAXSince else { return }
+        emptyAXRetry?.cancel()
+        emptyAXRetry = nil
+        emptyAXPaused = false
+        emptyAXRetriesRemaining = EngineTiming.emptyAXRetries
+        emptyAXSlowDelay = nil
+        PelmetLog.log("converge: \(reason) after \(Self.ms(since: since))ms of empty walks — retrying")
+        await converge()
+    }
+
+    /// Locked or switched to another user, as the session dictionary has it
+    /// (the same read as the app's Apply gate).
+    private static var sessionDictionarySaysAway: Bool {
+        guard let session = CGSessionCopyCurrentDictionary() as? [String: Any] else { return false }
+        return (session["CGSSessionScreenIsLocked"] as? Bool) == true
+            || (session[kCGSessionOnConsoleKey as String] as? Bool) == false
     }
 
     /// Nothing to hide and extras are allowed back: drop the assertion.
