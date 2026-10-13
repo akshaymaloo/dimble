@@ -2257,11 +2257,18 @@ final class AppState {
         var order = settings.orderEdits.order[section]
             ?? barBasedOrder(in: section, model: settings.sectionModel)
         order.removeAll { $0 == key }
-        if let beforeKey = beforeID?.sectionKey, let index = order.firstIndex(of: beforeKey) {
-            order.insert(key, at: index)
-        } else {
-            order.append(key)
+        var index = beforeID.flatMap { order.firstIndex(of: $0.sectionKey) } ?? order.endIndex
+        // Visible ends in the run macOS keeps at the bar's end (Control
+        // Center, the clock): Apply lands an icon before it whatever the
+        // drawing says (`MovePlan`, trailing pinned), so the drawing says so
+        // too. "Move to Visible" drew it after the clock, a clean pass then
+        // cleared the edit, and the editor kept it there while the bar had
+        // it before Control Center (live test, 2026-10-13).
+        if section == .visible, !isImmovable(key) {
+            let pinnedTail = order.reversed().prefix { isImmovable($0) || ApplyPass.isProtectedSystemItem($0) }.count
+            index = min(index, order.count - pinnedTail)
         }
+        order.insert(key, at: index)
         model.order[section] = order
         settings.sectionModel = model
         // The drop is a drawing, the bar moves at Apply. A between-section
