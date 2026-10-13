@@ -198,4 +198,24 @@ struct MenuBarPolicyTests {
             #expect(!MenuBarGeometry.isInBand(parked, ofDisplay: display))
         }
     }
+
+    @Test func aPressFromAnotherDisplayAimsAtTheCopyOnItsBar() {
+        // #26 with Gab's three displays: BenQ left (top 113pt higher), the
+        // built-in at the origin, the LG right with its top aligned.
+        let builtIn = CGRect(x: 0, y: 0, width: 1800, height: 1169)
+        let benQ = CGRect(x: -2560, y: -113, width: 2560, height: 1440)
+        let lg = CGRect(x: 1800, y: 0, width: 3440, height: 1440)
+        let mainCopy = CGRect(x: 1300, y: 0, width: 36, height: 39)
+        let benQCopy = CGRect(x: -900, y: -113, width: 36, height: 30)
+        let lgCopy = CGRect(x: 4600, y: 0, width: 36, height: 30)
+        let copies = [mainCopy, benQCopy, lgCopy]
+        #expect(MenuBarGeometry.copy(onDisplay: lg, among: copies) == lgCopy)
+        #expect(MenuBarGeometry.copy(onDisplay: benQ, among: copies) == benQCopy)
+        #expect(MenuBarGeometry.copy(onDisplay: builtIn, among: copies) == mainCopy)
+        // A stand-in the walk could not name leaves only the main copy: the
+        // press clicks that one, as before.
+        #expect(MenuBarGeometry.copy(onDisplay: lg, among: [mainCopy]) == nil)
+        // A registration parked off every bar is no display's copy.
+        #expect(MenuBarGeometry.copy(onDisplay: lg, among: [CGRect(x: 4800, y: -164, width: 30, height: 24)]) == nil)
+    }
 }

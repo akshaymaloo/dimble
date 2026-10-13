@@ -1077,9 +1077,11 @@ final class PanelPresenter: RevealPresenter {
         switch tile {
         case .item(let key):
             PelmetLog.log("panel: press \(key.rawValue)")
+            let display = openScreen
             appState.concealNow()
-            // Waits out a pass under way (openItemMenu).
-            appState.openItemMenu(key)
+            // Waits out a pass under way (openItemMenu). Clicked on the
+            // panel's display's bar, so the menu opens there (#26).
+            appState.openItemMenu(key, display: display)
         case .launcher(let bundle):
             PelmetLog.log("panel: launch \(bundle)")
             appState.concealNow()
@@ -1780,10 +1782,11 @@ final class PanelPresenter: RevealPresenter {
         case .item(let key):
             var rows: [PanelMenuRow] = [
                 .action(ItemMenuActions.openMenuTitle) { [weak self] in self?.press(tile) },
-                .action(String(localized: "Open Right-Click Menu")) { [weak appState] in
+                .action(String(localized: "Open Right-Click Menu")) { [weak self, weak appState] in
                     PelmetLog.log("panel: right-click \(key.rawValue)")
+                    let display = self?.openScreen
                     appState?.concealNow()
-                    appState?.openItemMenu(key, button: .secondary)
+                    appState?.openItemMenu(key, button: .secondary, display: display)
                 },
                 .action(ItemMenuActions.showInBarTitle) { [weak appState] in
                     guard let appState else { return }

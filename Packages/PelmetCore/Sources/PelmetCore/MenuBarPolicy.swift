@@ -261,6 +261,16 @@ public enum MenuBarGeometry {
             && frame.midX >= display.minX && frame.midX < display.maxX
     }
 
+    /// An item's copy on `display`'s bar among every copy a walk named (one
+    /// per display's bar), nil when none sits there: a display that draws no
+    /// bar, or a stand-in its app's extras bar could not name. A click on a
+    /// bar opens the item's menu on that bar's display, so a press made from
+    /// a panel on another display clicks this copy and not the main one
+    /// (#26: Vorssaint's menu opened on the built-in, the panel on the LG).
+    public static func copy(onDisplay display: CGRect, among frames: [CGRect]) -> CGRect? {
+        frames.first { isInBand($0, ofDisplay: display) }
+    }
+
     /// In the band AND on the primary display. A display parked beside the
     /// primary with its top aligned puts its bar in the band too, and an
     /// item that overflows on a notched built-in has only those copies in

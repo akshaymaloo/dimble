@@ -906,6 +906,13 @@ public actor AgentBarEngine: MenuBarEngine {
         await refreshSnapshot()
     }
 
+    /// Every copy of each item the last walk named, one per display's bar:
+    /// the snapshot keeps the main display's alone. A press made from
+    /// another display clicks the copy on that display's bar (#26).
+    public func barCopies() async -> [ItemID: [CGRect]] {
+        await enumerator.barCopies()
+    }
+
     public func concealedItemsStillVisible() async -> Bool {
         guard let concealable = activeConcealable, !concealable.isEmpty else { return false }
         let snap = await refreshSnapshot()

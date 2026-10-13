@@ -96,7 +96,10 @@ final class ItemPress {
 
     // MARK: - Entry
 
-    func open(_ id: ItemID, button: Button) {
+    /// `display`: the one the press was made from (the panel's). Its bar's
+    /// copy of the item is clicked, so the menu opens there; nil, or the
+    /// main display, clicks the main display's copy.
+    func open(_ id: ItemID, button: Button, display: CGDirectDisplayID? = nil) {
         let requested = Date()
         let previous = current
         if let previous {
@@ -108,7 +111,7 @@ final class ItemPress {
         let after = previous?.task
         run.task = Task { @MainActor [weak self] in
             await after?.value
-            await self?.relay(id.sectionKey, button: button, requested: requested, run: run)
+            await self?.relay(id.sectionKey, button: button, display: display, requested: requested, run: run)
             if self?.current === run { self?.current = nil }
         }
     }
@@ -117,7 +120,7 @@ final class ItemPress {
 
     /// Locate the item, reveal it alone if it is concealed, click it, wait
     /// its menu out, put it back.
-    private func relay(_ key: ItemID, button: Button, requested: Date, run: Run) async {
+    private func relay(_ key: ItemID, button: Button, display: CGDirectDisplayID?, requested: Date, run: Run) async {
         guard let appState else { return }
         func ms() -> Int { Int(-requested.timeIntervalSinceNow * 1000) }
         // A relay superseded before it started leaves the bar alone: a
@@ -142,12 +145,21 @@ final class ItemPress {
             try? await Task.sleep(for: .milliseconds(30))
         }
         let barSettled = !appState.isTransitioning
+        // A click opens the item's menu on the display whose bar it lands
+        // on, real button or stand-in, as the user's own click there would:
+        // a press made from a panel on another display clicks that bar's
+        // copy (#26: Vorssaint's menu opened on the built-in, the panel on
+        // the LG). The walk keeps the main display's copy.
+        let aimDisplay = display == CGMainDisplayID() ? nil : display
 
         // A walk of its own, never the mirror: it can be 30s old, and a
         // width change since (a growing meter, the camera pill) puts the
         // frames where the click would land on a neighbour.
         var snap = await appState.engine.freshSnapshot()
         var onBar = Self.onBar(key, in: snap)
+        // Where the click lands: `onBar`'s frame, or its copy on the
+        // display the press was made from.
+        var aim = await aimed(key, display: aimDisplay, fallback: onBar?.frame)
         if onBar == nil, key.bundleID == PelmetBundle.mainID {
             // Pelmet's own items hide by their own visibility, not the
             // assertion: out of the AX tree and out of the concealed set
@@ -160,7 +172,11 @@ final class ItemPress {
                 try? await Task.sleep(for: .milliseconds(30))
             }
             await appState.waitUntilQuiesced(interval: 0.15, deadline: 2, poll: .milliseconds(30))
-            if let found = await settledItem(key, run: run) { snap = found.snap; onBar = found.item }
+            if let found = await settledItem(key, display: aimDisplay, run: run) {
+                snap = found.snap
+                onBar = found.item
+                aim = found.aim
+            }
         }
         let concealed = snap.concealed.contains { $0.sectionKey == key }
         guard onBar != nil || concealed else {
@@ -173,6 +189,9 @@ final class ItemPress {
         }
         let revealsItem = onBar == nil
         var trapped = onBar != nil && ApplyPass.trapped(snap, appState: appState).contains(key)
+        // Behind the main bar's « it is reached as it always was: that
+        // bar's « expanded, its copy there clicked.
+        if trapped { aim = onBar?.frame }
         PelmetLog.log("press: \(key.rawValue) (\(button == .secondary ? "secondary" : "primary")) — \(revealsItem ? "concealed, revealed alone" : trapped ? "behind the «" : "on the bar")")
 
         // Only a bar that is about to change needs hiding: an item at rest
@@ -191,16 +210,20 @@ final class ItemPress {
         // Unhighlighted, with nothing of its own open: the item can be
         // pictured as the bar draws it.
         var atRest = false
+        // The click landed on another display's bar than the main one.
+        var clickedElsewhere = false
         if changesBar, !run.yielded {
             if revealsItem {
                 revealed = true
                 await appState.engine.reveal(items: [key])
                 appState.updateSnapshot(await appState.engine.snapshot())
-                let found = await settledItem(key, run: run)
+                let found = await settledItem(key, display: aimDisplay, run: run)
                 target = found?.item
+                aim = found?.aim
                 if let found {
                     snap = found.snap
                     trapped = ApplyPass.trapped(snap, appState: appState).contains(key)
+                    if trapped { aim = target?.frame }
                 }
                 PelmetLog.log("press: \(key.rawValue) revealed at \(ms())ms (\(found?.walks ?? 0) walk(s)\(found?.settled == false ? ", frame still moving" : ""))")
             }
@@ -210,6 +233,7 @@ final class ItemPress {
                 if toggle != nil {
                     if let found = await settledItem(key, run: run) {
                         target = found.item
+                        aim = found.aim
                     } else if !run.yielded, !lastWalkEmpty, barSettled,
                               appState.picturePassSections == nil, !appState.applying {
                         // Expanded, the « hides nothing: an icon its own
@@ -219,6 +243,7 @@ final class ItemPress {
                         // empty walk, a bar still moving or held by a pass
                         // or an Apply says nothing.
                         target = nil
+                        aim = nil
                         await appState.engine.forget(key)
                     }
                 }
@@ -230,7 +255,8 @@ final class ItemPress {
         } else if trapped, toggle == nil {
             // The frame is the « 's phantom: a click there lands on a neighbour.
             PelmetLog.log("press: \(key.rawValue) — behind the « and it would not expand, not clicked, \(ms())ms")
-        } else if let target, let frame = target.frame {
+        } else if let target, let frame = aim {
+            clickedElsewhere = frame != target.frame
             let geometry = Self.geometry()
             let before = await Self.counts(pid: target.pid, geometry: geometry)
             let wasFront = Self.isFrontmost(target.pid)
@@ -238,7 +264,11 @@ final class ItemPress {
                 at: CGPoint(x: frame.midX, y: frame.midY),
                 button: button == .secondary ? .right : .left
             )
-            PelmetLog.log("press: \(key.rawValue) clicked at \(ms())ms\(toggle == nil ? "" : " (« expanded)")")
+            let bar = aimDisplay.map {
+                clickedElsewhere ? ", on display \($0)'s bar"
+                    : ", on the main bar (display \($0)'s \(trapped ? "skipped, behind the «" : "bar named no copy"))"
+            } ?? ""
+            PelmetLog.log("press: \(key.rawValue) clicked at \(ms())ms\(toggle == nil ? "" : " (« expanded)")\(bar)")
             // The reveal and the click are behind the cover; from here the
             // real icon shows, highlighted, with its menu dropping from it.
             if AppTiming.pressCoverLiftsAfterClick, toggle == nil, let lifting = cover {
@@ -266,7 +296,10 @@ final class ItemPress {
             // The panel's picture of it, as it looks now its menu is gone,
             // filmed under the cover. Not at the cap: still open, the item
             // is drawn highlighted.
-            if revealed, toggle == nil, atRest, !run.yielded, let frame = target?.frame, appState.revealTarget.panelLayout != nil {
+            // Not after a click on another display's bar: that bar is the
+            // bright one now, and a picture of the dimmed main bar is dim.
+            if revealed, toggle == nil, atRest, !run.yielded, !clickedElsewhere,
+               let frame = target?.frame, appState.revealTarget.panelLayout != nil {
                 await appState.panelPresenter.repicture(key, frame: frame)
             }
             if let toggle { await OverflowToggle.collapseAfterPass(toggle) }
@@ -378,33 +411,46 @@ final class ItemPress {
             ?? copies.first
     }
 
-    /// The item once its frame has stopped moving: the agent slides a
-    /// revealed icon in, and a click aimed at a frame read mid-slide lands
-    /// beside it. Walks until two in a row agree, bounded by
-    /// `pressFrameCap`; the last frame read stands if it never settles.
-    private func settledItem(_ key: ItemID, run: Run) async -> (item: ObservedItem, snap: EngineSnapshot, walks: Int, settled: Bool)? {
+    /// Where a press made from `display` clicks: the item's copy on that
+    /// display's bar in the last walk, `fallback` (the main display's) when
+    /// there is no display or the walk named no copy there.
+    private func aimed(_ key: ItemID, display: CGDirectDisplayID?, fallback: CGRect?) async -> CGRect? {
+        guard let display, let appState else { return fallback }
+        let frames = await appState.engine.barCopies().filter { $0.key.sectionKey == key }.flatMap(\.value)
+        return MenuBarGeometry.copy(onDisplay: CGDisplayBounds(display), among: frames) ?? fallback
+    }
+
+    /// The item once the frame the click aims at has stopped moving: the
+    /// agent slides a revealed icon in, and a click aimed at a frame read
+    /// mid-slide lands beside it. Walks until two in a row agree, bounded
+    /// by `pressFrameCap`; the last frame read stands if it never settles.
+    /// `aim` is the item's frame, or its copy on `display`'s bar.
+    private func settledItem(
+        _ key: ItemID, display: CGDirectDisplayID? = nil, run: Run
+    ) async -> (item: ObservedItem, snap: EngineSnapshot, aim: CGRect, walks: Int, settled: Bool)? {
         guard let appState else { return nil }
         let by = Date().addingTimeInterval(AppTiming.pressFrameCap)
         let tolerance = AppTiming.pressFrameTolerance
-        var last: (item: ObservedItem, snap: EngineSnapshot)?
+        var last: (item: ObservedItem, snap: EngineSnapshot, aim: CGRect)?
         var walks = 0
         while !run.yielded {
             let snap = await appState.engine.freshSnapshot()
             lastWalkEmpty = snap.items.isEmpty
             walks += 1
-            if let item = Self.onBar(key, in: snap), let frame = item.frame {
-                if let before = last?.item.frame,
-                   abs(before.midX - frame.midX) <= tolerance, abs(before.midY - frame.midY) <= tolerance {
-                    return (item, snap, walks, true)
+            if let item = Self.onBar(key, in: snap), let frame = item.frame,
+               let aim = await aimed(key, display: display, fallback: frame) {
+                if let before = last?.aim,
+                   abs(before.midX - aim.midX) <= tolerance, abs(before.midY - aim.midY) <= tolerance {
+                    return (item, snap, aim, walks, true)
                 }
-                last = (item, snap)
+                last = (item, snap, aim)
             } else {
                 last = nil
             }
             guard Date() < by else { break }
             try? await Task.sleep(for: .milliseconds(30))
         }
-        return last.map { ($0.item, $0.snap, walks, false) }
+        return last.map { ($0.item, $0.snap, $0.aim, walks, false) }
     }
 
     // MARK: - Oracles

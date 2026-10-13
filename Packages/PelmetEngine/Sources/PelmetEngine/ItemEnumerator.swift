@@ -42,6 +42,7 @@ public actor ItemEnumerator {
     /// from the positions plist domain (`status:<bundle>::<title>`); we build
     /// the same shape from the AX tree so both sources agree.
     public func snapshotItems() -> [RawItem] {
+        lastCopies = [:]
         guard let agent = resolveAgent() else {
             noteEmpty("MenuBarAgent not running")
             return []
@@ -54,6 +55,7 @@ public actor ItemEnumerator {
         }
         var byID: [ItemID: RawItem] = [:]
         var order: [ItemID] = []
+        var copies: [ItemID: [CGRect]] = [:]
         // An app's extras bar is the same under every group of it, on every
         // display: read once per walk.
         var extrasByPID: [pid_t: StatusExtras] = [:]
@@ -98,6 +100,7 @@ public actor ItemEnumerator {
                     pid: nil)
             }
             for case let item? in described {
+                copies[item.id, default: []].append(item.frame)
                 if let existing = byID[item.id] {
                     // The same item appears once per display. Prefer the
                     // main-display occurrence so every frame lives in one
@@ -118,9 +121,16 @@ public actor ItemEnumerator {
             }
         }
         let items = order.compactMap { byID[$0] }
+        lastCopies = copies
         noteEmpty(items.isEmpty ? "agent tree has \(windows.count) window(s), no items" : nil)
         return items
     }
+
+    /// Every frame the last walk named each item at, one per display's bar
+    /// (the walk itself keeps the main display's): what a press made from
+    /// another display clicks (#26).
+    private var lastCopies: [ItemID: [CGRect]] = [:]
+    public func barCopies() -> [ItemID: [CGRect]] { lastCopies }
 
     private var lastEmptyReason: String?
     /// Why a walk came back empty, once per reason, and once when the tree

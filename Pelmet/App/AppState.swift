@@ -917,8 +917,9 @@ final class AppState {
     /// Pelmet's own extras run their own action instead of a click.
     /// `.secondary` is the right click. The clock opens Notification Center
     /// the way its shortcut does: a click on it is refused while the
-    /// assertion is held.
-    func openItemMenu(_ id: ItemID, button: ItemPress.Button = .primary) {
+    /// assertion is held. `display`: the one the press was made from (the
+    /// panel's), whose bar's copy is clicked so the menu opens there (#26).
+    func openItemMenu(_ id: ItemID, button: ItemPress.Button = .primary, display: CGDirectDisplayID? = nil) {
         if button == .primary, id.rawValue.hasSuffix("::com.apple.menuextra.clock") {
             openNotificationCenter()
             return
@@ -929,11 +930,11 @@ final class AppState {
             transitions.passWaiterArrived()
             Task {
                 await transitions.awaitPicturePass()
-                press.open(id, button: button)
+                press.open(id, button: button, display: display)
             }
             return
         }
-        press.open(id, button: button)
+        press.open(id, button: button, display: display)
     }
 
     /// Show an item in the bar without clicking it. The icon comes out alone,
