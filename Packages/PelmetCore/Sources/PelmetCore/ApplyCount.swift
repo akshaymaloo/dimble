@@ -41,9 +41,15 @@ public enum ApplyCount {
     /// no move, in the count or the floor: Snib's out-and-back, its frame
     /// forgotten after a pass, read "Apply (2)" beside one real move and
     /// "Apply (1)" once the grouper landed it (live test, 2026-10-13).
+    /// So does a drawn drop the walk has not read since its section was
+    /// concealed or shown (`isUnread`): its frame, live or remembered, is
+    /// from before, and Snib dropped into a concealed Hidden read a plain
+    /// "Apply" until the walk at rest 0.55s later (live test, 2026-10-13
+    /// 19:24:25).
     public static func count(
         _ plan: MovePlan.Plan, edits: OrderEdits, trapped: Set<ItemID>,
-        drawn: (ItemID) -> Bool, concealed: (ItemID) -> Bool
+        drawn: (ItemID) -> Bool, concealed: (ItemID) -> Bool,
+        unread: (ItemID) -> Bool = { _ in false }
     ) -> Count {
         let drawnKeys = Set(edits.order.values.joined())
         let moved = edits.dropped.subtracting(OrderEditSettle.dropsInPlace(edits))
@@ -52,9 +58,29 @@ public enum ApplyCount {
         let behind = unseen.intersection(trapped).subtracting(hidden)
         let total = plan.moves.count + behind.count + hidden.count
         let drawnBehind = trapped.intersection(drawnKeys).filter(drawn)
-        let concealedDrop = moved.intersection(drawnKeys).contains(where: concealed)
+        let concealedDrop = moved.intersection(drawnKeys).contains { concealed($0) || unread($0) }
         let floor = total == 0 && (!drawnBehind.isEmpty || concealedDrop)
         return Count(trapped: behind, concealed: hidden, total: floor ? 1 : total)
+    }
+
+    /// Whether the walk has yet to read `id` the way the bar draws it now,
+    /// so its frame says nothing of its slot. `drawn` is the bar now
+    /// (`AppState.drawnNow`), `live` the walk's canonical keys, `concealedKeys`
+    /// the walk's concealed set, `atRest` whether the walk read the bar at
+    /// rest. Unread: listed live while its section is concealed (the drop's
+    /// conceal is not swapped yet: Snib and Sound dropped into a concealed
+    /// Hidden read "= 0" for 0.55s, live test, 2026-10-13 19:24:25 and
+    /// 19:26:55), or drawn but missing from the walk while it lists it
+    /// concealed (a reveal not walked yet: Vorssaint, 150ms at 19:32:01) or
+    /// while the walk is inside a reflow (AX lists a revealed strip
+    /// progressively). One drawn, missing from a walk at rest that does not
+    /// list it concealed, has left the bar: read, nothing to wait for.
+    public static func isUnread(
+        _ id: ItemID, drawn: (ItemID) -> Bool, live: Set<ItemID>, concealedKeys: Set<ItemID>, atRest: Bool
+    ) -> Bool {
+        let key = id.sectionKey
+        guard drawn(key) else { return live.contains(key) }
+        return !live.contains(key) && (concealedKeys.contains(key) || !atRest)
     }
 
     /// Whether `id`'s concealed section is what keeps it off the bar right

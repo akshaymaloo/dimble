@@ -2480,7 +2480,7 @@ final class AppState {
         let moves = plan.moves
         let count = ApplyCount.count(
             plan, edits: settings.orderEdits, trapped: ApplyPass.trapped(snapshot, appState: self),
-            drawn: drawnNow(in: snapshot), concealed: concealedNow(in: snapshot)
+            drawn: drawnNow(in: snapshot), concealed: concealedNow(in: snapshot), unread: unreadNow(in: snapshot)
         )
         // Logged on change only (the button reads this every render): which
         // move pads the count when the drop read "Apply (2)" (2026-09-21).
@@ -3502,6 +3502,19 @@ final class AppState {
                 section: { model.section(of: $0) }, revealed: out
             )
         }
+    }
+
+    /// Whether the walk has yet to read `id` where the bar draws it now
+    /// (`ApplyCount.isUnread`): a drop changes its section before the
+    /// converge swaps, and a reveal before its walk lands, so the Apply
+    /// count judged Snib's drop into a concealed Hidden from the walk
+    /// before it and read "= 0" for 0.55s (live test, 2026-10-13 19:24:25).
+    func unreadNow(in snap: EngineSnapshot) -> (ItemID) -> Bool {
+        let drawn = drawnNow(in: snap)
+        let live = Set(snap.items.map(\.id.sectionKey))
+        let concealed = Set(snap.concealed.map(\.sectionKey))
+        let atRest = snap.itemsAtRest
+        return { ApplyCount.isUnread($0, drawn: drawn, live: live, concealedKeys: concealed, atRest: atRest) }
     }
 
     private func noteOverflow(in snap: EngineSnapshot) {

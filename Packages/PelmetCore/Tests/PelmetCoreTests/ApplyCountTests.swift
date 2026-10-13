@@ -200,4 +200,89 @@ import Testing
         #expect(!isConcealed(b, sections: [b: .hidden]))
         #expect(!isConcealed(chevron, sections: [chevron: .hidden]))
     }
+
+    func isUnread(
+        _ id: ItemID, drawn: Bool, live: Set<ItemID> = [], concealedKeys: Set<ItemID> = [], atRest: Bool = true
+    ) -> Bool {
+        ApplyCount.isUnread(id, drawn: { _ in drawn }, live: live, concealedKeys: concealedKeys, atRest: atRest)
+    }
+
+    @Test func aWalkFromBeforeTheSectionChangedHasNotReadTheIcon() {
+        // Dropped into a concealed Hidden, still live in the walk from
+        // before the conceal (live test, 2026-10-13 19:24:25).
+        #expect(isUnread(b, drawn: false, live: [b]))
+        // Concealed and gone from the walk: read (and concealed).
+        #expect(!isUnread(b, drawn: false, concealedKeys: [b]))
+        // Shown by a reveal the walk has not read: listed concealed, missing.
+        #expect(isUnread(b, drawn: true, concealedKeys: [b]))
+        // Missing from a walk inside a reflow.
+        #expect(isUnread(b, drawn: true, atRest: false))
+        // Drawn and live: read.
+        #expect(!isUnread(b, drawn: true, live: [b], concealedKeys: [b], atRest: false))
+        // Drawn, missing from a walk at rest that does not list it
+        // concealed: it left the bar, nothing to wait for.
+        #expect(!isUnread(b, drawn: true))
+        // Canonical keys.
+        #expect(isUnread(ItemID(rawValue: "status:com.b::Item-0"), drawn: false, live: [b]))
+    }
+
+    @Test func aDropTheWalkHasNotReadReadsOne() {
+        // Snib, out in Visible, dropped after Sound at the end of a concealed
+        // Hidden. The walk is from before the conceal: Snib live where it
+        // stood, Sound concealed with its frame forgotten, so the plan finds
+        // nothing and the button read a plain "Apply" for 0.55s, until the
+        // walk at rest (live test, 2026-10-13 19:24:25).
+        let snib = ItemID.bundleKey("app.fif7y.Snib")
+        let roster = Roster(members: [a: .hidden, snib: .hidden, sound: .hidden])
+        let edits = OrderEdits(
+            order: [.hidden: [a, sound, snib]], previousOrder: [.hidden: [a, snib, sound]], dropped: [snib]
+        )
+        let before = MovePlan.compute(bar: [a, snib, chevron, v1], edits: edits, roster: roster, chevron: chevron)
+        #expect(before.moves.isEmpty)
+        let concealed: (ItemID) -> Bool = {
+            isConcealed($0, concealedKeys: [a.sectionKey, sound.sectionKey], sections: [snib: .hidden, sound: .hidden])
+        }
+        #expect(ApplyCount.count(before, edits: edits, trapped: [], drawn: { _ in false }, concealed: concealed).total == 0)
+        let unread: (ItemID) -> Bool = {
+            ApplyCount.isUnread($0, drawn: { _ in false }, live: [snib, chevron, v1], concealedKeys: [a, sound], atRest: true)
+        }
+        #expect(ApplyCount.count(
+            before, edits: edits, trapped: [], drawn: { _ in false }, concealed: concealed, unread: unread
+        ).total == 1)
+        // Dropped back where it was (an out-and-back): still no move, read
+        // or not, so Discard and Apply go out at the drop.
+        let back = OrderEdits(
+            order: [.hidden: [a, snib, sound]], previousOrder: [.hidden: [a, snib, sound]], dropped: [snib]
+        )
+        let plan = MovePlan.compute(bar: [a, snib, chevron, v1], edits: back, roster: roster, chevron: chevron)
+        #expect(ApplyCount.count(
+            plan, edits: back, trapped: [], drawn: { _ in false }, concealed: concealed, unread: unread
+        ).total == 0)
+        // A real move found by the plan stays one.
+        let seen = MovePlan.compute(bar: [a, snib, sound, chevron, v1], edits: edits, roster: roster, chevron: chevron)
+        #expect(ApplyCount.count(
+            seen, edits: edits, trapped: [], drawn: { _ in false }, concealed: concealed, unread: unread
+        ).total == 1)
+    }
+
+    @Test func aDropShownByARevealNotWalkedYetReadsOne() {
+        // Vorssaint dropped before Snib in Hidden, then Hidden revealed: the
+        // walk still lists it concealed and its remembered frame reads in
+        // place, "= 0" for 150ms (live test, 2026-10-13 19:32:01).
+        let utils = ItemID.bundleKey("com.vorssaint.utils")
+        let snib = ItemID.bundleKey("app.fif7y.Snib")
+        let roster = Roster(members: [utils: .hidden, snib: .hidden])
+        let edits = OrderEdits(
+            order: [.hidden: [utils, snib]], previousOrder: [.hidden: [snib, utils]], dropped: [utils]
+        )
+        let stale = MovePlan.compute(bar: [utils, snib, chevron, v1], edits: edits, roster: roster, chevron: chevron)
+        #expect(stale.moves.isEmpty)
+        let unread: (ItemID) -> Bool = {
+            ApplyCount.isUnread($0, drawn: { _ in true }, live: [chevron, v1], concealedKeys: [utils, snib], atRest: true)
+        }
+        #expect(ApplyCount.count(stale, edits: edits, trapped: [], drawn: { _ in true }, concealed: { _ in false }).total == 0)
+        #expect(ApplyCount.count(
+            stale, edits: edits, trapped: [], drawn: { _ in true }, concealed: { _ in false }, unread: unread
+        ).total == 1)
+    }
 }
