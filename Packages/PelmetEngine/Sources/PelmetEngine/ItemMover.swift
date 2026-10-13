@@ -49,6 +49,10 @@ public enum ItemMover {
         shield.activate()
         defer { shield.deactivate() }
 
+        // ⌘ rides the grab and the drag only. Set on the mouse-up too, it
+        // stayed down in the HID state after every Apply (flags read
+        // 0x20100000), and every later click was a ⌘-click (live test,
+        // 2026-10-13): the release below puts it back up.
         func post(_ type: CGEventType, at point: CGPoint) {
             guard let event = CGEvent(
                 mouseEventSource: source,
@@ -56,7 +60,13 @@ public enum ItemMover {
                 mouseCursorPosition: point,
                 mouseButton: .left
             ) else { return }
-            event.flags = .maskCommand
+            event.flags = type == .leftMouseUp ? [] : .maskCommand
+            event.post(tap: .cghidEventTap)
+        }
+        func releaseCommand() {
+            // Left ⌘'s key-up from the same source: a flagsChanged event.
+            guard let event = CGEvent(keyboardEventSource: source, virtualKey: 55, keyDown: false) else { return }
+            event.flags = []
             event.post(tap: .cghidEventTap)
         }
 
@@ -92,6 +102,7 @@ public enum ItemMover {
         }
         try? await Task.sleep(for: .milliseconds(120))
         post(.leftMouseUp, at: to)
+        releaseCommand()
 
         // Warp home while the shield still hides the cursor — it reappears
         // where the user left it, never mid-flight.
