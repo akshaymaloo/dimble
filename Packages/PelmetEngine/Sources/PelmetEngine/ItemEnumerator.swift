@@ -75,23 +75,26 @@ public actor ItemEnumerator {
                     continue
                 }
             }
-            // A stand-in position cannot name stays out of the walk: the
-            // active display's real button still reports the item.
+            // A stand-in neither its place nor its being the app's lone
+            // group can name stays out of the walk: the active display's
+            // real button still reports the item.
             for (pid, groupsOfApp) in standIns {
                 guard let extras = extrasByPID[pid] else { continue }
-                let match = StandInMatch.items(
-                    forGroups: groupsOfApp.map(\.group.frame), items: extras.items.map(\.frame)
+                let titles = Self.standInTitles(
+                    forGroups: groupsOfApp.map(\.group.frame), naming: extras.naming, items: extras.items
                 )
-                for (entry, item) in zip(groupsOfApp, match) {
-                    guard let item else { continue }
-                    described[entry.slot] = entry.group.item(titled: extras.items[item].title)
+                for (entry, title) in zip(groupsOfApp, titles) {
+                    guard let title else { continue }
+                    described[entry.slot] = entry.group.item(titled: title)
                 }
                 let bundle = groupsOfApp[0].group.host.id
-                let unnamed = match.filter { $0 == nil }.count
+                let unnamed = titles.filter { $0 == nil }.count
+                let unread = extras.naming == .unread
                 logOnce(unnamed == 0
-                    ? "enumerate: \(groupsOfApp.count) stand-in(s) of \(bundle) named by position"
-                    : "enumerate: \(unnamed) of \(groupsOfApp.count) stand-in(s) of \(bundle) left unnamed — \(extras.items.count) item(s) on its extras bar"
-                        + (unnamed == groupsOfApp.count && groupsOfApp.count == extras.items.count ? ", places or width gaps disagree" : ""),
+                    ? "enumerate: \(groupsOfApp.count) stand-in(s) of \(bundle) named " + (unread ? "as its one icon, no extras bar to read" : "by position")
+                    : "enumerate: \(unnamed) of \(groupsOfApp.count) stand-in(s) of \(bundle) left unnamed — "
+                        + (unread ? "no extras bar to read" : "\(extras.items.count) item(s) on its extras bar")
+                        + (!unread && unnamed == groupsOfApp.count && groupsOfApp.count == extras.items.count ? ", places or width gaps disagree" : ""),
                     pid: nil)
             }
             for case let item? in described {
@@ -162,7 +165,7 @@ public actor ItemEnumerator {
         case standIn(StandIn)
     }
 
-    /// A stand-in group of an app with several status items.
+    /// A stand-in group its app's extras bar does not name on its own.
     private struct StandIn {
         let frame: CGRect
         let appName: String?
@@ -327,35 +330,48 @@ public actor ItemEnumerator {
 
     /// An app's status items as its extras bar lists them.
     private struct StatusExtras {
-        /// The one title every group of this app takes; nil when the app
-        /// has several items and each group is named by its place
-        /// (`StandInMatch`).
-        let name: String?
-        /// Read only for an app with several items: each item's title (the
-        /// agent tag) and its frame on the active display's bar.
+        let naming: StandInNaming
+        /// Read only for `.byPosition`: each item's title (the agent tag)
+        /// and its frame on the active display's bar.
         let items: [(title: String?, frame: CGRect?)]
+
+        /// The one title every group of this app takes.
+        var name: String? {
+            guard case .named(let name) = naming else { return nil }
+            return name
+        }
+    }
+
+    /// How the walk names an app's stand-ins, from what its extras bar lists.
+    enum StandInNaming: Equatable {
+        /// No extras bar to read, or one with no entries: how many icons
+        /// the app has is unknown.
+        case unread
+        /// Every group of the app takes this one title.
+        case named(String)
+        /// Entries with ids of their own: each group is named by its place
+        /// among the app's groups on its bar (`StandInMatch`).
+        case byPosition
     }
 
     /// The app's status items (used in the agent tag). An app node exposes
     /// both its MAIN menu bar (Apple, File, Edit…) and its status-extras
     /// bar; the agent names the extras bar explicitly
-    /// (`kAXExtrasMenuBarAttribute`, present on every hosted app probed on
-    /// macOS 27). Without it, the narrower bar is the extras bar. No width
-    /// cap: a text item can make the extras bar wider than a main menu (#17),
-    /// and a dropped title collides every item of that app on "Item-0".
-    /// The items' frames are where the real buttons sit on the active
-    /// display's bar (for Pelmet's own, its NSStatusItem button windows):
-    /// never the stand-in group's, so they only order an app's items.
+    /// (`kAXExtrasMenuBarAttribute`). Not always: Velja and Pure Paste list
+    /// the attribute with no value, and their main menu as their only bar
+    /// (probed 2026-10-13), so the fallback only takes a bar of status items
+    /// (`extrasBarFallback`). The items' frames are where the real buttons
+    /// sit on the active display's bar (for Pelmet's own, its NSStatusItem
+    /// button windows): never the stand-in group's, so they only order an
+    /// app's items.
     private func statusExtras(in appNode: AXUIElement) -> StatusExtras {
         let menuBars = children(of: appNode).filter { role(of: $0) == "AXMenuBar" }
         let explicit = copyAttribute(appNode, kAXExtrasMenuBarAttribute)
             .flatMap { CFGetTypeID($0) == AXUIElementGetTypeID() ? ($0 as! AXUIElement) : nil }
-        let extrasBar = explicit ?? menuBars.min { lhs, rhs in
-            (frame(of: lhs)?.width ?? .greatestFiniteMagnitude)
-                < (frame(of: rhs)?.width ?? .greatestFiniteMagnitude)
+        let extrasBar = Self.extrasBar(explicit: explicit, among: menuBars) { bar in
+            (frame(of: bar)?.width, children(of: bar).map { copyAttribute($0, kAXSubroleAttribute) as? String })
         }
-        guard let extrasBar else { return StatusExtras(name: "Item-0", items: []) }
-        let entries = children(of: extrasBar)
+        let entries = extrasBar.map { children(of: $0) } ?? []
         let allTitles = entries.map { item -> String? in
             let title = copyAttribute(item, kAXTitleAttribute) as? String
             return title?.isEmpty == false ? title : nil
@@ -367,22 +383,79 @@ public actor ItemEnumerator {
         // extra loaded from a .menu bundle (Time Machine) exposes no AX
         // title, description or identifier at all; the bundle list
         // SystemUIServer keeps names those.
-        if pid(of: appNode).flatMap(hostBundle(ofPID:))?.id == PelmetBundle.systemUIServerID {
+        if extrasBar != nil, pid(of: appNode).flatMap(hostBundle(ofPID:))?.id == PelmetBundle.systemUIServerID {
             let untitled = entries.count - titles.count
             let named = titles + (untitled > 0 ? Array(Self.loadedMenuExtraNames().prefix(untitled)) : [])
-            return StatusExtras(name: named.isEmpty ? "Item-0" : named.joined(separator: ", "), items: [])
+            return StatusExtras(naming: .named(named.isEmpty ? "Item-0" : named.joined(separator: ", ")), items: [])
         }
-        // One title (or none) names every group, as before: a one-icon app
-        // can list several untitled or same-titled entries on its extras
-        // bar (Velja 6, Unclutter 8, live 2026-10-13), and position left
-        // its only icon unnamed whenever an external display was active.
-        guard entries.count > 1, Set(titles).count > 1 else {
-            return StatusExtras(name: titles.first ?? "Item-0", items: [])
+        let naming = Self.standInNaming(titles: extrasBar.map { _ in allTitles })
+        // Frames are read only to place an app's groups, so a one-icon app
+        // walks as cheaply as before.
+        guard naming == .byPosition else { return StatusExtras(naming: naming, items: []) }
+        return StatusExtras(naming: naming, items: zip(allTitles, entries).map { ($0, frame(of: $1)) })
+    }
+
+    /// The bar to read an app's status items from: the one the app names,
+    /// else `extrasBarFallback`'s pick among its AXMenuBar children (`shape`
+    /// reads a bar's width and its entries' subroles), else none.
+    static func extrasBar<Bar>(
+        explicit: Bar?, among bars: [Bar], shape: (Bar) -> (width: CGFloat?, subroles: [String?])
+    ) -> Bar? {
+        explicit ?? extrasBarFallback(among: bars.map(shape)).map { bars[$0] }
+    }
+
+    /// How an app's stand-ins are named, from its extras bar's entry titles
+    /// (nil for an untitled entry), nil when there is no bar to read.
+    static func standInNaming(titles: [String?]?) -> StandInNaming {
+        // No bar, or an empty one: one name for every group would turn an
+        // app with several icons into one phantom `…::Item-0` (Unclutter's
+        // bar came and went mid-drag, live test 2026-10-13). The walk names
+        // only a lone group.
+        guard let titles, let first = titles.first else { return .unread }
+        // One id names every group: a one-icon app can list several
+        // untitled or same-titled entries, and position would leave its
+        // only icon unnamed whenever an external display is active. An
+        // untitled entry is an id of its own (Item-0), so [T, untitled]
+        // goes by position as T and Item-0, never T twice.
+        guard titles.count > 1, Set(titles).count > 1 else { return .named(first ?? "Item-0") }
+        // Several ids: never all named after the first (every Pelmet
+        // stand-in read as the chevron).
+        return .byPosition
+    }
+
+    /// The title each of an app's stand-in groups on one bar takes, nil for
+    /// a group that stays unnamed. `items` are the extras bar's, read for
+    /// `.byPosition`.
+    static func standInTitles(
+        forGroups groups: [CGRect], naming: StandInNaming, items: [(title: String?, frame: CGRect?)]
+    ) -> [String?] {
+        switch naming {
+        case .named(let name):
+            return groups.map { _ in name }
+        case .unread:
+            // With no extras bar to count by, a lone group is the app's one
+            // icon, under the tag the agent keeps for it
+            // (`status:com.sindresorhus.Velja::Item-0`, 2026-10-13). Several
+            // groups are a guess: unnamed, as before.
+            return groups.count == 1 ? ["Item-0"] : groups.map { _ in nil }
+        case .byPosition:
+            return StandInMatch.items(forGroups: groups, items: items.map(\.frame))
+                .map { $0.map { items[$0].title ?? "Item-0" } }
         }
-        // Several titled items: never all named after the first (every
-        // Pelmet stand-in read as the chevron). Frames are read only here,
-        // so a one-icon app walks as cheaply as before.
-        return StatusExtras(name: nil, items: zip(allTitles, entries).map { ($0, frame(of: $1)) })
+    }
+
+    /// Which of an app's AXMenuBar children (width, each entry's subrole)
+    /// is its extras bar when the app names none: the narrowest whose
+    /// entries are status items (`AXMenuExtra`, on every hosted app probed
+    /// on macOS 27). No width cap: a text item can make the extras bar
+    /// wider than a main menu (#17). Never a main menu, whose entries carry
+    /// no subrole, even as the only bar: read for Velja's missing extras
+    /// bar, its six distinct titles (Apple, Velja, Edit…) passed for six
+    /// icons and its stand-ins went unnamed (live test, 2026-10-13).
+    static func extrasBarFallback(among bars: [(width: CGFloat?, subroles: [String?])]) -> Int? {
+        bars.indices
+            .filter { bars[$0].subroles.contains("AXMenuExtra") }
+            .min { (bars[$0].width ?? .greatestFiniteMagnitude) < (bars[$1].width ?? .greatestFiniteMagnitude) }
     }
 
     /// "/System/Library/CoreServices/Menu Extras/TimeMachine.menu" → "TimeMachine".
