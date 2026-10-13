@@ -140,6 +140,12 @@ final class PanelPresenter: RevealPresenter {
     /// nothing, one the notch hides): not asked for again until a picture
     /// would have gone stale anyway.
     private var unpicturable: [ItemID: Date] = [:]
+    /// Keys a pass of this open already asked for: one it got no picture of
+    /// without trying (no cover, a skipped round) is asked for again next
+    /// open, not by a pass straight after, which with no cover deferred the
+    /// same keys again and again (review B5). Emptied when the panel closes.
+    private var askedThisOpen: Set<ItemID> = []
+    private var askedAgainLogged = false
     /// Bumped per open and close, so a fade that ends late leaves alone a
     /// panel that opened again.
     private var generation = 0
@@ -419,6 +425,8 @@ final class PanelPresenter: RevealPresenter {
         if tileDrag != nil { finishDrag(cancel: true, closing: true) }
         isOpen = false
         pointerOnPanel = false
+        askedThisOpen = []
+        askedAgainLogged = false
         // A column drag cut short saves where it got to; its tip goes with
         // the panel, not into the next open.
         if draggingColumns { endColumnDrag() }
@@ -1943,8 +1951,17 @@ final class PanelPresenter: RevealPresenter {
             if let done { passWaiters.append(done) }
             return
         }
-        let wanted = missing.filter { key in
+        var wanted = missing.filter { key in
             unpicturable[key].map { -$0.timeIntervalSinceNow >= ItemPictures.maxAge } ?? true
+        }
+        if isOpen {
+            let fresh = wanted.filter { !askedThisOpen.contains($0) }
+            if fresh.count < wanted.count, !askedAgainLogged {
+                askedAgainLogged = true
+                PelmetLog.log("panel: \(wanted.count - fresh.count) without a picture already asked for this open, asked again next open")
+            }
+            wanted = fresh
+            askedThisOpen.formUnion(wanted)
         }
         guard !wanted.isEmpty else { return }
         if let done { passWaiters.append(done) }
