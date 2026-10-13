@@ -86,6 +86,9 @@ final class ItemPress {
     /// A relay holds the « open for an icon behind it: the icons it exposed
     /// hit-test as empty bar, and a click on one is never an empty-bar click.
     private(set) static var holdsOverflowOpen = false
+    /// The last walk `settledItem` took listed nothing: a locked screen,
+    /// not a bar without the item.
+    private var lastWalkEmpty = false
 
     init(appState: AppState) {
         self.appState = appState
@@ -138,6 +141,7 @@ final class ItemPress {
         while appState.isTransitioning, Date() < settleBy, !run.yielded {
             try? await Task.sleep(for: .milliseconds(30))
         }
+        let barSettled = !appState.isTransitioning
 
         // A walk of its own, never the mirror: it can be 30s old, and a
         // width change since (a growing meter, the camera pill) puts the
@@ -203,7 +207,21 @@ final class ItemPress {
             if trapped {
                 toggle = await OverflowToggle.expandForPass()
                 Self.holdsOverflowOpen = toggle != nil
-                if toggle != nil, let found = await settledItem(key, run: run) { target = found.item }
+                if toggle != nil {
+                    if let found = await settledItem(key, run: run) {
+                        target = found.item
+                    } else if !run.yielded, !lastWalkEmpty, barSettled,
+                              appState.picturePassSections == nil, !appState.applying {
+                        // Expanded, the « hides nothing: an icon its own
+                        // walk still misses is gone, its app removed it. Its
+                        // phantom frame is a neighbour's, not clicked
+                        // (review B5). A superseded press, a locked screen's
+                        // empty walk, a bar still moving or held by a pass
+                        // or an Apply says nothing.
+                        target = nil
+                        await appState.engine.forget(key)
+                    }
+                }
             }
         }
 
@@ -251,12 +269,7 @@ final class ItemPress {
             if revealed, toggle == nil, atRest, !run.yielded, let frame = target?.frame, appState.revealTarget.panelLayout != nil {
                 await appState.panelPresenter.repicture(key, frame: frame)
             }
-            if let toggle {
-                // Expanded, the walk lists every icon the bar has: one set
-                // aside it misses is gone (review B5).
-                await appState.engine.overflowExpandedWalk()
-                await OverflowToggle.collapseAfterPass(toggle)
-            }
+            if let toggle { await OverflowToggle.collapseAfterPass(toggle) }
             Self.holdsOverflowOpen = false
             if revealed {
                 await appState.engine.conceal(items: [key])
@@ -377,6 +390,7 @@ final class ItemPress {
         var walks = 0
         while !run.yielded {
             let snap = await appState.engine.freshSnapshot()
+            lastWalkEmpty = snap.items.isEmpty
             walks += 1
             if let item = Self.onBar(key, in: snap), let frame = item.frame {
                 if let before = last?.item.frame,

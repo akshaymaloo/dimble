@@ -31,8 +31,8 @@ struct ConvergePlan: Equatable {
     /// «, out of the AX tree, and the conceal after it found it neither
     /// live nor carried, so presses and presence checks lost it (review
     /// ALT-1). Pruned like any carried id (app quit, stale alias), and let
-    /// go when a walk with the « expanded misses it
-    /// (AgentBarEngine.overflowExpandedWalk).
+    /// go when an item press finds no icon for it with the « expanded
+    /// (AgentBarEngine.forget).
     var setAside: Set<ItemID>
 
     static func compute(

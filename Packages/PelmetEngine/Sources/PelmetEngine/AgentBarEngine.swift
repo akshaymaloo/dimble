@@ -716,20 +716,22 @@ public actor AgentBarEngine: MenuBarEngine {
         Task { await self.walkAfterSwap(concealable: concealable, epoch: epoch) }
     }
 
-    /// A walk with the native « expanded (an item press opened it) lists
-    /// every icon the bar draws: a set-aside id it misses was removed by
-    /// its app, and kept it stood as a tile until the app quit. Let go
-    /// (review B5). An id set aside while the walk ran is left be.
-    public func overflowExpandedWalk() async {
-        let before = setAsideConcealed
-        guard !before.isEmpty else { return }
-        let listed = Set(await refreshSnapshot().items.map(\.id))
-        let gone = before.intersection(setAsideConcealed).subtracting(listed)
-        guard !gone.isEmpty else { return }
-        for id in gone.sorted(by: { $0.rawValue < $1.rawValue }) {
-            PelmetLog.log("converge: let go of \(id.rawValue) — the « was expanded and the walk did not list it")
+    /// An item press found no icon for `key` with the native « expanded,
+    /// which hides nothing then: its app removed it. Out of the carried
+    /// and the set-aside sets, so no conceal stamps it again and its tile
+    /// goes; kept, it stood until the app quit (review B5).
+    public func forget(_ key: ItemID) {
+        let key = key.sectionKey
+        PelmetLog.log("converge: let go of \(key.rawValue) — pressed with the « expanded and not on the bar")
+        setAsideConcealed = setAsideConcealed.filter { $0.sectionKey != key }
+        if let last = lastSnapshot, last.concealed.contains(where: { $0.sectionKey == key }) {
+            lastSnapshot = EngineSnapshot(
+                items: last.items,
+                concealed: last.concealed.filter { $0.sectionKey != key },
+                takenAt: last.takenAt,
+                shownAlone: last.shownAlone
+            )
         }
-        setAsideConcealed.subtract(gone)
     }
 
     /// The post-swap walk, off the critical path. It is the verify's first
