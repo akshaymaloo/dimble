@@ -1091,7 +1091,7 @@ private struct BehaviorPane: View {
         Binding(
             get: {
                 guard appState.settings.autoRehide else { return .never }
-                return .after(Int(RehideChoice.snapped(appState.settings.rehideDelay)))
+                return .after(RehideChoice.snapped(appState.settings.rehideDelay))
             },
             set: { choice in
                 switch choice {
@@ -1099,7 +1099,7 @@ private struct BehaviorPane: View {
                     appState.settings.autoRehide = false
                 case .after(let seconds):
                     appState.settings.autoRehide = true
-                    appState.settings.rehideDelay = TimeInterval(seconds)
+                    appState.settings.rehideDelay = seconds
                 }
                 appState.settingsChanged()
             }
@@ -1123,21 +1123,22 @@ private struct BehaviorPane: View {
 
 /// "Hide again" as one pick: how long after the pointer leaves, or never.
 /// Never is the old Automatically rehide switched off, the rest are the
-/// delay. A store saved with 0.5 steps is snapped onto these at launch
-/// (AppState), so the checked delay is the one the bar waits.
+/// delay. A store saved with another 0.5 step is snapped onto these at
+/// launch (AppState), so the checked delay is the one the bar waits.
 enum RehideChoice: Hashable {
-    case after(Int)
+    case after(TimeInterval)
     case never
 
-    static let delays = [0, 1, 2, 3, 5]
+    static let delays: [TimeInterval] = [0, 0.5, 1, 2, 3, 5]
 
     /// The delay the menu offers closest to `delay`.
     static func snapped(_ delay: TimeInterval) -> TimeInterval {
-        nearest(delay, in: delays.map(TimeInterval.init))
+        nearest(delay, in: delays)
     }
 
     static let options: [(RehideChoice, LocalizedStringKey)] = [
-        (.after(0), "Right away"), (.after(1), "After 1 second"), (.after(2), "After 2 seconds"),
+        (.after(0), "Right away"), (.after(0.5), "After half a second"),
+        (.after(1), "After 1 second"), (.after(2), "After 2 seconds"),
         (.after(3), "After 3 seconds"), (.after(5), "After 5 seconds"), (.never, "Never"),
     ]
 }

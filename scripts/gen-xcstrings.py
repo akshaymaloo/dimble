@@ -665,6 +665,7 @@ T = {
     "After 0.3s": dict(de="Nach 0,3 s", fr="Après 0,3 s", es="Después de 0,3 s", it="Dopo 0,3 s", pt="Após 0,3 s", ja="0.3秒後", zh="0.3 秒后", ko="0.3초 후", ru="Через 0,3 с"),
     "After 0.4s": dict(de="Nach 0,4 s", fr="Après 0,4 s", es="Después de 0,4 s", it="Dopo 0,4 s", pt="Após 0,4 s", ja="0.4秒後", zh="0.4 秒后", ko="0.4초 후", ru="Через 0,4 с"),
     "After 0.5s": dict(de="Nach 0,5 s", fr="Après 0,5 s", es="Después de 0,5 s", it="Dopo 0,5 s", pt="Após 0,5 s", ja="0.5秒後", zh="0.5 秒后", ko="0.5초 후", ru="Через 0,5 с"),
+    "After half a second": dict(de="Nach einer halben Sekunde", fr="Après une demi-seconde", es="Después de medio segundo", it="Dopo mezzo secondo", pt="Após meio segundo", ja="0.5秒後", zh="0.5 秒后", ko="0.5초 후", ru="Через полсекунды"),
     "After 1 second": dict(de="Nach 1 Sekunde", fr="Après 1 seconde", es="Después de 1 segundo", it="Dopo 1 secondo", pt="Após 1 segundo", ja="1秒後", zh="1 秒后", ko="1초 후", ru="Через 1 секунду"),
     "After 2 seconds": dict(de="Nach 2 Sekunden", fr="Après 2 secondes", es="Después de 2 segundos", it="Dopo 2 secondi", pt="Após 2 segundos", ja="2秒後", zh="2 秒后", ko="2초 후", ru="Через 2 секунды"),
     "After 3 seconds": dict(de="Nach 3 Sekunden", fr="Après 3 secondes", es="Después de 3 segundos", it="Dopo 3 secondi", pt="Após 3 segundos", ja="3秒後", zh="3 秒后", ko="3초 후", ru="Через 3 секунды"),

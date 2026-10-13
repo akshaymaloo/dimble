@@ -236,7 +236,7 @@ B6 eba8ec6..5859dcb · B3 227108f · B1 23d2a80, 3559534, af3ad35 · B4 3e036c0 
 merge fix 7424aea · B5 7d75ae2..99653bf · docs fd4033b. Every batch had a fresh-eyes review plus a re-check of
 its fixes. Skipped on purpose: REUSE-6, SIMP-3, EFF-4 (needs a board cache), REUSE-5 in ConcealGhostOverlay
 (calibrated thresholds), WRAP-3's wallpaper-ink case. Known trade-offs: tagged test clicks (`tagclick`) no longer
-reach the empty-bar trigger; saved auto-hide delays snap to the menu's values (0.5s → 1s); beta.5 testers who set
+reach the empty-bar trigger; saved Hide again delays snap to the menu's values (0.5s kept as its own option, 1.5s → 2s); beta.5 testers who set
 Focus to section-only get "while active" once; after a pass on an always-show display Hidden conceals and comes
 back (one blink); a show-rule icon's own tile and the 1–2 tiles over its concealed spot keep stand-ins while the
 rule holds it out. Follow-up after the stable: a failed press drops a real icon's tile (pre-0.3.2).

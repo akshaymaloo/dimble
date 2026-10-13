@@ -279,8 +279,8 @@ final class AppState {
         }
 
         // Sliders are stepped now (hover 0.1–0.5): snap stores saved under
-        // the old free ranges onto the grid. Hide again is a menu of 0, 1, 2,
-        // 3 or 5 seconds: a 0.5-step store showed the nearest one checked
+        // the old free ranges onto the grid. Hide again is a menu of 0, 0.5,
+        // 1, 2, 3 or 5 seconds: a 0.5-step store showed the nearest one checked
         // while the bar waited its own, and picking that one changed nothing.
         settings.revealTriggers.hoverDelay = (min(max(settings.revealTriggers.hoverDelay, 0.1), 0.5) * 10).rounded() / 10
         let rehide = RehideChoice.snapped(settings.rehideDelay)
