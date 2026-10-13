@@ -1,8 +1,10 @@
 // ItemEnumerator.swift
 // AX snapshot of MenuBarAgent's item tree. Verified structure (M1 findings):
 // AXApplication → AXWindow (one per display) → `?`-role groups, one per item.
-// Third-party groups nest the owning app's AXApplication node; system items are
-// AXMenuBarItem leaves with a com.apple.menuextra.* identifier.
+// On the active display's bar an app's item is its real AXButton; on every
+// other bar it is a stand-in nesting the owning app's AXApplication node
+// (probed 2026-10-13). System items are AXMenuBarItem leaves with a
+// com.apple.menuextra.* identifier.
 
 import AppKit
 import ApplicationServices
@@ -52,13 +54,46 @@ public actor ItemEnumerator {
         }
         var byID: [ItemID: RawItem] = [:]
         var order: [ItemID] = []
+        // An app's extras bar is the same under every group of it, on every
+        // display: read once per walk.
+        var extrasByPID: [pid_t: StatusExtras] = [:]
         for window in windows {
             guard role(of: window) == "AXWindow" else { continue }
             guard let groups = copyAttribute(window, kAXChildrenAttribute) as? [AXUIElement] else {
                 continue
             }
+            var described: [RawItem?] = []
+            var standIns: [pid_t: [(slot: Int, group: StandIn)]] = [:]
             for group in groups {
-                guard let item = describeGroup(group) else { continue }
+                switch describeGroup(group, extras: &extrasByPID) {
+                case .item(let item):
+                    described.append(item)
+                case .standIn(let standIn):
+                    standIns[standIn.pid, default: []].append((described.count, standIn))
+                    described.append(nil)
+                case nil:
+                    continue
+                }
+            }
+            // A stand-in position cannot name stays out of the walk: the
+            // active display's real button still reports the item.
+            for (pid, groupsOfApp) in standIns {
+                guard let extras = extrasByPID[pid] else { continue }
+                let match = StandInMatch.items(
+                    forGroupsAt: groupsOfApp.map(\.group.frame.minX), itemsAt: extras.items.map(\.x)
+                )
+                for (entry, item) in zip(groupsOfApp, match) {
+                    guard let item else { continue }
+                    described[entry.slot] = entry.group.item(titled: extras.items[item].title)
+                }
+                let bundle = groupsOfApp[0].group.host.id
+                let unnamed = match.filter { $0 == nil }.count
+                logOnce(unnamed == 0
+                    ? "enumerate: \(groupsOfApp.count) stand-in(s) of \(bundle) named by position"
+                    : "enumerate: \(unnamed) of \(groupsOfApp.count) stand-in(s) of \(bundle) left unnamed — \(extras.items.count) item(s) on its extras bar",
+                    pid: nil)
+            }
+            for case let item? in described {
                 if let existing = byID[item.id] {
                     // The same item appears once per display. Prefer the
                     // main-display occurrence so every frame lives in one
@@ -119,7 +154,32 @@ public actor ItemEnumerator {
         return element
     }
 
-    private func describeGroup(_ group: AXUIElement) -> RawItem? {
+    /// A group read on its own, or a stand-in that only its place among its
+    /// app's other groups on the same bar can name (`StandInMatch`).
+    private enum Described {
+        case item(RawItem)
+        case standIn(StandIn)
+    }
+
+    /// A stand-in group of an app with several status items.
+    private struct StandIn {
+        let frame: CGRect
+        let appName: String?
+        let host: HostBundle
+        let pid: pid_t
+
+        func item(titled title: String?) -> RawItem {
+            RawItem(
+                id: .status(bundle: host.id, title: title ?? "Item-0"),
+                frame: frame,
+                appName: appName,
+                hostIsBundleless: host.bundleless,
+                pid: pid
+            )
+        }
+    }
+
+    private func describeGroup(_ group: AXUIElement, extras cache: inout [pid_t: StatusExtras]) -> Described? {
         guard let frame = frame(of: group) else {
             logDrop("no AXFrame", pid: nil, role: role(of: group))
             return nil
@@ -128,7 +188,8 @@ public actor ItemEnumerator {
         for child in kids {
             switch role(of: child) {
             case "AXApplication":
-                // Third-party item: owning app nested right in the tree.
+                // A stand-in: the owning app nested in the tree, with its
+                // whole extras bar (every bar but the active display's).
                 let appName = copyAttribute(child, kAXTitleAttribute) as? String
                 var appPID: pid_t = 0
                 AXUIElementGetPid(child, &appPID)
@@ -136,33 +197,30 @@ public actor ItemEnumerator {
                     logDrop("no bundle id for AXApplication", pid: appPID, role: "AXApplication")
                     return nil
                 }
-                let title = statusItemTitle(in: child) ?? "Item-0"
-                return RawItem(
-                    id: .status(bundle: host.id, title: title),
-                    frame: frame,
-                    appName: appName,
-                    hostIsBundleless: host.bundleless,
-                    pid: appPID
-                )
+                let extras = cache[appPID] ?? statusExtras(in: child)
+                cache[appPID] = extras
+                let standIn = StandIn(frame: frame, appName: appName, host: host, pid: appPID)
+                guard let name = extras.name else { return .standIn(standIn) }
+                return .item(standIn.item(titled: name))
             case "AXGroup":
                 // System item: AXGroup wrapping an AXMenuBarItem.
                 for leaf in children(of: child) where role(of: leaf) == "AXMenuBarItem" {
                     guard let identifier = copyAttribute(leaf, kAXIdentifierAttribute) as? String else {
                         continue
                     }
-                    return RawItem(
+                    return .item(RawItem(
                         id: .status(bundle: Self.agentBundleID, title: identifier),
                         frame: frame,
                         appName: nil,
                         hostIsBundleless: false,
                         pid: agentPID
-                    )
+                    ))
                 }
             case "AXButton":
-                // Plain NSStatusItem buttons (Pelmet's own chevron/separators,
+                // Real NSStatusItem buttons on the active display's bar (and
                 // other apps' dividers) sit in the tree as bare AXButtons — no
                 // nested AXApplication. Attribute by the button's owning pid.
-                if let item = describeLeaf(child, frame: frame) { return item }
+                if let item = describeLeaf(child, frame: frame) { return .item(item) }
             default:
                 continue
             }
@@ -177,7 +235,7 @@ public actor ItemEnumerator {
             guard pid > 0, pid != agentPID else { continue }
             if let item = describeLeaf(child, frame: frame) {
                 logOnce("enumerate: fallback — role=\(roleLabel(child)) → \(item.id.rawValue)", pid: pid)
-                return item
+                return .item(item)
             }
         }
         logDrop("unrecognized children \(kids.map { roleLabel($0) })", pid: nil, role: nil)
@@ -205,7 +263,7 @@ public actor ItemEnumerator {
         // the leaf from there, the same way its AXApplication-shaped items
         // are named.
         if title == nil, host.id == PelmetBundle.systemUIServerID {
-            title = statusItemTitle(in: AXUIElementCreateApplication(pid))
+            title = statusExtras(in: AXUIElementCreateApplication(pid)).name
         }
         return RawItem(
             id: .status(bundle: host.id, title: title ?? "Item-0"),
@@ -266,16 +324,28 @@ public actor ItemEnumerator {
         PelmetLog.log(line)
     }
 
-    /// Best-effort title of the app's status item button (used in the agent
-    /// tag). An app node exposes both its MAIN menu bar (Apple, File, Edit…)
-    /// and its status-extras bar; the agent names the extras bar explicitly
+    /// An app's status items as its extras bar lists them.
+    private struct StatusExtras {
+        /// The one title every group of this app takes; nil when the app
+        /// has several items and each group is named by its place
+        /// (`StandInMatch`).
+        let name: String?
+        /// Read only for an app with several items: each item's title (the
+        /// agent tag) and its minX on the active display's bar.
+        let items: [(title: String?, x: CGFloat?)]
+    }
+
+    /// The app's status items (used in the agent tag). An app node exposes
+    /// both its MAIN menu bar (Apple, File, Edit…) and its status-extras
+    /// bar; the agent names the extras bar explicitly
     /// (`kAXExtrasMenuBarAttribute`, present on every hosted app probed on
     /// macOS 27). Without it, the narrower bar is the extras bar. No width
     /// cap: a text item can make the extras bar wider than a main menu (#17),
     /// and a dropped title collides every item of that app on "Item-0".
-    /// The hosted items' frames sit in the app's own off-screen space, never
-    /// the agent group's, so geometry cannot pick among several items.
-    private func statusItemTitle(in appNode: AXUIElement) -> String? {
+    /// The items' frames are where the real buttons sit on the active
+    /// display's bar (for Pelmet's own, its NSStatusItem button windows):
+    /// never the stand-in group's, so they only order an app's items.
+    private func statusExtras(in appNode: AXUIElement) -> StatusExtras {
         let menuBars = children(of: appNode).filter { role(of: $0) == "AXMenuBar" }
         let explicit = copyAttribute(appNode, kAXExtrasMenuBarAttribute)
             .flatMap { CFGetTypeID($0) == AXUIElementGetTypeID() ? ($0 as! AXUIElement) : nil }
@@ -283,11 +353,13 @@ public actor ItemEnumerator {
             (frame(of: lhs)?.width ?? .greatestFiniteMagnitude)
                 < (frame(of: rhs)?.width ?? .greatestFiniteMagnitude)
         }
-        guard let extrasBar else { return nil }
-        let titles = children(of: extrasBar).compactMap { item -> String? in
+        guard let extrasBar else { return StatusExtras(name: "Item-0", items: []) }
+        let entries = children(of: extrasBar)
+        let allTitles = entries.map { item -> String? in
             let title = copyAttribute(item, kAXTitleAttribute) as? String
             return title?.isEmpty == false ? title : nil
         }
+        let titles = allTitles.compactMap { $0 }
         // SystemUIServer's extras (Siri, Time Machine) hide as one bundle and
         // every group of its carries the same extras bar: name the lot, so
         // the one editor tile can list them ("Siri, TimeMachine", #19). An
@@ -295,11 +367,15 @@ public actor ItemEnumerator {
         // title, description or identifier at all; the bundle list
         // SystemUIServer keeps names those.
         if pid(of: appNode).flatMap(hostBundle(ofPID:))?.id == PelmetBundle.systemUIServerID {
-            let untitled = children(of: extrasBar).count - titles.count
+            let untitled = entries.count - titles.count
             let named = titles + (untitled > 0 ? Array(Self.loadedMenuExtraNames().prefix(untitled)) : [])
-            return named.isEmpty ? nil : named.joined(separator: ", ")
+            return StatusExtras(name: named.isEmpty ? "Item-0" : named.joined(separator: ", "), items: [])
         }
-        return titles.first
+        guard entries.count > 1 else { return StatusExtras(name: titles.first ?? "Item-0", items: []) }
+        // Several items: never all named after the first (every Pelmet
+        // stand-in read as the chevron). Frames are read only here, so a
+        // one-icon app walks as cheaply as before.
+        return StatusExtras(name: nil, items: zip(allTitles, entries).map { ($0, frame(of: $1)?.minX) })
     }
 
     /// "/System/Library/CoreServices/Menu Extras/TimeMachine.menu" → "TimeMachine".
