@@ -229,3 +229,54 @@ Runs after B1 merges (both touch AppState).
 
 ## Refuted (don't fix)
 ALT-5 (as a bug), ALT-7, XF-4 (by design, 1c3c70a), ALT-8 (intended), PKG-2, PKG-4, PKG-5.
+
+## Landed (2026-10-13, roster 99653bf)
+
+B6 eba8ec6..5859dcb · B3 227108f · B1 23d2a80, 3559534, af3ad35 · B4 3e036c0 · B2 7bcbec6, bccb8b4, 82de724 ·
+merge fix 7424aea · B5 7d75ae2..99653bf · docs fd4033b. Every batch had a fresh-eyes review plus a re-check of
+its fixes. Skipped on purpose: REUSE-6, SIMP-3, EFF-4 (needs a board cache), REUSE-5 in ConcealGhostOverlay
+(calibrated thresholds), WRAP-3's wallpaper-ink case. Known trade-offs: tagged test clicks (`tagclick`) no longer
+reach the empty-bar trigger; saved auto-hide delays snap to the menu's values (0.5s → 1s); beta.5 testers who set
+Focus to section-only get "while active" once; after a pass on an always-show display Hidden conceals and comes
+back (one blink); a show-rule icon's own tile and the 1–2 tiles over its concealed spot keep stand-ins while the
+rule holds it out. Follow-up after the stable: a failed press drops a real icon's tile (pre-0.3.2).
+
+## Live checks (installed build, grep pelmet.log)
+
+Boot: `start: axTrusted`, `own items adopted`, `helpers:` lines with fresh pids, `migrate: focus keeps its bar`
+(once, only if a Focus sat in Hidden/Always Hidden).
+
+- **Lock/wake (B6):** lock 2+ min, unlock. `converge: AX walk empty, screen locked — retries stop until unlock or
+  wake`, then `converge: screen unlocked after Nms of empty walks — retrying`; no walk every 2s while locked.
+- **Press relay (B3):** press an icon behind the « from the panel. While its menu is up, click empty bar:
+  `band: click refused — a press relay holds the « open`. Bar must not toggle mid-relay.
+- **Typing (B3/B5):** hover-open the panel, then ⌘K or focus a Settings field and type: letters stay there
+  (`panel: typing over the hover panel stays with …`). With Settings in front and nothing focused, typing still
+  searches the panel.
+- **⌘-drag to panel (B3/B2):** ⌘-drag an icon from the bar onto the open panel and let go fast: it lands
+  (no `endPanelDrop` without a drop).
+- **Grouping (B1):** reorder a Hidden icon in the editor while that section was never revealed since launch:
+  Apply lights. Display set to always show: drop an icon on the wrong side, `group: relocating …` runs, then
+  `displays: pass over — back to the policy's reveal, state=…` (Hidden blinks once, Always Hidden goes away).
+- **Didn't fit (B1):** with icons behind the «, after a picture pass or a Camera & mic press:
+  `overflow: reading the bar the hold left`; the editor's note is current.
+- **Shortcuts (B4):** record a shortcut: ⌘A/C/V/X/Z are refused; a second click on the chip cancels; ⎋ cancels;
+  ⌫ removes. Old edit-chord icon shortcuts are dropped at launch (one log line).
+- **Open/Quit (B4):** right-click a helper-owned icon (Fantastical): Open launches Fantastical, Quit names the helper.
+- **Panel display (B2):** hover the external display's bar: the panel opens there
+  (`panel: on display N (the pointer's), bar 30pt`). Hotkey with an app full screen on the external: read the
+  same line, must not hang over the app. Hotkey with Settings on the external and the pointer off any bar: opens
+  on the primary display.
+- **Always Hidden fold (B2):** ⌥-click to open Always Hidden in the panel, fold it, then ⌥-click again: it comes
+  back (`put away ["alwaysHidden"] state=…`).
+- **Show rules (B5):** Battery on "On battery", unplug: the bar pictures retake (`cover: a show rule changed the
+  bar`), no ghost Battery; open the panel, new tiles still picture
+  (`pass: N where a show rule's icon sits on the empty bar, not cropped`).
+- **Wi-Fi grace (B5):** Wi-Fi rule on, sleep the Mac with Wi-Fi dropping: on wake
+  `rule: Wi-Fi grace ran across sleep, starts over on wake`.
+- **Clock / NC (B5):** press the clock during a picture pass: `clock: waits for the picture pass`. ⌥⌘N twice
+  closes Notification Center for good; closing it yourself: `closed by the user — not counted, no replay`.
+- **Behind the « (B5):** full reveal, conceal, then press an icon that sat behind the « (Velja) from the panel:
+  it opens. Panel open with a tile that can't be pictured: `asked again next open`, no pass loop.
+- **Picture pass cost (B5):** `pass: strip captured` reads `(1 display(s)` with an external attached; external
+  bar copies still picture on reveal.
