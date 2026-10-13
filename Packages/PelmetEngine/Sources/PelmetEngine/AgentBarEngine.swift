@@ -121,8 +121,12 @@ public actor AgentBarEngine: MenuBarEngine {
         )
 
     private var lastSnapshot: EngineSnapshot?
-    /// `ConvergePlan.setAside` of the last converge: concealed again by the
-    /// next one that puts their section back.
+    /// `ConvergePlan.setAside` of the last converge that stamped its
+    /// concealed set: concealed again by the next one that puts their
+    /// section back. Stamped with the concealed set, never before the
+    /// epoch guard: a converge a newer one superseded keeps the old set,
+    /// or the ids it would have concealed again were lost from both
+    /// (review B5).
     private var setAsideConcealed: Set<ItemID> = []
     private var started = false
     /// Actor reentrancy guard: converge() suspends several times, and a stale
@@ -448,7 +452,6 @@ public actor AgentBarEngine: MenuBarEngine {
             exemptBundles: Self.identityExemptBundles
         )
         timing.planMS = Self.ms(since: phase)
-        setAsideConcealed = plan.setAside
         for (id, reason) in plan.stale {
             PelmetLog.log("converge: pruned concealed \(reason == .staleAlias ? "stale alias" : "entry for quit app") \(id.rawValue)")
         }
@@ -462,7 +465,7 @@ public actor AgentBarEngine: MenuBarEngine {
 
         if plan.dropAssertion {
             timing.outcome = .dropped
-            await dropAssertionPath(epoch: epoch)
+            await dropAssertionPath(plan: plan, epoch: epoch)
             return
         }
         // With steadyExtras on, an empty concealable set still holds an
@@ -570,11 +573,12 @@ public actor AgentBarEngine: MenuBarEngine {
     }
 
     /// Nothing to hide and extras are allowed back: drop the assertion.
-    private func dropAssertionPath(epoch: Int) async {
+    private func dropAssertionPath(plan: ConvergePlan, epoch: Int) async {
         invalidateAssertion()
         notifyReflowCompanion()
         let after = await refreshSnapshot()
         guard epoch == convergeEpoch else { return }
+        setAsideConcealed = plan.setAside
         // Nothing is concealed now — clearing the carried set here stops
         // observers from reporting phantom concealment until the next swap.
         lastSnapshot = EngineSnapshot(
@@ -630,6 +634,7 @@ public actor AgentBarEngine: MenuBarEngine {
             if let last = lastSnapshot, last.concealed != plan.concealed {
                 lastSnapshot = EngineSnapshot(items: snapshot.items, concealed: plan.concealed, takenAt: snapshot.takenAt, shownAlone: shownAlone)
             }
+            setAsideConcealed = plan.setAside
             return
         }
         if assertionLost {
@@ -707,7 +712,24 @@ public actor AgentBarEngine: MenuBarEngine {
             takenAt: Date(),
             shownAlone: shownAlone
         )
+        setAsideConcealed = plan.setAside
         Task { await self.walkAfterSwap(concealable: concealable, epoch: epoch) }
+    }
+
+    /// A walk with the native « expanded (an item press opened it) lists
+    /// every icon the bar draws: a set-aside id it misses was removed by
+    /// its app, and kept it stood as a tile until the app quit. Let go
+    /// (review B5). An id set aside while the walk ran is left be.
+    public func overflowExpandedWalk() async {
+        let before = setAsideConcealed
+        guard !before.isEmpty else { return }
+        let listed = Set(await refreshSnapshot().items.map(\.id))
+        let gone = before.intersection(setAsideConcealed).subtracting(listed)
+        guard !gone.isEmpty else { return }
+        for id in gone.sorted(by: { $0.rawValue < $1.rawValue }) {
+            PelmetLog.log("converge: let go of \(id.rawValue) — the « was expanded and the walk did not list it")
+        }
+        setAsideConcealed.subtract(gone)
     }
 
     /// The post-swap walk, off the critical path. It is the verify's first

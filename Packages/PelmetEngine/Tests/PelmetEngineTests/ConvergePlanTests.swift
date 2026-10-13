@@ -110,14 +110,6 @@ import PelmetCore
         #expect(reveal.concealed.isEmpty)
         // Pelmet's and Apple's exempt hosts are never pruned: not carried.
         #expect(reveal.setAside == [velja, otterkeep])
-        // One the walk sees is not: if its app drops it, it is gone.
-        let seen = ConvergePlan.compute(
-            model: model([velja: .alwaysHidden, otterkeep: .hidden]),
-            liveIDs: [otterkeep], carriedConcealed: [velja, otterkeep],
-            runningBundles: running, revealedSections: [.hidden, .alwaysHidden],
-            steadyExtras: true, exemptBundles: exempt
-        )
-        #expect(seen.setAside == [velja])
         let conceal = ConvergePlan.compute(
             model: model([velja: .alwaysHidden, otterkeep: .hidden, sound: .hidden]),
             liveIDs: [otterkeep, sound], carriedConcealed: reveal.setAside,

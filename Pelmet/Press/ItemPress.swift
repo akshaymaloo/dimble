@@ -251,7 +251,12 @@ final class ItemPress {
             if revealed, toggle == nil, atRest, !run.yielded, let frame = target?.frame, appState.revealTarget.panelLayout != nil {
                 await appState.panelPresenter.repicture(key, frame: frame)
             }
-            if let toggle { await OverflowToggle.collapseAfterPass(toggle) }
+            if let toggle {
+                // Expanded, the walk lists every icon the bar has: one set
+                // aside it misses is gone (review B5).
+                await appState.engine.overflowExpandedWalk()
+                await OverflowToggle.collapseAfterPass(toggle)
+            }
             Self.holdsOverflowOpen = false
             if revealed {
                 await appState.engine.conceal(items: [key])
