@@ -260,13 +260,16 @@ final class ItemPictures {
     }
 
     /// The largest channel difference of pixel `i` between two bitmaps.
-    private static func distance(_ s: UnsafeMutablePointer<UInt8>, _ b: UnsafeMutablePointer<UInt8>, _ i: Int) -> Int {
+    static func distance(_ s: UnsafeMutablePointer<UInt8>, _ b: UnsafeMutablePointer<UInt8>, _ i: Int) -> Int {
         max(abs(Int(s[i]) - Int(b[i])), abs(Int(s[i + 1]) - Int(b[i + 1])), abs(Int(s[i + 2]) - Int(b[i + 2])))
     }
 
+    typealias Bitmap = (context: CGContext, pixels: UnsafeMutablePointer<UInt8>)
+
     /// RGBA8 premultiplied, top row first. The context owns the pixels:
-    /// keep it while reading them.
-    private static func rgba(_ image: CGImage, width w: Int, height h: Int) -> (context: CGContext, pixels: UnsafeMutablePointer<UInt8>)? {
+    /// keep it while reading them. The pass's film compares its frames with
+    /// it too; the cover's cut-out keeps its own (BGRA, sRGB, top-anchored).
+    static func rgba(_ image: CGImage, width w: Int, height h: Int) -> Bitmap? {
         guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
                                   space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
               let data = ctx.data

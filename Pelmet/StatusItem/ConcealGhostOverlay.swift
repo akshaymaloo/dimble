@@ -330,10 +330,23 @@ final class ConcealGhostOverlay {
     static var menuClosedAt: Date?
     static let menuFadeHold: TimeInterval = 0.5
 
+    /// Pelmet's own on-screen windows, for `snapshotSet(ownWindows:)`: a
+    /// pass films several frames under one cover and looks them up once,
+    /// not once per display per frame (10-40ms each, review EFF-1).
+    static func ownWindows() async -> [SCWindow] {
+        let me = ProcessInfo.processInfo.processIdentifier
+        let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+        return content?.windows.filter { $0.owningApplication?.processID == me } ?? []
+    }
+
     /// `excludingOwnWindows`: leave Pelmet's own windows out, so a picture
     /// taken under a cover shows the real bar beneath it (the panel's
-    /// picture pass).
-    static func snapshotSet(of rect: CGRect?, excludingOwnWindows: Bool = false) async -> [BarSnapshot] {
+    /// picture pass); `ownWindows` names them, looked up here when nil.
+    /// `primaryOnly`: the primary display's band alone, all a pass cuts
+    /// from (review EFF-2).
+    static func snapshotSet(
+        of rect: CGRect?, excludingOwnWindows: Bool = false, ownWindows: [SCWindow]? = nil, primaryOnly: Bool = false
+    ) async -> [BarSnapshot] {
         guard let rect, rect.width > 8 else { return [] }
         if let closed = menuClosedAt {
             let remaining = menuFadeHold - Date().timeIntervalSince(closed)
@@ -350,7 +363,10 @@ final class ConcealGhostOverlay {
 
         var shots: [BarSnapshot] = []
         let windowList = onScreenWindows()
-        for screen in NSScreen.screens {
+        // One lookup per call, shared by every display.
+        var content: SCShareableContent?
+        let lookUpOwn = excludingOwnWindows && ownWindows == nil
+        for screen in primaryOnly ? [primary] : NSScreen.screens {
             guard let displayID = screen.directDisplayID,
                   let display = await scDisplay(for: displayID) else { continue }
             let bounds = CGDisplayBounds(displayID)  // CG top-left global
@@ -391,15 +407,16 @@ final class ConcealGhostOverlay {
                 intersecting: CGRect(x: globalX, y: bounds.minY, width: width, height: bandHeight),
                 bandHeight: bandHeight, in: windowList
             )
-            var excluded: [SCWindow] = []
-            if !foreign.isEmpty || excludingOwnWindows {
+            var excluded: [SCWindow] = excludingOwnWindows ? ownWindows ?? [] : []
+            if !foreign.isEmpty || lookUpOwn {
                 let ids = Set(foreign.map(\.id))
                 let me = ProcessInfo.processInfo.processIdentifier
-                if let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true) {
-                    excluded = content.windows.filter {
-                        ids.contains($0.windowID) || (excludingOwnWindows && $0.owningApplication?.processID == me)
-                    }
+                if content == nil {
+                    content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
                 }
+                excluded += content?.windows.filter {
+                    ids.contains($0.windowID) || (lookUpOwn && $0.owningApplication?.processID == me)
+                } ?? []
                 if !foreign.isEmpty {
                     PelmetLog.log("ghost: capture leaves out \(foreign.map(\.owner).joined(separator: ", ")) (\(excluded.count) window(s))")
                 }

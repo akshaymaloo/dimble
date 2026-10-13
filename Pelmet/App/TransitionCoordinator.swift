@@ -1449,7 +1449,7 @@ extension TransitionCoordinator {
         var empty = freshEmptyBarSnapshots(cropped: false)
         let emptySource = empty.isEmpty ? "captured" : "precaptured"
         if empty.isEmpty {
-            empty = await ConcealGhostOverlay.snapshotSet(of: precaptureRect, excludingOwnWindows: true)
+            empty = await ConcealGhostOverlay.snapshotSet(of: precaptureRect, excludingOwnWindows: true, primaryOnly: true)
         }
         PelmetLog.log("pass: empty bar \(emptySource) at \(ms())ms (\(empty.count) display(s))")
 
@@ -1703,17 +1703,22 @@ extension TransitionCoordinator {
         // AX reports where the icons land before the bar has drawn them
         // there: crops of a strip filmed mid-slide took halves of their
         // neighbours (Always Hidden, 2026-10-09). Film until two frames
-        // agree.
-        var strip = await ConcealGhostOverlay.snapshotSet(of: rect, excludingOwnWindows: true)
+        // agree. Pelmet's windows are looked up once for the film, each
+        // frame decoded once.
+        let own = await ConcealGhostOverlay.ownWindows()
+        var strip = await ConcealGhostOverlay.snapshotSet(of: rect, excludingOwnWindows: true, ownWindows: own, primaryOnly: true)
+        var decoded = strip.map(Self.decoded)
         var filmed = 1
         var lastApart: Double = 1
         for _ in 0..<4 {
             try? await Task.sleep(for: .milliseconds(80))
-            let next = await ConcealGhostOverlay.snapshotSet(of: rect, excludingOwnWindows: true)
+            let next = await ConcealGhostOverlay.snapshotSet(of: rect, excludingOwnWindows: true, ownWindows: own, primaryOnly: true)
+            let nextDecoded = next.map(Self.decoded)
             filmed += 1
             if dump { Self.dumpPass(next, name: "_strip\(filmed)") }
-            let apart = next.count == strip.count ? zip(strip, next).map { Self.pixelsApart($0.image, $1.image) }.max() ?? 1 : 1
+            let apart = next.count == strip.count ? zip(decoded, nextDecoded).map { Self.pixelsApart($0, $1) }.max() ?? 1 : 1
             strip = next
+            decoded = nextDecoded
             lastApart = apart
             if apart < 0.005 { break }
         }
@@ -1734,7 +1739,6 @@ extension TransitionCoordinator {
         return (Self.pictures(of: still, strip: strip, empty: empty, dump: dump), Set(moved.map(\.key)))
     }
 
-    /// Debug trigger (`pelmet.debug.picturePass`): Hidden, dumped to disk.
     /// A fresh picture of one item drawn on the bar right now: a relay's,
     /// once its menu is gone and before it is put away, under the relay's
     /// cover. Cut against the idle empty-bar picture; nil when there is
@@ -1751,7 +1755,7 @@ extension TransitionCoordinator {
             return nil
         }
         let rect = CGRect(x: frame.minX - 8, y: frame.minY, width: frame.width + 16, height: frame.height)
-        let strip = await ConcealGhostOverlay.snapshotSet(of: rect, excludingOwnWindows: true)
+        let strip = await ConcealGhostOverlay.snapshotSet(of: rect, excludingOwnWindows: true, primaryOnly: true)
         return Self.pictures(of: [(key, frame)], strip: strip, empty: empty, dump: false)[key]
     }
 
@@ -1805,35 +1809,32 @@ extension TransitionCoordinator {
         return pictures
     }
 
+    /// Debug trigger (`pelmet.debug.picturePass`): Hidden, dumped to disk.
     func debugPicturePass() async {
         _ = await picturePass([.hidden], dump: true)
     }
 
+    /// A filmed frame as `ItemPictures.rgba` reads it, kept for the next
+    /// frame's comparison: decoded again there, every frame paid twice.
+    private typealias DecodedFrame = (bitmap: ItemPictures.Bitmap?, width: Int, height: Int)
+
+    private static func decoded(_ snap: ConcealGhostOverlay.BarSnapshot) -> DecodedFrame {
+        (ItemPictures.rgba(snap.image, width: snap.image.width, height: snap.image.height), snap.image.width, snap.image.height)
+    }
+
     /// The share of pixels two captures of the same strip disagree on; a
     /// playing Now Playing bar or a ticking clock keeps it above zero.
-    private static func pixelsApart(_ a: CGImage, _ b: CGImage) -> Double {
-        guard a.width == b.width, a.height == b.height else { return 1 }
-        let w = a.width, h = a.height
-        func pixels(_ image: CGImage) -> [UInt8]? {
-            var out = [UInt8](repeating: 0, count: w * h * 4)
-            let drawn = out.withUnsafeMutableBytes { buffer -> Bool in
-                guard let ctx = CGContext(data: buffer.baseAddress, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
-                                          space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
-                else { return false }
-                ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
-                return true
-            }
-            return drawn ? out : nil
-        }
-        guard let pa = pixels(a), let pb = pixels(b) else { return 1 }
+    private static func pixelsApart(_ a: DecodedFrame, _ b: DecodedFrame) -> Double {
+        guard a.width == b.width, a.height == b.height, let pa = a.bitmap?.pixels, let pb = b.bitmap?.pixels else { return 1 }
+        defer { withExtendedLifetime((a.bitmap?.context, b.bitmap?.context)) {} }
+        let count = a.width * a.height
         var differing = 0
-        for i in stride(from: 0, to: pa.count, by: 4) {
-            if abs(Int(pa[i]) - Int(pb[i])) > 16 || abs(Int(pa[i + 1]) - Int(pb[i + 1])) > 16
-                || abs(Int(pa[i + 2]) - Int(pb[i + 2])) > 16 || abs(Int(pa[i + 3]) - Int(pb[i + 3])) > 16 {
+        for i in stride(from: 0, to: count * 4, by: 4) {
+            if ItemPictures.distance(pa, pb, i) > 16 || abs(Int(pa[i + 3]) - Int(pb[i + 3])) > 16 {
                 differing += 1
             }
         }
-        return Double(differing) / Double(max(w * h, 1))
+        return Double(differing) / Double(max(count, 1))
     }
 
     @discardableResult
