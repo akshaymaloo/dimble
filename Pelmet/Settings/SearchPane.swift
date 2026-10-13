@@ -7,6 +7,7 @@
 
 import AppKit
 import PelmetCore
+import PelmetEngine
 import SwiftUI
 
 struct SearchPane: View {
@@ -94,9 +95,10 @@ struct SearchPane: View {
             findRow("Pelmet's own commands",
                     caption: "Show or hide your icons, edit the layout, switch the animation, check for updates.",
                     query: Self.probe(String(localized: "Edit Layout")))
+            // A row the index has in every language ("Hover delay" left it).
             findRow("Any setting",
                     caption: "Return takes you straight to it.",
-                    query: Self.probe(String(localized: "Hover delay")))
+                    query: Self.probe(String(localized: "Reveal on hover")))
         }
     }
 
@@ -161,7 +163,9 @@ struct SearchPane: View {
     private func addMenu(excluding listed: Set<String>) -> some View {
         let addable = corpus.filter { $0.candidate.kind == .item && !listed.contains($0.candidate.id) }
         return Menu("Add an icon…") {
-            ForEach(addable, id: \.candidate.id) { entry in
+            // By the full item: an app with two icons has two entries under
+            // one section key, and the same id twice broke the list.
+            ForEach(addable, id: \.itemID) { entry in
                 Button {
                     added.append(entry.candidate.id)
                 } label: {
@@ -185,12 +189,13 @@ struct SearchPane: View {
         entry(for: key)?.candidate.title ?? ItemNaming.displayName(for: ItemID(rawValue: key))
     }
 
-    /// Search's glyph; for an icon not in the bar, its app's icon.
+    /// Search's glyph; for an icon not in the bar, its app's icon, read once
+    /// (the list asks on every render).
     private func glyph(for key: String) -> CommandBarRow.Glyph {
         if let entry = entry(for: key) { return entry.glyph }
         if let bundle = ItemID(rawValue: key).bundleID,
-           let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle) {
-            return .image(NSWorkspace.shared.icon(forFile: url.path))
+           let icon = ExtrasManager.appIcon(for: ExtraItemSpec(kind: .appLauncher, bundleID: bundle), size: RowGlyphCache.side) {
+            return .image(icon)
         }
         return .symbol(CommandBarCorpus.pick("questionmark.app.dashed", "app.dashed"))
     }
@@ -303,9 +308,15 @@ private struct ItemSearchRow: View {
     let remove: () -> Void
 
     @State private var alias = ""
+    /// The field's text when it took focus: only text changed since then is
+    /// the person's to save. Nil while it isn't focused.
+    @State private var aliasAtFocus: String?
     /// Why the last shortcut was refused, until one is kept.
     @State private var refusal: String?
     @FocusState private var aliasFocused: Bool
+
+    private var storedAlias: String { appState.settings.itemAliases[key] ?? "" }
+    private var aliasEdited: Bool { aliasAtFocus.map { $0 != alias } ?? false }
 
     private var id: ItemID { ItemID(rawValue: key) }
 
@@ -327,8 +338,8 @@ private struct ItemSearchRow: View {
                 aliasField
                 ShortcutRecorder(shortcut: .constant(appState.settings.itemHotkeys[key]), fallback: nil, accept: record)
                 Button {
-                    // Emptied first: the field's commit on losing focus
-                    // would otherwise save the old alias back right after.
+                    // Emptied first: text typed and not saved yet would
+                    // otherwise be saved back when the field lets go.
                     alias = ""
                     remove()
                 } label: {
@@ -348,7 +359,14 @@ private struct ItemSearchRow: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .onAppear { alias = appState.settings.itemAliases[key] ?? "" }
+        // What's saved shows whenever the field isn't being typed in: the ⌘K
+        // demo above can change an alias while this pane is up.
+        .onChange(of: storedAlias, initial: true) { _, stored in
+            if !aliasFocused { alias = stored }
+        }
+        // Leaving the pane (the sidebar's buttons take no focus) keeps what
+        // was typed.
+        .onDisappear(perform: commitAlias)
     }
 
     /// The recorder's chip recipe, holding text instead of keys.
@@ -368,17 +386,33 @@ private struct ItemSearchRow: View {
                 if new.count > 40 { alias = String(new.prefix(40)) }
             }
             .onChange(of: aliasFocused) { _, focused in
-                if !focused { commitAlias() }
+                if focused {
+                    aliasAtFocus = alias
+                } else {
+                    commitAlias()
+                    aliasAtFocus = nil
+                    // Untouched, or saved: back to what's stored.
+                    alias = storedAlias
+                }
             }
     }
 
+    /// Saves the alias only when the person changed it since the field took
+    /// focus; an untouched field never writes its old text back.
     private func commitAlias() {
+        guard aliasEdited else { return }
+        aliasAtFocus = alias
         let trimmed = alias.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed != (appState.settings.itemAliases[key] ?? "") else { return }
+        guard trimmed != storedAlias else { return }
         appState.setItemAlias(trimmed, for: id)
     }
 
     private func record(_ spec: HotkeySpec?) -> Bool {
+        if let spec, let editing = CommandBarController.editChordMessage(for: spec) {
+            refusal = editing
+            PelmetLog.log("settings: shortcut \(spec.display) for \(key) refused, an edit shortcut")
+            return false
+        }
         if let refused = appState.setItemHotkey(spec, for: id) {
             refusal = spec.map { CommandBarController.message(for: refused, spec: $0) }
             return false

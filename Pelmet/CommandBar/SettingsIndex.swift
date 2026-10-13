@@ -82,15 +82,15 @@ enum SettingsIndex {
                   ["groups", "separator", "dividers", "panel"]),
             panel("panelAlwaysHidden", String(localized: "Always Hidden"),
                   ["fold", "always hidden", "panel"]),
-            panel("panelFold", String(localized: "Always Hidden fold"),
-                  ["fold", "tile", "count", "handle", "grabber", "always hidden", "panel"]),
+            panel("panelFold", String(localized: "Opens from"),
+                  ["always hidden fold", "fold", "tile", "chip", "count", "handle", "grabber", "always hidden", "panel"]),
 
             search("searchHotkey", String(localized: "Search the menu bar"),
                    ["command bar", "find", "shortcut", "hotkey"]),
             search("itemShortcuts", String(localized: "Aliases and shortcuts"),
                    ["alias", "nickname", "shortcut", "hotkey", "icon shortcut"]),
-            search("searchHistory", String(localized: "Search history"),
-                   ["history", "forget", "learning", "frecency", "clear", "reset"]),
+            search("searchHistory", String(localized: "Search learns what you open"),
+                   ["search history", "history", "forget", "learning", "frecency", "clear", "reset"]),
         ]
     }
 

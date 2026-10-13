@@ -60,26 +60,23 @@ enum CommandBarActions {
             return out
 
         case .item(let id):
+            // Titles, move targets and Quit come from ItemMenuActions, so ⌘K
+            // and a tile's right-click menu say the same thing.
             var out = [
-                item(.openMenu, String(localized: "Open Menu"), "cursorarrow.click", "↩"),
-                item(.showInBar, String(localized: "Show in Menu Bar"), "eye", "⌘↩"),
+                item(.openMenu, ItemMenuActions.openMenuTitle, "cursorarrow.click", "↩"),
+                item(.showInBar, ItemMenuActions.showInBarTitle, "eye", "⌘↩"),
             ]
-            // The clock and Control Center stay where macOS pins them.
-            if !appState.isImmovable(id) {
-                let current = appState.settings.sectionModel.section(of: id)
-                for (section, title, symbol) in [
-                    (PelmetCore.Section.visible, String(localized: "Move to Visible"), "menubar.rectangle"),
-                    (.hidden, String(localized: "Move to Hidden"), "eye.slash"),
-                    (.alwaysHidden, String(localized: "Move to Always Hidden"), pick("eye.slash.circle", "eye.slash")),
-                ] where section != current {
-                    out.append(item(.move(section), title, symbol))
+            for section in ItemMenuActions.moveTargets(of: id, appState: appState) {
+                let symbol = switch section {
+                case .visible: "menubar.rectangle"
+                case .hidden: "eye.slash"
+                case .alwaysHidden: pick("eye.slash.circle", "eye.slash")
                 }
+                out.append(item(.move(section), ItemMenuActions.moveTitle(section), symbol))
             }
             let shortcut = appState.settings.itemHotkeys[id.rawValue]
             out.append(item(
-                .setShortcut,
-                shortcut == nil ? String(localized: "Set Shortcut…") : String(localized: "Change Shortcut…"),
-                "keyboard", shortcut?.display
+                .setShortcut, ItemMenuActions.shortcutTitle(id, appState: appState), "keyboard", shortcut?.display
             ))
             if shortcut != nil {
                 out.append(item(.removeShortcut, String(localized: "Remove Shortcut"), "xmark.circle"))
@@ -91,9 +88,9 @@ enum CommandBarActions {
                 "tag", alias.map { "“\($0)”" }
             ))
             if let app = entry.app {
-                out.append(item(.openApp, String(localized: "Open \(app.name)"), "arrow.up.forward.app"))
-                if !NSRunningApplication.runningApplications(withBundleIdentifier: app.bundleID).isEmpty {
-                    out.append(item(.quitApp, String(localized: "Quit \(app.name)"), "power"))
+                out.append(item(.openApp, String(localized: "Open \(app.openName)"), "arrow.up.forward.app"))
+                if ItemMenuActions.isRunning(app.bundleID) {
+                    out.append(item(.quitApp, ItemMenuActions.quitTitle(app.name), "power"))
                 }
             }
             if canForget { out.append(item(.forget, String(localized: "Forget"), pick("eraser", "xmark.circle"))) }

@@ -57,8 +57,10 @@ final class SparkleController: NSObject {
         .url(forResource: "ReleaseNotes", withExtension: "html")
         .flatMap { try? String(contentsOf: $0, encoding: .utf8) }
 
-    /// Set by the "is installed" banner: About opens with the notes up.
-    var notesRequested = false
+    /// Set by the "is installed" banner to the version it announced: About
+    /// opens with that version's own notes up, even while a newer update
+    /// waits (it opened the waiting one's before).
+    var notesRequested: String?
 
     /// Auto-download staged an update to install on quit: Sparkle hands
     /// over an "install now" block and shows NO UI until quit or a long
@@ -227,8 +229,11 @@ final class SparkleController: NSObject {
         let content = UNMutableNotificationContent()
         content.title = String(localized: "Pelmet \(version) is installed")
         content.body = String(localized: "See what's new")
+        content.userInfo = [Self.versionKey: version]
         deliver(content, id: Self.installedID, log: "installed notification for \(version) (was build \(previous))")
     }
+
+    nonisolated private static let versionKey = "version"
 
     private func deliver(_ content: UNMutableNotificationContent, id: String, log: String) {
         Task {
@@ -307,8 +312,13 @@ extension SparkleController: UNUserNotificationCenterDelegate {
         case Self.notificationID:
             await MainActor.run { openUpdateHub() }
         case Self.installedID:
+            // A banner posted before the version rode along is this build's.
+            let version = response.notification.request.content.userInfo[Self.versionKey] as? String
             await MainActor.run {
-                notesRequested = true
+                // Acted on: it leaves Notification Center.
+                UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [Self.installedID])
+                notesRequested = version
+                    ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
                 openUpdateHub()
             }
         default:

@@ -546,7 +546,7 @@ private struct ItemTile: View {
                 ItemMenuActions.editShortcut(item.id, appState: appState, source: "editor")
             }
         }
-        if let app = ItemMenuActions.app(for: item, title: displayName), ItemMenuActions.isRunning(app.bundleID) {
+        if let app = ItemMenuActions.app(for: item), ItemMenuActions.isRunning(app.bundleID) {
             Divider()
             Button(ItemMenuActions.quitTitle(app.name)) {
                 ItemMenuActions.quit(app.bundleID, source: "editor")
@@ -659,7 +659,7 @@ private struct ItemTile: View {
                         .padding(2)
                         .background(Circle().fill(.background))
                         .offset(x: 4, y: -4)
-                        .help("System icon — Pelmet places it; whether it exists in the bar is set in System Settings › Control Center")
+                        .help("System icon. Pelmet places it. Whether it's in the bar is set in System Settings › Menu Bar.")
                 }
             }
             // The top-right holds the Apple glyph, so a rule's mark takes the

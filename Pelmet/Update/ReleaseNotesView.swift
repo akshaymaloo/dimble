@@ -49,7 +49,10 @@ private struct NotesWebView: NSViewRepresentable {
         // Transparent, so the snippet sits on the popover's own material.
         view.setValue(false, forKey: "drawsBackground")
         view.navigationDelegate = context.coordinator
-        view.loadHTMLString(html, baseURL: nil)
+        // The snippet has no DOCTYPE (Sparkle embeds it in its own page). In
+        // quirks mode the root stretches to the viewport, so short notes
+        // measured 120 and kept a blank popover.
+        view.loadHTMLString("<!DOCTYPE html>" + html, baseURL: nil)
         return view
     }
 
@@ -69,9 +72,11 @@ private struct NotesWebView: NSViewRepresentable {
             return .cancel
         }
 
+        /// The body's own box, which (unlike the root's scroll height) can
+        /// come out shorter than the view it's laid out in.
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             Task {
-                if let height = try? await webView.evaluateJavaScript("document.documentElement.scrollHeight") as? Double {
+                if let height = try? await webView.evaluateJavaScript("Math.ceil(document.body.getBoundingClientRect().height)") as? Double {
                     contentHeight.wrappedValue = height
                 }
             }

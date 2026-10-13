@@ -32,14 +32,14 @@ enum ShowWhenCondition: Hashable {
 enum ShowWhenSubject: CaseIterable, Hashable {
     case battery, wifi, focus, timeMachine
 
-    /// The subject an editor tile stands for, if it has a rule.
+    /// The subject an editor tile stands for, if it has a rule. Apple's are
+    /// read the way the rest of Pelmet reads system icons, not by one exact
+    /// tag.
     init?(_ id: ItemID) {
-        let key = id.sectionKey
-        if key == ShowRules.battery {
-            self = .battery
-        } else if key == ShowRules.wifi {
-            self = .wifi
-        } else {
+        switch MenuBarPolicy.systemItem(for: id) {
+        case .battery: self = .battery
+        case .wifi: self = .wifi
+        default:
             switch id.pelmetItem {
             case .focus: self = .focus
             case .timeMachine: self = .timeMachine
@@ -66,12 +66,13 @@ enum ShowWhenSubject: CaseIterable, Hashable {
         }
     }
 
+    /// The glyph search and the extras draw for the same icon.
     var symbol: String {
         switch self {
-        case .battery: "battery.100percent"
-        case .wifi: "wifi"
-        case .focus: "moon.fill"
-        case .timeMachine: ExtraGlyph.timeMachineSymbol
+        case .battery: CommandBarCorpus.symbol(for: .battery)
+        case .wifi: CommandBarCorpus.symbol(for: .wifi)
+        case .focus: ExtrasManager.symbol(for: ExtraItemSpec(kind: .focus))
+        case .timeMachine: ExtrasManager.symbol(for: ExtraItemSpec(kind: .timeMachine))
         }
     }
 
@@ -230,10 +231,7 @@ private struct ShowWhenRow: View {
             condition
                 .opacity(applies ? 1 : 0.5)
                 .disabled(!applies)
-            Toggle("", isOn: Binding(get: { rule.isActive }, set: rule.setOn))
-                .toggleStyle(.switch)
-                .controlSize(.small)
-                .labelsHidden()
+            SettingSwitch(isOn: Binding(get: { rule.isActive }, set: rule.setOn))
                 .disabled(!applies)
         }
         // Whether Battery or Wi-Fi is in the bar is read with a grace (an icon
@@ -355,7 +353,7 @@ struct TilePopover: View {
                 .foregroundStyle(.secondary)
         }
         if rule.subject == .wifi {
-            Text("Waits 5 seconds, so a wake or a roam doesn't flash it.")
+            Text("Waits \(ShowRules.wifiGrace.components.seconds) seconds, so a wake or a roam doesn't flash it.")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
         }

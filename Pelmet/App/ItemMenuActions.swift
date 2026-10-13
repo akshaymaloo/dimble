@@ -12,8 +12,9 @@ import PelmetEngine
 enum ItemMenuActions {
     static var openMenuTitle: String { String(localized: "Open Menu") }
     static var showInBarTitle: String { String(localized: "Show in Menu Bar") }
-    /// The icon's row in Settings › Search, named for the shortcut it holds
-    /// (the row has its alias too).
+    /// The icon's row in Settings › Search (the row has its alias too), and
+    /// the command bar's ⌘K line that records one in place, named for the
+    /// shortcut it holds.
     static func shortcutTitle(_ id: ItemID, appState: AppState) -> String {
         appState.settings.itemHotkeys[id.sectionKey.rawValue] == nil
             ? String(localized: "Add a Shortcut…") : String(localized: "Change Shortcut…")
@@ -62,12 +63,30 @@ enum ItemMenuActions {
         !bundle.hasPrefix("com.apple.") && !PelmetBundle.ownIDs.contains(bundle)
     }
 
-    /// The app behind an icon, when Quit applies to it. `title` is what the
-    /// icon is called when its app has no name of its own.
-    static func app(for item: ObservedItem, title: String) -> (bundleID: String, name: String)? {
+    /// An icon's app as Open and Quit offer it, each label naming what its
+    /// action acts on. A login-item helper that owns an icon (Fantastical's)
+    /// is named for its parent on the tile; Quit still ends the helper, so it
+    /// says the helper's own name, and Open launches the parent.
+    struct ItemApp {
+        /// The process that owns the icon: what Quit ends and names.
+        let bundleID: String
+        let name: String
+        /// What Open launches and names: the app the owner ships inside when
+        /// the icon is named for it, else the owner.
+        let openBundleID: String
+        let openName: String
+    }
+
+    /// The app behind an icon, when Open and Quit apply to it. Every menu
+    /// that offers them reads this (the command bar's ⌘K, the panel's and
+    /// the editor's right-click), so the labels and the targets agree.
+    static func app(for item: ObservedItem) -> ItemApp? {
         guard let bundle = item.id.bundleID, isThirdParty(bundle) else { return nil }
-        let name = item.appName ?? ItemNaming.appName(forBundle: bundle)
-        return (bundle, name ?? title)
+        let name = ItemNaming.ownName(item.appName, bundle: bundle) ?? bundle.components(separatedBy: ".").last ?? bundle
+        if let parent = ItemNaming.parentApp(item.appName, bundle: bundle), let parentID = parent.bundleID {
+            return ItemApp(bundleID: bundle, name: name, openBundleID: parentID, openName: parent.name)
+        }
+        return ItemApp(bundleID: bundle, name: name, openBundleID: bundle, openName: name)
     }
 
     static func isRunning(_ bundleID: String) -> Bool {

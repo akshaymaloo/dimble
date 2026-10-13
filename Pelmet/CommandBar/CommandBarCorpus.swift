@@ -42,10 +42,13 @@ struct CommandBarEntry {
     let glyph: CommandBarRow.Glyph
     /// The third-party app behind an item, for its Open / Quit actions. Nil
     /// for Apple's own icons and Pelmet's.
-    var app: (bundleID: String, name: String)?
+    var app: ItemMenuActions.ItemApp?
+    /// The bar item an item row was built from, in full: two icons of one
+    /// app share the section key the candidate and the action carry.
+    var itemID: ItemID?
 
     func with(candidate: SearchCandidate) -> CommandBarEntry {
-        CommandBarEntry(candidate: candidate, action: action, glyph: glyph, app: app)
+        CommandBarEntry(candidate: candidate, action: action, glyph: glyph, app: app, itemID: itemID)
     }
 
     var isItem: Bool {
@@ -93,7 +96,7 @@ enum CommandBarCorpus {
                 if !ItemMenuActions.canAlias(item.id) { continue }
                 let key = item.id.sectionKey
                 let title = ItemNaming.displayName(for: item)
-                let app = item.appName ?? item.id.bundleID.flatMap(ItemNaming.appName(forBundle:))
+                let app = ItemNaming.usableAppName(item.appName, bundle: item.id.bundleID)
                 let subtitle = app.flatMap { $0.caseInsensitiveCompare(title) == .orderedSame ? nil : $0 }
                 let candidate = SearchCandidate(
                     id: key.rawValue,
@@ -105,7 +108,8 @@ enum CommandBarCorpus {
                     section: section
                 )
                 var entry = CommandBarEntry(candidate: candidate, action: .item(key), glyph: drawsGlyphs ? glyph(for: item) : noGlyph)
-                entry.app = ItemMenuActions.app(for: item, title: title)
+                entry.app = ItemMenuActions.app(for: item)
+                entry.itemID = item.id
                 out.append(entry)
             }
         }
@@ -132,7 +136,9 @@ enum CommandBarCorpus {
         return .symbol(pick("questionmark.app.dashed", "app.dashed"))
     }
 
-    private static func symbol(for system: SystemItem) -> String {
+    /// The glyph a system icon gets wherever Pelmet draws one by symbol (search
+    /// rows, Show when it matters).
+    static func symbol(for system: SystemItem) -> String {
         switch system {
         case .battery: "battery.75percent"
         case .bluetooth: pick("bluetooth", "antenna.radiowaves.left.and.right")

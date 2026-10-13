@@ -60,33 +60,62 @@ enum ItemNaming {
         // ("PasswordsMenuBarExtra", "WeatherMenu"); the tile says what the
         // icon is: the app that ships it.
         if let bundle = id.bundleID, MenuBarPolicy.isBundleHideableAppleHost(bundle),
-           let shipping = shippingAppName(for: bundle) {
+           let shipping = shippingApp(for: bundle)?.name {
             return shipping
         }
-        if let name = usable(appName) ?? id.bundleID.flatMap(appName(forBundle:)) {
+        if let name = usableAppName(appName, bundle: id.bundleID) {
             return name
-        }
-        // A helper named after its bundle id (Fantastical's
-        // "85C27NK92C.com.flexibits.fantastical2.mac.helper", #81): the app
-        // it ships inside.
-        if let bundle = id.bundleID, let shipping = shippingAppName(for: bundle) {
-            return shipping
         }
         return id.bundleID?.components(separatedBy: ".").last ?? "?"
     }
 
+    /// The owning app's name for people: `given` (what a live item carries)
+    /// when it says something, else the bundle's own, else, for a helper
+    /// named after its bundle id (Fantastical's
+    /// "85C27NK92C.com.flexibits.fantastical2.mac.helper", #81), the app it
+    /// ships inside. The command bar's subtitles use it too, so neither says
+    /// a bundle id.
+    static func usableAppName(_ given: String?, bundle: String?) -> String? {
+        usable(given) ?? bundle.flatMap { appName(forBundle: $0) ?? shippingApp(for: $0)?.name }
+    }
+
+    /// What the process behind a bundle calls itself, never the app it
+    /// ships inside: `given` (a live item's own), its running name, its
+    /// bundle's display name. Quit ends that process, so Quit says this.
+    static func ownName(_ given: String?, bundle: String) -> String? {
+        if let name = usable(given) ?? appName(forBundle: bundle) { return name }
+        // Running under a name that is its bundle id: its bundle's own name.
+        guard let url = NSRunningApplication.runningApplications(withBundleIdentifier: bundle).first?.bundleURL
+        else { return nil }
+        return usable(FileManager.default.displayName(atPath: url.path))
+    }
+
+    /// The app a helper ships inside when that is whose name
+    /// `usableAppName` gives it (the helper has none of its own). Nil
+    /// otherwise.
+    static func parentApp(_ given: String?, bundle: String) -> ShippingApp? {
+        guard usable(given) == nil, appName(forBundle: bundle) == nil else { return nil }
+        return shippingApp(for: bundle)
+    }
+
     /// The app's own name for a bundle: the running copy's, else the
-    /// installed bundle's as Finder shows it. Cached once found (one
-    /// LaunchServices query each, and the board and the command bar ask
-    /// per item).
+    /// installed bundle's as Finder shows it. Cached, a miss too until an
+    /// app launches (one LaunchServices query each, and the board and the
+    /// command bar ask per item).
     static func appName(forBundle bundle: String) -> String? {
         if let cached = appNames[bundle] { return cached }
+        if appNameMisses.contains(bundle) { return nil }
         var name = NSRunningApplication.runningApplications(withBundleIdentifier: bundle).first?.localizedName
         if name == nil, let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle) {
             name = FileManager.default.displayName(atPath: url.path)
         }
         name = usable(name)
-        if let name { appNames[bundle] = name }
+        if let name {
+            appNames[bundle] = name
+        } else {
+            appNameMisses.insert(bundle)
+            watchLaunches()
+        }
         return name
     }
 
@@ -101,14 +130,23 @@ enum ItemNaming {
         return name
     }
 
-    /// Finder's localized name of the app a login-item extra ships inside
-    /// (…/Weather.app/Contents/Library/LoginItems/WeatherMenu.app → "Weather").
-    /// nil for a host that is its own app. One LaunchServices lookup per
-    /// bundle, then cached: the board asks on every tile render.
-    private static var shippingAppNames: [String: String?] = [:]
-    private static func shippingAppName(for bundle: String) -> String? {
-        if let cached = shippingAppNames[bundle] { return cached }
-        var name: String?
+    /// The app a login-item extra ships inside: Finder's localized name for
+    /// it and its bundle id (what Open launches for the helper's icon).
+    struct ShippingApp {
+        let name: String
+        let bundleID: String?
+    }
+
+    /// …/Weather.app/Contents/Library/LoginItems/WeatherMenu.app → Weather.
+    /// nil for a host that is its own app or that can't be found. One
+    /// LaunchServices lookup per bundle, then cached, a miss too: the board
+    /// asks on every tile render. A launch clears the misses, since a helper
+    /// that wasn't running or registered may be now (a nil kept for good once
+    /// named one by its bundle id until relaunch).
+    private static var shippingApps: [String: ShippingApp?] = [:]
+    private static func shippingApp(for bundle: String) -> ShippingApp? {
+        if let cached = shippingApps[bundle] { return cached }
+        var app: ShippingApp?
         // The running copy first: a third-party helper LaunchServices may not
         // have registered is still on the bar.
         if let url = NSRunningApplication.runningApplications(withBundleIdentifier: bundle).first?.bundleURL
@@ -117,12 +155,37 @@ enum ItemNaming {
             // <App>.app / Contents / Library / LoginItems / <Extra>.app
             if parts.count >= 5, parts[parts.count - 2] == "LoginItems", parts[parts.count - 3] == "Library",
                parts[parts.count - 4] == "Contents", parts[parts.count - 5].hasSuffix(".app") {
-                let app = url.deletingLastPathComponent().deletingLastPathComponent()
+                let parent = url.deletingLastPathComponent().deletingLastPathComponent()
                     .deletingLastPathComponent().deletingLastPathComponent()
-                name = FileManager.default.displayName(atPath: app.path)
+                app = ShippingApp(
+                    name: FileManager.default.displayName(atPath: parent.path),
+                    bundleID: Bundle(url: parent)?.bundleIdentifier
+                )
             }
         }
-        shippingAppNames[bundle] = name
-        return name
+        shippingApps[bundle] = app
+        if app == nil { watchLaunches() }
+        return app
+    }
+
+    /// Bundles `appName(forBundle:)` found no name for.
+    private static var appNameMisses: Set<String> = []
+    private static var launchObserver: (any NSObjectProtocol)?
+
+    /// Any app launching clears the misses: a bundle neither running nor
+    /// installed cost two running-app and two LaunchServices lookups on every
+    /// tile render while they weren't kept.
+    private static func watchLaunches() {
+        guard launchObserver == nil else { return }
+        launchObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didLaunchApplicationNotification, object: nil, queue: .main
+        ) { _ in
+            MainActor.assumeIsolated { ItemNaming.forgetMisses() }
+        }
+    }
+
+    private static func forgetMisses() {
+        appNameMisses.removeAll()
+        shippingApps = shippingApps.filter { $0.value != nil }
     }
 }

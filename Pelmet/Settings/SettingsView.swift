@@ -565,11 +565,13 @@ struct PelmetMenuPicker<Value: Hashable>: View {
     var body: some View {
         Menu {
             // Toggles carry the native checkmark; a Label's symbol is
-            // dropped by macOS menus.
+            // dropped by macOS menus. Any pick writes, the checked one too:
+            // unchecking it wrote nothing, so a value shown as its nearest
+            // option could never be set to that option.
             ForEach(options, id: \.0) { value, label in
                 Toggle(label, isOn: Binding(
                     get: { selection == value },
-                    set: { if $0 { selection = value } }
+                    set: { _ in selection = value }
                 ))
             }
         } label: {
@@ -1089,7 +1091,7 @@ private struct BehaviorPane: View {
         Binding(
             get: {
                 guard appState.settings.autoRehide else { return .never }
-                return .after(Int(nearest(appState.settings.rehideDelay, in: RehideChoice.delays.map(TimeInterval.init))))
+                return .after(Int(RehideChoice.snapped(appState.settings.rehideDelay)))
             },
             set: { choice in
                 switch choice {
@@ -1121,12 +1123,18 @@ private struct BehaviorPane: View {
 
 /// "Hide again" as one pick: how long after the pointer leaves, or never.
 /// Never is the old Automatically rehide switched off, the rest are the
-/// delay (a store saved with 0.5 steps rounds to the nearest of these).
-private enum RehideChoice: Hashable {
+/// delay. A store saved with 0.5 steps is snapped onto these at launch
+/// (AppState), so the checked delay is the one the bar waits.
+enum RehideChoice: Hashable {
     case after(Int)
     case never
 
     static let delays = [0, 1, 2, 3, 5]
+
+    /// The delay the menu offers closest to `delay`.
+    static func snapped(_ delay: TimeInterval) -> TimeInterval {
+        nearest(delay, in: delays.map(TimeInterval.init))
+    }
 
     static let options: [(RehideChoice, LocalizedStringKey)] = [
         (.after(0), "Right away"), (.after(1), "After 1 second"), (.after(2), "After 2 seconds"),
@@ -1409,6 +1417,9 @@ struct InstagramGlyph: View {
 private struct AboutPane: View {
     @Environment(AppState.self) private var appState
     @State private var notesShown = false
+    /// The banner asked for this version's notes: the link shows them until
+    /// the popover closes, even with an update waiting.
+    @State private var showsInstalledNotes = false
 
     private var version: String {
         let info = Bundle.main
@@ -1469,22 +1480,34 @@ private struct AboutPane: View {
             takeNotesRequest()
         }
         .onChange(of: SparkleController.shared.notesRequested) { takeNotesRequest() }
+        .onChange(of: notesShown) { _, shown in
+            if !shown { showsInstalledNotes = false }
+        }
     }
 
-    /// The "is installed" banner asks for the notes to open with the pane.
+    /// The "is installed" banner asks for its version's notes to open with
+    /// the pane. Only this build's are bundled: a banner left from an older
+    /// one opens the pane alone.
     private func takeNotesRequest() {
-        guard SparkleController.shared.notesRequested else { return }
-        SparkleController.shared.notesRequested = false
+        guard let requested = SparkleController.shared.notesRequested else { return }
+        SparkleController.shared.notesRequested = nil
+        let short = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+        guard requested == short, SparkleController.installedNotes != nil else {
+            PelmetLog.log("settings: notes for \(requested) asked for, this is \(short), none shown")
+            return
+        }
+        showsInstalledNotes = true
         notesShown = true
     }
 
     /// "What's new" under the update chip: the waiting update's notes
-    /// before the click that installs it, otherwise this version's own.
+    /// before the click that installs it, otherwise this version's own
+    /// (and always while the "is installed" banner's request is up).
     /// A quiet link, the notes live in a popover (one recipe with
     /// Sparkle's update window: same HTML, same stylesheet).
     @ViewBuilder private var notesLink: some View {
         let sparkle = SparkleController.shared
-        if let version = sparkle.availableVersion {
+        if !showsInstalledNotes, let version = sparkle.availableVersion {
             if let html = sparkle.pendingNotes {
                 notesButton("What's new", title: String(localized: "What's new in \(version)"), html: html)
             }

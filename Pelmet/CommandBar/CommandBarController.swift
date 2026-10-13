@@ -905,12 +905,10 @@ final class CommandBarController {
             beginInput(.alias, title: model.rows[index].title)
         case (.openApp, _):
             close(reason: "open app")
-            if let app = entry.app { Self.open(app.bundleID) }
+            if let app = entry.app { Self.open(app.openBundleID) }
         case (.quitApp, _):
             close(reason: "quit app")
-            if let app = entry.app {
-                for running in NSRunningApplication.runningApplications(withBundleIdentifier: app.bundleID) { running.terminate() }
-            }
+            if let app = entry.app { ItemMenuActions.quit(app.bundleID, source: logTag) }
         case (.forget, _):
             history = Self.loadHistory()
             history.forget(id: entry.candidate.id)
@@ -936,7 +934,8 @@ final class CommandBarController {
     private func beginInput(_ input: CommandBarInput, title: String) {
         mode = input == .shortcut ? .shortcut : .alias
         model.input = input
-        model.inputTitle = title.replacingOccurrences(of: "…", with: "")
+        // German spaces its ellipsis ("Kürzel festlegen …").
+        model.inputTitle = title.replacingOccurrences(of: "…", with: "").trimmingCharacters(in: .whitespaces)
         model.inputMessage = nil
         model.inputCaption = input == .shortcut
             ? String(localized: "Press the new shortcut. ⎋ cancels.")
@@ -986,6 +985,12 @@ final class CommandBarController {
             display: ShortcutRecorder.symbols(flags)
                 + ShortcutRecorder.keyName(keyCode: Int(event.keyCode), chars: event.charactersIgnoringModifiers)
         )
+        if let editing = Self.editChordMessage(for: spec) {
+            NSSound.beep()
+            model.inputMessage = editing
+            PelmetLog.log("\(logTag): shortcut \(spec.display) for \(id.rawValue) refused, an edit shortcut")
+            return true
+        }
         if let refusal = appState.setItemHotkey(spec, for: id) {
             NSSound.beep()
             model.inputMessage = Self.message(for: refusal, spec: spec)
@@ -1009,6 +1014,13 @@ final class CommandBarController {
         case .otherApp:
             String(localized: "Another app already uses \(spec.display). Press a different combination.")
         }
+    }
+
+    /// Why an edit shortcut (⌘C, ⌘V…) can't open an icon, nil for any other
+    /// combination. Settings › Search says the same.
+    static func editChordMessage(for spec: HotkeySpec) -> String? {
+        guard ShortcutRecorder.isEditChord(spec) else { return nil }
+        return String(localized: "Every app uses \(spec.display) for editing. Press a different combination.")
     }
 
     // MARK: - History

@@ -18,8 +18,8 @@ import SystemConfiguration
 
 @MainActor
 final class ShowRules {
-    static let battery = ItemID(rawValue: "status:com.apple.MenuBarAgent::com.apple.menuextra.battery")
-    static let wifi = ItemID(rawValue: "status:com.apple.MenuBarAgent::com.apple.menuextra.wifi")
+    static let battery = ItemID.status(bundle: PelmetBundle.agentID, title: "com.apple.menuextra.battery")
+    static let wifi = ItemID.status(bundle: PelmetBundle.agentID, title: "com.apple.menuextra.wifi")
 
     /// Wi-Fi drops its network for a few seconds on every wake and every
     /// roam: only a disconnection that lasts this long shows the icon.

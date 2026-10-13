@@ -3,9 +3,14 @@
 // settings window, so recording needs no extra permission. ⎋ cancels,
 // ⌫ turns the shortcut off (#79), and the ↺ inside the chip
 // always brings `fallback` back (⌫ once left no way back, 2026-09-15).
+// It listens only to its own window and only until the person moves on: a
+// click anywhere but the chip, the window losing key or another recorder
+// starting ends it (it once kept every key app-wide, so ⌫ in the alias field
+// removed an icon's shortcut and ⌘A became one).
 
 import Carbon.HIToolbox
 import PelmetCore
+import PelmetEngine
 import SwiftUI
 
 struct ShortcutRecorder: View {
@@ -19,10 +24,19 @@ struct ShortcutRecorder: View {
     var accept: ((HotkeySpec?) -> Bool)? = nil
     @State private var recording = false
     @State private var hovering = false
-    @State private var monitor: Any?
+    /// The key and click monitors and the window and recorder observers,
+    /// while recording.
+    @State private var monitors: [Any] = []
+    @State private var observers: [any NSObjectProtocol] = []
+    /// The chip's AppKit view, for telling a click on the chip from one
+    /// beside it.
+    @State private var chipProbe = ChipProbe()
     /// Recorders listening for a shortcut now: the hover panel's typing tap
     /// leaves their keys alone (`HoverTypingTap`).
     private(set) static var listening = 0
+
+    /// Posted when a recorder starts, so one still listening lets go.
+    private static let didStartRecording = Notification.Name("app.fif7y.Pelmet.shortcutRecorder.started")
 
     private var isOff: Bool { shortcut?.isOff == true }
 
@@ -33,6 +47,7 @@ struct ShortcutRecorder: View {
         // beside the chip shifted it left on every custom shortcut, and its
         // exit animation left the chip offset (Gab, 2026-10-07).
         chip
+            .background(ChipProbeView(probe: chipProbe))
             // A custom or turned-off shortcut gets a way back to the default
             // without knowing about ⌫ — only while there is something to undo.
             .overlay(alignment: .leading) {
@@ -113,27 +128,77 @@ struct ShortcutRecorder: View {
     }
 
     private func startRecording() {
+        guard !recording else { return }
+        // One recorder at a time: posted before this one listens for it.
+        NotificationCenter.default.post(name: Self.didStartRecording, object: nil)
+        // The window the chip was clicked in; keys for any other (the command
+        // bar, the panel) aren't the recorder's.
+        guard let window = NSApp.currentEvent?.window ?? NSApp.keyWindow else { return }
+        let windowNumber = window.windowNumber
         recording = true
-        monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            // NSEvent is not Sendable — pull the scalars out before hopping
-            // into the actor. The monitor already fires on the main thread.
-            let keyCode = Int(event.keyCode)
-            let flags = event.modifierFlags
-            let chars = event.charactersIgnoringModifiers
-            let consumed = MainActor.assumeIsolated {
-                handle(keyCode: keyCode, flags: flags, chars: chars)
-            }
-            return consumed ? nil : event
-        }
+        monitors = [
+            NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                // NSEvent is not Sendable — pull the scalars out before hopping
+                // into the actor. The monitor already fires on the main thread.
+                let keyCode = Int(event.keyCode)
+                let flags = event.modifierFlags
+                let chars = event.charactersIgnoringModifiers
+                let ours = event.windowNumber == windowNumber
+                let consumed = MainActor.assumeIsolated {
+                    guard ours else {
+                        letGo("a key for another window")
+                        return false
+                    }
+                    return handle(keyCode: keyCode, flags: flags, chars: chars)
+                }
+                return consumed ? nil : event
+            },
+            // The chip's own click toggles the recording on mouse-up; any
+            // other click (a field, another recorder, another window) ends it
+            // and goes where it was meant to. Hit-tested, not read from the
+            // hover state: that one is stale when the window became key
+            // without the pointer moving, and a click on the chip stopped the
+            // recording only for its mouse-up to start it again.
+            NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { event in
+                let ours = event.windowNumber == windowNumber
+                let location = event.locationInWindow
+                MainActor.assumeIsolated {
+                    let onChip = ours && (chipProbe.contains(location) ?? hovering)
+                    if !onChip { letGo("a click outside the chip") }
+                }
+                return event
+            },
+        ].compactMap { $0 }
         Self.listening += 1
+        observers = [
+            NotificationCenter.default.addObserver(
+                forName: NSWindow.didResignKeyNotification, object: window, queue: .main
+            ) { _ in
+                MainActor.assumeIsolated { letGo("its window resigned key") }
+            },
+            NotificationCenter.default.addObserver(
+                forName: Self.didStartRecording, object: nil, queue: .main
+            ) { _ in
+                MainActor.assumeIsolated { letGo("another recorder started") }
+            },
+        ]
     }
 
+    /// Stops a recording the person moved away from, saying why.
+    private func letGo(_ reason: String) {
+        guard recording else { return }
+        PelmetLog.log("settings: shortcut recorder stopped, \(reason)")
+        stopRecording()
+    }
+
+    /// Every way a recording ends comes here (⎋, a commit, the chip, letting
+    /// go, the view leaving), so `listening` stays balanced.
     private func stopRecording() {
-        if let monitor {
-            NSEvent.removeMonitor(monitor)
-            Self.listening -= 1
-        }
-        monitor = nil
+        if !monitors.isEmpty { Self.listening -= 1 }
+        monitors.forEach(NSEvent.removeMonitor)
+        observers.forEach(NotificationCenter.default.removeObserver)
+        monitors = []
+        observers = []
         recording = false
     }
 
@@ -187,6 +252,19 @@ struct ShortcutRecorder: View {
         if flags.contains(.shift) { mods |= UInt32(shiftKey) }
         if flags.contains(.command) { mods |= UInt32(cmdKey) }
         return mods
+    }
+
+    /// Select All, Copy, Paste, Cut, Undo and Redo (⌘A ⌘C ⌘V ⌘X ⌘Z ⇧⌘Z):
+    /// as an icon's shortcut one would take that edit from every app. Read
+    /// from the key's name in `display` (the Roman layout's), so AZERTY's ⌘A
+    /// counts.
+    static func isEditChord(_ spec: HotkeySpec) -> Bool {
+        let key = String(spec.display.drop { "⌃⌥⇧⌘".contains($0) })
+        switch spec.modifiers {
+        case UInt32(cmdKey): return ["A", "C", "V", "X", "Z"].contains(key)
+        case UInt32(cmdKey | shiftKey): return key == "Z"
+        default: return false
+        }
     }
 
     static func symbols(_ flags: NSEvent.ModifierFlags) -> String {
@@ -252,6 +330,35 @@ struct ShortcutRecorder: View {
             guard status == noErr, length > 0 else { return nil }
             return String(utf16CodeUnits: characters, count: length)
         }
+    }
+}
+
+/// The chip's frame as AppKit sees it, for hit-testing a click while the
+/// recorder listens.
+private final class ChipProbe {
+    weak var view: NSView?
+
+    /// Nil when the chip has no view yet.
+    func contains(_ locationInWindow: NSPoint) -> Bool? {
+        guard let view, view.window != nil else { return nil }
+        return view.bounds.contains(view.convert(locationInWindow, from: nil))
+    }
+}
+
+/// An empty view the size of the chip that clicks pass through.
+private struct ChipProbeView: NSViewRepresentable {
+    let probe: ChipProbe
+
+    func makeNSView(context: Context) -> NSView {
+        let view = PassThroughView()
+        probe.view = view
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) { probe.view = view }
+
+    private final class PassThroughView: NSView {
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
     }
 }
 

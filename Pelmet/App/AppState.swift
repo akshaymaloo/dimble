@@ -269,10 +269,16 @@ final class AppState {
             UserDefaults.standard.set(true, forKey: "pelmet.seededBetaOptIn")
         }
 
-        // Sliders are stepped now (hover 0.1–0.5, rehide 0–5): snap stores
-        // saved under the old free ranges onto the grid.
+        // Sliders are stepped now (hover 0.1–0.5): snap stores saved under
+        // the old free ranges onto the grid. Hide again is a menu of 0, 1, 2,
+        // 3 or 5 seconds: a 0.5-step store showed the nearest one checked
+        // while the bar waited its own, and picking that one changed nothing.
         settings.revealTriggers.hoverDelay = (min(max(settings.revealTriggers.hoverDelay, 0.1), 0.5) * 10).rounded() / 10
-        settings.rehideDelay = (min(max(settings.rehideDelay, 0), 5) * 2).rounded() / 2
+        let rehide = RehideChoice.snapped(settings.rehideDelay)
+        if rehide != settings.rehideDelay {
+            PelmetLog.log("start: Hide again \(settings.rehideDelay)s snapped to the menu's \(rehide)s")
+            settings.rehideDelay = rehide
+        }
 
         // One-shot (#86): the "while active" rule of Focus and Time Machine
         // used to take the icon away when idle; now it only brings it out. Every bar stays as it was: one in Visible moves to Hidden,
@@ -291,6 +297,15 @@ final class AppState {
                 PelmetLog.log("start: \(spec.itemTitle) rule now only brings it out, \(settings.sectionModel.section(of: key)) \(settings.extraItems[index].resolvedShowRule)")
             }
             UserDefaults.standard.set(true, forKey: "pelmet.migratedShowRuleMeaning")
+        }
+
+        // An icon's shortcut on ⌘A/C/V/X/Z or ⇧⌘Z took that edit from every
+        // app; the recorder refuses them now, and one an older build saved
+        // is dropped here (once: it's gone from the store after).
+        let editChords = settings.itemHotkeys.filter { ShortcutRecorder.isEditChord($0.value) }
+        if !editChords.isEmpty {
+            for key in editChords.keys { settings.itemHotkeys.removeValue(forKey: key) }
+            PelmetLog.log("start: dropped edit shortcuts from icons: \(editChords.map { "\($0.key) \($0.value.display)" }.sorted().joined(separator: ", "))")
         }
 
         // Migrate the model to canonical (bundle-level) keys — collapses any
@@ -1116,7 +1131,9 @@ final class AppState {
     /// when nothing changed.
     func syncItemHotkeys() {
         guard let hotkey else { return }
-        let wanted = settings.itemHotkeys
+        // Never an edit shortcut, whatever the store holds: it would take
+        // Copy or Paste from every app.
+        let wanted = settings.itemHotkeys.filter { !ShortcutRecorder.isEditChord($0.value) }
         for (key, state) in itemHotkeyState where wanted[key] != state.spec {
             if let slot = state.slot { hotkey.unregisterItem(slot: slot) }
             itemHotkeyState.removeValue(forKey: key)

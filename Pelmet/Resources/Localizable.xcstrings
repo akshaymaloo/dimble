@@ -3655,64 +3655,6 @@
         }
       }
     },
-    "Always Hidden fold": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Klappbereich „Immer ausgeblendet“"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Plegable de Siempre ocultos"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Volet « Toujours masqués »"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sezione pieghevole Sempre nascosti"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "「常に非表示」の折りたたみ"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "‘항상 숨김’ 접힌 부분"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dobra de Sempre ocultos"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Свёрнутый блок «Всегда скрытые»"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "“始终隐藏”折叠区"
-          }
-        }
-      }
-    },
     "Always hidden": {
       "localizations": {
         "de": {
@@ -8063,6 +8005,64 @@
         }
       }
     },
+    "Every app uses %@ for editing. Press a different combination.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jede App verwendet %@ zum Bearbeiten. Drücke eine andere Kombination."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Todas las apps usan %@ para editar. Pulsa otra combinación."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toutes les apps utilisent %@ pour l’édition. Appuyez sur une autre combinaison."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tutte le app usano %@ per la modifica. Premi un’altra combinazione."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ はどのアプリでも編集に使われています。別の組み合わせを押してください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "모든 앱에서 %@ 를 편집에 사용합니다. 다른 조합을 누르세요."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Todos os apps usam %@ para edição. Pressione outra combinação."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Все приложения используют %@ для правки. Нажмите другое сочетание."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所有 App 都用 %@ 进行编辑。请按其他组合。"
+          }
+        }
+      }
+    },
     "Every icon, wherever it lives": {
       "localizations": {
         "de": {
@@ -9915,64 +9915,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "请同时按住 ⌘、⌥ 或 ⌃，否则该键会在其他 App 中输入字符。"
-          }
-        }
-      }
-    },
-    "Hover delay": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verzögerung"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Retardo"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Délai de survol"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ritardo"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ホバーの遅延"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "지연 시간"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Atraso"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Задержка"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "悬停延迟"
           }
         }
       }
@@ -11880,7 +11822,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "В строке меню"
+            "value": "Строка меню"
           }
         },
         "zh-Hans": {
@@ -18387,64 +18329,6 @@
         }
       }
     },
-    "Search history": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Suchverlauf"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Historial de búsqueda"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Historique de recherche"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cronologia di ricerca"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "検索履歴"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "검색 기록"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Histórico de busca"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "История поиска"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "搜索记录"
-          }
-        }
-      }
-    },
     "Search learns what you open": {
       "localizations": {
         "de": {
@@ -18905,64 +18789,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "分隔符另起一行"
-          }
-        }
-      }
-    },
-    "Set Shortcut…": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kürzel festlegen …"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Definir atajo…"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Définir un raccourci…"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Imposta scorciatoia…"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ショートカットを設定…"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "단축키 설정…"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Definir atalho…"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Задать сочетание…"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "设置快捷键…"
           }
         }
       }
@@ -19710,7 +19536,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Показывать скрытые значки"
+            "value": "Где показывать скрытые значки"
           }
         },
         "zh-Hans": {
@@ -21577,60 +21403,60 @@
         }
       }
     },
-    "System icon — Pelmet places it; whether it exists in the bar is set in System Settings › Control Center": {
+    "System icon. Pelmet places it. Whether it's in the bar is set in System Settings › Menu Bar.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Systemsymbol – Pelmet platziert es; ob es in der Leiste erscheint, wird in Systemeinstellungen › Kontrollzentrum festgelegt"
+            "value": "Systemsymbol. Pelmet platziert es. Ob es in der Leiste erscheint, wird in Systemeinstellungen › Menüleiste festgelegt."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Icono del sistema: Pelmet lo coloca; si aparece en la barra se decide en Ajustes del Sistema › Centro de control"
+            "value": "Icono del sistema. Pelmet lo coloca. Si aparece en la barra se decide en Ajustes del Sistema › Barra de menús."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Icône système : Pelmet la place ; sa présence dans la barre se règle dans Réglages Système › Centre de contrôle"
+            "value": "Icône système. Pelmet la place. Sa présence dans la barre se règle dans Réglages Système › Barre des menus."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Icona di sistema: Pelmet la posiziona; la sua presenza nella barra si imposta in Impostazioni di Sistema › Centro di Controllo"
+            "value": "Icona di sistema. Pelmet la posiziona. La sua presenza nella barra si imposta in Impostazioni di Sistema › Barra dei menu."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "システムアイコン。Pelmetが配置します。バーに表示するかは「システム設定」›「コントロールセンター」で設定"
+            "value": "システムアイコン。Pelmetが配置します。バーに表示するかは「システム設定」›「メニューバー」で設定します。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "시스템 아이콘. Pelmet이 배치합니다. 막대에 표시할지는 시스템 설정 › 제어 센터에서 정합니다"
+            "value": "시스템 아이콘. Pelmet이 배치합니다. 막대에 표시할지는 시스템 설정 › 메뉴 막대에서 정합니다."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ícone do sistema: o Pelmet o posiciona; se aparece na barra é definido em Ajustes do Sistema › Central de Controle"
+            "value": "Ícone do sistema. O Pelmet o posiciona. Se aparece na barra é definido em Ajustes do Sistema › Barra de menus."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Системный значок: Pelmet его размещает; показывать ли его в строке, задаётся в Системных настройках › Пункт управления"
+            "value": "Системный значок. Pelmet его размещает. Показывать ли его в строке, задаётся в Системных настройках › Строка меню."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "系统图标，由 Pelmet 摆放；是否显示在菜单栏取决于“系统设置”›“控制中心”"
+            "value": "系统图标，由 Pelmet 摆放。是否显示在菜单栏取决于“系统设置”›“菜单栏”。"
           }
         }
       }
@@ -24071,60 +23897,60 @@
         }
       }
     },
-    "Waits 5 seconds, so a wake or a roam doesn't flash it.": {
+    "Waits %lld seconds, so a wake or a roam doesn't flash it.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Wartet 5 Sekunden, damit Aufwachen oder Roaming es nicht aufblitzen lässt."
+            "value": "Wartet %lld Sekunden, damit Aufwachen oder Roaming es nicht aufblitzen lässt."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Espera 5 segundos, para que una reactivación o un cambio de red no lo haga parpadear."
+            "value": "Espera %lld segundos, para que una reactivación o un cambio de red no lo haga parpadear."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Attend 5 secondes, pour qu’un réveil ou un changement de réseau ne la fasse pas apparaître."
+            "value": "Attend %lld secondes, pour qu’un réveil ou un changement de réseau ne la fasse pas apparaître."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aspetta 5 secondi, così una riattivazione o un cambio di rete non la fa comparire."
+            "value": "Aspetta %lld secondi, così una riattivazione o un cambio di rete non la fa comparire."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "5秒待つので、スリープ復帰やネットワークの切り替えで一瞬だけ表示されることはありません。"
+            "value": "%lld秒待つので、スリープ復帰やネットワークの切り替えで一瞬だけ表示されることはありません。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "5초를 기다려서, 잠자기 해제나 네트워크 전환 때 깜박이지 않습니다."
+            "value": "%lld초를 기다려서, 잠자기 해제나 네트워크 전환 때 깜박이지 않습니다."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Espera 5 segundos, para que uma reativação ou troca de rede não o faça piscar."
+            "value": "Espera %lld segundos, para que uma reativação ou troca de rede não o faça piscar."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ждёт 5 секунд, чтобы выход из сна или смена сети не заставили его мигнуть."
+            "value": "Ждёт %lld секунд, чтобы выход из сна или смена сети не заставили его мигнуть."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "会等待 5 秒，这样唤醒或切换网络时不会闪现。"
+            "value": "会等待 %lld 秒，这样唤醒或切换网络时不会闪现。"
           }
         }
       }
