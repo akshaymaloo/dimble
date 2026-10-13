@@ -35,6 +35,13 @@ final class PanelPresenter: RevealPresenter {
     /// The columns are being dragged: the pointer runs ahead of the edge,
     /// off the panel, and that must not close it.
     private var draggingColumns = false
+    /// The mouse-up that ends a column drag, seen directly: SwiftUI drops a
+    /// gesture on a key press and never reports its end.
+    private var columnMonitors: [Any] = []
+    /// A column count was set during a drag and not saved yet: saving is
+    /// `settingsChanged`, which re-syncs the chevron, extras and hotkeys,
+    /// so it runs once, at the let-go.
+    private var columnsUnsaved = false
     /// A tile is in the air (`TileDrag`): the pointer runs over the bar and
     /// off the panel, and that must not close it.
     private var tileDrag: TileDrag?
@@ -50,6 +57,10 @@ final class PanelPresenter: RevealPresenter {
     /// Where SwiftUI laid out the sections, grids and fold, in the hosting
     /// view's space; read when the pointer needs a target.
     private var frames: [PanelFrameKey: CGRect] = [:]
+    /// Bumped when one of `frames` moves, and per refresh: a drag tick with
+    /// both and the pointer as they were has nothing new to read.
+    private var framesSeen = 0
+    private var draws = 0
     /// The button under a tile fires on the mouse-up that ends a drag too:
     /// no press until this passes (it starts at the release, not at the
     /// cancel).
@@ -67,12 +78,11 @@ final class PanelPresenter: RevealPresenter {
     private var escSwallowUntil: CFTimeInterval = 0
     private(set) var isOpen = false
     private var openedByHover = false
-    /// Opened from the bar under the pointer (hover, a click on the bar):
-    /// the pointer's display, not the chevron's.
-    private var opensUnderPointer = false
     /// The display it opened on, kept until it closes: a refresh (a key, a
     /// fold, a picture pass) never moves it to another one.
     private var openScreen: CGDirectDisplayID?
+    /// A display unplugged or rearranged while it is open.
+    private var screenObserver: NSObjectProtocol?
     /// Held like a menu until the pointer is on the panel: opened from the
     /// keyboard, or reshaped by its column grip (a drag let go past the
     /// edge, or a reset that shrinks the panel from under the pointer,
@@ -92,6 +102,8 @@ final class PanelPresenter: RevealPresenter {
     /// per open: the filter ranks with them (aliases, synonyms), and they
     /// name the launchers.
     private var corpus: [CommandBarEntry] = []
+    /// Each item's app, from `corpus`: a tile's menu looks it up.
+    private var corpusApps: [ItemID: (bundleID: String, name: String)] = [:]
     /// Whether `corpus` was read at all, for the preview to read it once.
     private var corpusRead = false
     private var history = SearchHistory()
@@ -110,7 +122,6 @@ final class PanelPresenter: RevealPresenter {
     /// before the app in front has it; armed only while such a panel is up.
     private lazy var typingTap = HoverTypingTap { [weak self] typed in self?.typedOverHoverPanel(typed) }
     private var typingGrace: Task<Void, Never>?
-    private var launcherIcons: [String: NSImage] = [:]
     /// Waiting on the pass under way, the preview's redraw among them.
     private var passWaiters: [@MainActor () -> Void] = []
     private var motion: Motion?
@@ -200,17 +211,12 @@ final class PanelPresenter: RevealPresenter {
         self.sections = sections
         if !wasOpen {
             awaitsPointer = reason == .hotkey
-            opensUnderPointer = reason == .hover || reason == .click || reason == .doubleClick
             openScreen = nil
             foldOpen = false
             query = ""
             selected = nil
             opens += 1
-            if let appState {
-                corpus = CommandBarCorpus.buildForPanel(appState: appState)
-                corpusRead = true
-                history = CommandBarController.loadHistory()
-            }
+            if let appState { loadCorpus(appState) }
         }
         isOpen = true
         generation += 1
@@ -224,7 +230,8 @@ final class PanelPresenter: RevealPresenter {
         // Settled on the next turn, as the bar's reveal settles after its
         // effect returns: the machine is still in this dispatch.
         DispatchQueue.main.async { [weak self] in self?.appState?.panelDidSettle() }
-        picturePassIfNeeded(shown.missing)
+        if reason == .barDrag { barDragging = true }
+        picturePassUnlessBarDrag(shown.missing)
     }
 
     func conceal(trace: PerfTrace) {
@@ -327,7 +334,7 @@ final class PanelPresenter: RevealPresenter {
         window.alphaValue = 0
         // A display unplugged, the lid closed, a scale changed: place it
         // again (on another display if its own is gone).
-        NotificationCenter.default.addObserver(
+        screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated {
@@ -380,11 +387,11 @@ final class PanelPresenter: RevealPresenter {
         if fadeIn {
             window.alphaValue = 0
             move(Self.reduceMotion ? nil : Motion(
-                duration: AppTiming.panelEntrance, from: AppTiming.panelEntranceDrop, to: 0, curve: Self.enterCurve))
+                duration: AppTiming.panelEntrance, from: AppTiming.panelEntranceDrop, to: 0, curve: HouseEasing.enterCurve))
             window.orderFrontRegardless()
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = AppTiming.panelEntrance
-                context.timingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1, 0.3, 1)
+                context.timingFunction = HouseEasing.enterTiming
                 window.animator().alphaValue = 1
             }
         } else {
@@ -407,21 +414,31 @@ final class PanelPresenter: RevealPresenter {
         if tileDrag != nil { finishDrag(cancel: true, closing: true) }
         isOpen = false
         pointerOnPanel = false
-        draggingColumns = false
+        // A column drag cut short saves where it got to; its tip goes with
+        // the panel, not into the next open.
+        if draggingColumns { endColumnDrag() }
+        tipTask?.cancel()
+        tipTask = nil
+        columnsTip = nil
+        barDragging = false
         generation += 1
         let mine = generation
         removeKeyMonitor()
         disarmTyping()
         PelmetLog.log("panel: closed")
         guard let window else { return }
+        // A fold under way stops where it is: its end would place the
+        // window mid-fade, a jump.
+        stopGlass()
+        foldMotion = nil
         // Up for the length of its fade: a click on it must not land, and a
         // click beneath it must.
         window.ignoresMouseEvents = true
         move(Self.reduceMotion ? nil : Motion(
-            duration: AppTiming.panelExit, from: 0, to: AppTiming.panelExitRise, curve: Self.exitCurve))
+            duration: AppTiming.panelExit, from: 0, to: AppTiming.panelExitRise, curve: HouseEasing.exitCurve))
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = AppTiming.panelExit
-            context.timingFunction = CAMediaTimingFunction(controlPoints: 0.55, 0, 0.8, 0.4)
+            context.timingFunction = HouseEasing.exitTiming
             window.animator().alphaValue = 0
         }, completionHandler: { [weak self] in
             // AppKit calls this on the main thread but does not say so.
@@ -481,7 +498,7 @@ final class PanelPresenter: RevealPresenter {
                 MainActor.assumeIsolated { self?.finishGlass(frame: frame, height: to) }
             }
         } else {
-            let curve = growing ? Self.enterCurve : Self.exitCurve
+            let curve = growing ? HouseEasing.enterCurve : HouseEasing.exitCurve
             let start = CACurrentMediaTime()
             timer = Timer(timeInterval: 1.0 / 120, repeats: true) { [weak self] _ in
                 MainActor.assumeIsolated {
@@ -532,8 +549,6 @@ final class PanelPresenter: RevealPresenter {
         }
     }
 
-    private static let enterCurve = UnitCurve.bezier(startControlPoint: UnitPoint(x: 0.16, y: 1), endControlPoint: UnitPoint(x: 0.3, y: 1))
-    private static let exitCurve = UnitCurve.bezier(startControlPoint: UnitPoint(x: 0.55, y: 0), endControlPoint: UnitPoint(x: 0.8, y: 0.4))
     /// Reduce Motion keeps the fades and drops the travel.
     private static var reduceMotion: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
 
@@ -632,10 +647,10 @@ final class PanelPresenter: RevealPresenter {
     }
 
     /// Right-aligned under the bar, its right edge just past the chevron
-    /// (the display's edge less a margin when the icon is off). A hover
-    /// opens it on the display under the pointer; the chevron's distance
-    /// from its display's right edge carries over, as the bar lays out the
-    /// same on every display.
+    /// (the display's edge less a margin when the icon is off). It opens on
+    /// the display under the pointer; the chevron's distance from its
+    /// display's right edge carries over, as the bar lays out the same on
+    /// every display.
     private func place(_ size: CGSize) {
         guard let window, let target = targetScreen() else { return }
         defer { updateTypingZone() }
@@ -663,20 +678,28 @@ final class PanelPresenter: RevealPresenter {
         window.place(frame.offsetBy(dx: 0, dy: motion?.offset(at: CACurrentMediaTime()) ?? 0), glassHeight: frame.height)
     }
 
-    /// The display the panel opens on, and keeps until it closes.
+    /// The display the panel opens on, and keeps until it closes: the
+    /// pointer's, whatever opened it. The chevron's button window lives on
+    /// one display while every bar draws a copy of it, so the chevron's
+    /// display put a click, Show All or ⌘-drag on another display's bar on
+    /// that one (as AppKit does the chevron's menu, #26).
     private func targetScreen() -> NSScreen? {
         let screens = NSScreen.screens
+        if let id = openScreen, let kept = screens.first(where: { $0.directDisplayID == id }) { return kept }
         let pointerScreen = screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }
-        let kept = openScreen.flatMap { id in screens.first { $0.displayID == id } }
-        let target = kept ?? (opensUnderPointer ? pointerScreen : nil) ?? drawnChevron()?.screen ?? pointerScreen
-            ?? NSScreen.main ?? screens.first
-        openScreen = target?.displayID
+        let target = pointerScreen ?? drawnChevron()?.screen ?? NSScreen.main ?? screens.first
+        openScreen = target?.directDisplayID
+        if let target {
+            let from = pointerScreen != nil ? "the pointer's" : "no pointer, fallback"
+            PelmetLog.log("panel: on display \(openScreen.map(String.init) ?? "?") (\(from)), bar \(Int(GlassPanel.barHeight(of: target)))pt")
+        }
         return target
     }
 
     /// The chevron and its display, nil when it isn't in a bar's band (icon
-    /// off, behind Apple's «, not placed yet), as the band monitor reads it:
-    /// a parked frame would place the panel by nothing on screen.
+    /// off, behind Apple's «, not placed yet): a parked frame would place
+    /// the panel by nothing on screen. The band is the bar's own height
+    /// (`GlassPanel.barBand`), 30pt on an external display.
     private func drawnChevron() -> (frame: NSRect, screen: NSScreen)? {
         guard let frame = appState?.chevronWindowFrame else { return nil }
         let mid = NSPoint(x: frame.midX, y: frame.midY)
@@ -686,8 +709,7 @@ final class PanelPresenter: RevealPresenter {
 
     /// The menu bar across `screen`.
     private static func barBand(of screen: NSScreen) -> NSRect {
-        let bar = GlassPanel.barHeight(of: screen)
-        return NSRect(x: screen.frame.minX, y: screen.frame.maxY - bar, width: screen.frame.width, height: bar)
+        GlassPanel.barBand(of: screen)
     }
 
     private static func top(on screen: NSScreen) -> CGFloat {
@@ -715,6 +737,7 @@ final class PanelPresenter: RevealPresenter {
     private func refresh() -> (tiles: Int, missing: [ItemID]) {
         guard let appState else { return (0, []) }
         let (_, hosting) = ensureWindow()
+        draws &+= 1
         let screen = targetScreen()
         // The row wraps where `place` would cut it: the display less its
         // margins and the row's padding.
@@ -794,7 +817,11 @@ final class PanelPresenter: RevealPresenter {
             drawsGrip: false,
             onTileDrag: { [weak self] tile, phase in self?.tileDragged(tile, phase) },
             drag: dragState,
-            onFrame: { [weak self] key, frame in self?.frames[key] = frame })
+            onFrame: { [weak self] key, frame in
+                guard let self, self.frames[key] != frame else { return }
+                self.frames[key] = frame
+                self.framesSeen &+= 1
+            })
     }
 
     private func measure(_ content: PanelContent) -> CGSize {
@@ -814,7 +841,20 @@ final class PanelPresenter: RevealPresenter {
     /// Settings preview shows the apps that are running now.
     func readCorpus() {
         guard let appState, !isOpen else { return }
+        loadCorpus(appState)
+    }
+
+    /// The one read of the candidates and the search history, for an open
+    /// and for the preview.
+    private func loadCorpus(_ appState: AppState) {
         corpus = CommandBarCorpus.buildForPanel(appState: appState)
+        // An item's first entry speaks for it, app or none.
+        corpusApps = [:]
+        var seen = Set<ItemID>()
+        for entry in corpus {
+            guard case .item(let id) = entry.action, seen.insert(id).inserted else { continue }
+            if let app = entry.app { corpusApps[id] = app }
+        }
         corpusRead = true
         history = CommandBarController.loadHistory()
     }
@@ -841,8 +881,7 @@ final class PanelPresenter: RevealPresenter {
 
     private func readCorpusOnce(_ appState: AppState) {
         guard !corpusRead else { return }
-        corpus = CommandBarCorpus.buildForPanel(appState: appState)
-        corpusRead = true
+        loadCorpus(appState)
     }
 
     /// Who is in the panel and in which section, for `query`; `items` are the
@@ -960,6 +999,12 @@ final class PanelPresenter: RevealPresenter {
                             query.isEmpty ? PanelMetrics.compact.wellSize.width : 150)
 
         let byKey = Dictionary(items.map { ($0.id.sectionKey, $0) }, uniquingKeysWith: { first, _ in first })
+        // Didn't fit is on the bar, behind «: no pass reaches it. Read from
+        // the model, as the row draws every section in one block.
+        let didntFitKeys = Set(model.section(.didntFit)?.tiles.compactMap { tile -> ItemID? in
+            if case .item(let key) = tile { return key }
+            return nil
+        } ?? [])
         var missing: [ItemID] = []
         for block in content.blocks where !block.isFolded {
             for tile in block.grid.rows.joined().map(\.tile) {
@@ -974,13 +1019,11 @@ final class PanelPresenter: RevealPresenter {
                             image: .picture(picture.image, size: picture.size, monochrome: picture.isMonochrome), name: name)
                     } else {
                         content.art[tile] = PanelTileArt(image: .icon(Self.standIn(for: item?.id ?? key)), name: name)
-                        // Didn't fit is on the bar, behind «: no pass reaches it.
-                        if block.kind != .didntFit { missing.append(key) }
+                        if !didntFitKeys.contains(key) { missing.append(key) }
                     }
                 case .launcher(let bundle):
-                    let icon = launcherIcon(bundle)
                     content.art[tile] = PanelTileArt(
-                        image: .icon(icon), name: ItemNaming.appName(forBundle: bundle) ?? bundle, dimmed: true)
+                        image: .icon(Self.launcherIcon(bundle)), name: ItemNaming.appName(forBundle: bundle) ?? bundle, dimmed: true)
                 case .rowBreak, .fold:
                     break
                 }
@@ -990,17 +1033,16 @@ final class PanelPresenter: RevealPresenter {
         return (content, missing, base)
     }
 
-    /// Read once: the preview rebuilds on every bar read and drag step.
-    private func launcherIcon(_ bundle: String) -> NSImage {
-        if let icon = launcherIcons[bundle] { return icon }
-        let icon = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle)
-            .map { NSWorkspace.shared.icon(forFile: $0.path) } ?? Self.placeholder
-        launcherIcons[bundle] = icon
-        return icon
+    /// The app's icon as launchers draw it, cached there: the preview
+    /// rebuilds on every bar read and drag step.
+    private static func launcherIcon(_ bundle: String) -> NSImage {
+        ExtrasManager.appIcon(for: ExtraItemSpec(kind: .appLauncher, bundleID: bundle), size: 20) ?? placeholder
     }
 
+    /// The editor's stand-in (`ItemStandIn`): Apple's own mark for
+    /// SystemUIServer's pair, whose icon is a blank square (#19).
     private static func standIn(for id: ItemID) -> NSImage {
-        ItemImageCache.icon(for: id) ?? placeholder
+        ItemStandIn.image(for: id) ?? placeholder
     }
 
     private static let placeholder: NSImage = {
@@ -1022,8 +1064,12 @@ final class PanelPresenter: RevealPresenter {
         case .launcher(let bundle):
             PelmetLog.log("panel: launch \(bundle)")
             appState.concealNow()
-            if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle) {
-                NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+            guard let url = ExtrasManager.appURL(for: ExtraItemSpec(kind: .appLauncher, bundleID: bundle)) else {
+                PelmetLog.log("panel: no app for \(bundle)")
+                return
+            }
+            NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration()) { _, error in
+                if let error { PelmetLog.log("panel: opening \(bundle) failed — \(error.localizedDescription)") }
             }
         case .fold:
             toggleFold()
@@ -1045,10 +1091,10 @@ final class PanelPresenter: RevealPresenter {
         let ghost: PanelDragGhost
         /// The pointer less the ghost's centre, kept from where it was grabbed.
         let grab: CGSize
-        /// The tile's well centre in the window (y down): where it goes back to.
+        /// The tile's well centre from the window's top right (y down): where
+        /// it goes back to. The panel is anchored there, so a widen does not
+        /// move it.
         let home: CGPoint
-        /// What a drop here would do; `.none` for nothing and for `origin`.
-        var hit: PanelDropZones.Hit = .none
         /// The place in a section it is over: the tiles there make room.
         var slot: PanelSlot?
         /// The slot the panel on screen was drawn with, which the tiles'
@@ -1059,6 +1105,12 @@ final class PanelPresenter: RevealPresenter {
         /// The gap on the bar it is over, which a line marks.
         var barGap: PanelBarGap?
         var line: PanelInsertionLine?
+        /// The bar's Visible icons, read from the walk once per drag.
+        var barIcons: (icons: [PanelBarGap.Icon], edge: CGFloat?)?
+        var barIconsRead = false
+        /// What the last tick that ran to its end read: the same again is a
+        /// pointer at rest over the same panel, nothing to do.
+        var lastTick: DragTick?
         let started = CACurrentMediaTime()
 
         init(tile: PanelTile, key: ItemID, origin: PelmetCore.Section, ghost: PanelDragGhost, grab: CGSize, home: CGPoint) {
@@ -1071,22 +1123,32 @@ final class PanelPresenter: RevealPresenter {
         }
     }
 
+    /// What a drag tick reads: the pointer, the glass (a fold grows it, the
+    /// entrance moves it) and the panel's layout as drawn.
+    private struct DragTick: Equatable {
+        let pointer: CGPoint
+        let glass: CGRect?
+        let frames: Int
+        let draws: Int
+    }
+
     /// The fold springs open after this long over it (the mock's 600ms).
     private static let springDelay: Duration = .milliseconds(600)
     /// After a redraw for the tile in the air, the pointer is not read against
     /// the new frames for this long: SwiftUI reports them a beat later.
     private static let makeRoomSettle: CFTimeInterval = 0.04
+    /// After the release that ends a drag, the button under the pointer
+    /// fires on it too: no press for this long.
+    private static let pressGuard: CFTimeInterval = 0.35
 
     /// From a tile's gesture. Only the start and the end come from here; the
-    /// pointer is read on screen, on the gesture's moves and on a timer, so a
-    /// ghost over the bar keeps up with a pointer SwiftUI no longer reports.
+    /// pointer is read on screen, on a timer, so a ghost over the bar keeps
+    /// up with a pointer SwiftUI no longer reports.
     private func tileDragged(_ tile: PanelTile, _ phase: PanelTileDrag) {
         switch phase {
         case .moved(let pointer, let wellCenter):
-            if tileDrag == nil {
-                guard !ignoresDragUntilRelease, NSEvent.pressedMouseButtons & 1 != 0 else { return }
-                beginDrag(tile, pointer: pointer, wellCenter: wellCenter)
-            }
+            guard tileDrag == nil, !ignoresDragUntilRelease, NSEvent.pressedMouseButtons & 1 != 0 else { return }
+            beginDrag(tile, pointer: pointer, wellCenter: wellCenter)
             tickDrag()
         case .ended:
             released()
@@ -1097,10 +1159,16 @@ final class PanelPresenter: RevealPresenter {
     /// button found up by the timer; whichever is first): the drop, and the
     /// click that ends a drag is not one.
     private func released() {
-        ignoresDragUntilRelease = false
-        pressGuardUntil = CACurrentMediaTime() + 0.35
-        stopWatchingMouse()
+        pressEnded()
         if tileDrag != nil { finishDrag(cancel: false) }
+    }
+
+    /// The press is over: the next one is a click or a drag again, once the
+    /// guard has passed.
+    private func pressEnded() {
+        ignoresDragUntilRelease = false
+        pressGuardUntil = CACurrentMediaTime() + Self.pressGuard
+        stopWatchingMouse()
     }
 
     private func watchMouse() {
@@ -1146,7 +1214,7 @@ final class PanelPresenter: RevealPresenter {
         let drag = TileDrag(
             tile: tile, key: key, origin: origin, ghost: ghost,
             grab: CGSize(width: mouse.x - center.x, height: mouse.y - center.y),
-            home: CGPoint(x: center.x - window.frame.minX, y: window.frame.maxY - center.y))
+            home: CGPoint(x: window.frame.maxX - center.x, y: window.frame.maxY - center.y))
         tileDrag = drag
         watchMouse()
         ghost.show(at: center)
@@ -1182,15 +1250,14 @@ final class PanelPresenter: RevealPresenter {
             return
         }
         let pointer = NSEvent.mouseLocation
+        let tick = DragTick(pointer: pointer, glass: window?.glassScreenFrame, frames: framesSeen, draws: draws)
+        guard tick != drag.lastTick else { return }
         drag.ghost.move(toCenter: CGPoint(x: pointer.x - drag.grab.width, y: pointer.y - drag.grab.height))
         let over = dropZones()?.hit(at: pointer) ?? .none
         // The tile's own section lights nothing: that is no move.
         let hit = over.section == drag.origin ? PanelDropZones.Hit.none : over
-        if hit != drag.hit {
-            drag.hit = hit
-            targetChanged(to: hit)
-        }
-        aim(drag, over: over, at: pointer)
+        if hit != dragState.target { targetChanged(to: hit) }
+        drag.lastTick = aim(drag, over: over, at: pointer) ? tick : nil
     }
 
     // MARK: - Aim
@@ -1198,8 +1265,10 @@ final class PanelPresenter: RevealPresenter {
     /// Where in what it is over the tile would land. Over Hidden or Always
     /// Hidden, its own section included, a slot among the tiles, shown by the
     /// others making room; over the bar, a gap between two icons, shown by a
-    /// line. Elsewhere nothing, and the panel is as it was.
-    private func aim(_ drag: TileDrag, over: PanelDropZones.Hit, at pointer: CGPoint) {
+    /// line. Elsewhere nothing, and the panel is as it was. False while the
+    /// frames are not the last draw's yet: the slot waits for them.
+    @discardableResult
+    private func aim(_ drag: TileDrag, over: PanelDropZones.Hit, at pointer: CGPoint) -> Bool {
         let gap = over == .section(.visible) && drag.origin != .visible ? barGap(at: pointer, for: drag) : nil
         if gap != drag.barGap {
             drag.barGap = gap
@@ -1215,7 +1284,7 @@ final class PanelPresenter: RevealPresenter {
         }
         // The frames belong to the last draw: wait out a redraw under way and
         // the tiles' easing.
-        guard reshuffleTask == nil, CACurrentMediaTime() >= drag.settledAt else { return }
+        guard reshuffleTask == nil, CACurrentMediaTime() >= drag.settledAt else { return false }
         let proposed = slotUnder(pointer, over: over, for: drag)
         // Its own place again is the panel as it was: no slot to draw.
         let slot = proposed.flatMap { lastModel?.changes(drag.tile, at: $0) == true ? $0 : nil }
@@ -1230,7 +1299,9 @@ final class PanelPresenter: RevealPresenter {
                 PelmetLog.log(proposed == nil ? "panel: drag slot none" : "panel: drag slot home")
             }
             reshuffle()
+            return false
         }
+        return true
     }
 
     /// The slot in Hidden or Always Hidden under `pointer`, read against the
@@ -1271,13 +1342,23 @@ final class PanelPresenter: RevealPresenter {
         }
     }
 
-    /// The gap between Visible icons nearest `pointer`, from the last walk:
-    /// the icons on the panel's display, the chevron's edge counting as one.
+    /// The gap between Visible icons nearest `pointer`, from the walk: the
+    /// icons on the panel's display, the chevron's edge counting as one.
     private func barGap(at pointer: CGPoint, for drag: TileDrag) -> PanelBarGap? {
+        if !drag.barIconsRead {
+            drag.barIconsRead = true
+            drag.barIcons = barIcons(for: drag)
+        }
+        guard let bar = drag.barIcons else { return nil }
+        return PanelBarGap.nearest(to: pointer.x, icons: bar.icons, edge: bar.edge)
+    }
+
+    /// The Visible icons a drag can aim between, read once per drag.
+    private func barIcons(for drag: TileDrag) -> (icons: [PanelBarGap.Icon], edge: CGFloat?)? {
         // The walk keeps the main display's copy of each icon: a side bar
         // has too few to aim between, and the drop takes the default place.
         guard let appState, let snapshot = appState.snapshot, let screen = window?.screen ?? NSScreen.main,
-              let id = screen.displayID, id == CGMainDisplayID() else { return nil }
+              let id = screen.directDisplayID, id == CGMainDisplayID() else { return nil }
         // AX frames: top-left origin, in the display's own bounds.
         let display = CGDisplayBounds(id)
         let behindOverflow = Set(appState.overflowTrappedItems.map(\.sectionKey))
@@ -1297,7 +1378,7 @@ final class PanelPresenter: RevealPresenter {
         }
         // Visible icons sit right of the chevron; one left of it is mid-move.
         if let edge { icons.removeAll { ($0.minX + $0.maxX) / 2 < edge } }
-        return PanelBarGap.nearest(to: pointer.x, icons: icons, edge: edge)
+        return (icons, edge)
     }
 
     private func targetChanged(to hit: PanelDropZones.Hit) {
@@ -1328,7 +1409,7 @@ final class PanelPresenter: RevealPresenter {
         foldOpen = true
         foldMotion = Self.foldStyle(appState.settings.revealAnimation)
         let shown = refresh()
-        picturePassIfNeeded(shown.missing)
+        picturePassUnlessBarDrag(shown.missing)
     }
 
     private func cancelDrag() {
@@ -1402,9 +1483,7 @@ final class PanelPresenter: RevealPresenter {
         if NSEvent.pressedMouseButtons & 1 != 0 {
             ignoresDragUntilRelease = true
         } else {
-            ignoresDragUntilRelease = false
-            pressGuardUntil = CACurrentMediaTime() + 0.35
-            stopWatchingMouse()
+            pressEnded()
         }
         // Let go past the edge, it holds until the pointer comes back (the
         // column grip does the same).
@@ -1423,10 +1502,11 @@ final class PanelPresenter: RevealPresenter {
             if isOpen { refresh() }
         } else {
             PelmetLog.log("panel: drag cancelled")
-            let home = closing ? nil : window.map { CGPoint(x: $0.frame.minX + drag.home.x, y: $0.frame.maxY - drag.home.y) }
-            drag.ghost.slideBack(toCenter: home, reduceMotion: Self.reduceMotion)
-            // What the tiles made room for is gone with the drag.
+            // What the tiles made room for is gone with the drag; the home is
+            // read from the panel as it is drawn again.
             if !closing, isOpen, drag.shownSlot != nil { refresh() }
+            let home = closing ? nil : window.map { CGPoint(x: $0.frame.maxX - drag.home.x, y: $0.frame.maxY - drag.home.y) }
+            drag.ghost.slideBack(toCenter: home, reduceMotion: Self.reduceMotion)
         }
     }
 
@@ -1485,10 +1565,31 @@ final class PanelPresenter: RevealPresenter {
         return zone
     }
 
+    /// A ⌘-drag from the bar is under way (it opened the panel, or the panel
+    /// can take its drop): set until it ends, the panel closes, or the
+    /// button is found up.
+    private var barDragging = false
+
+    private var barDragInFlight: Bool {
+        barDragging && NSEvent.pressedMouseButtons & 1 != 0
+    }
+
+    /// The picture pass reveals the real bar under a cover: never under a
+    /// ⌘-drag MenuBarAgent is running there (a ⌘-drag's open, a fold it
+    /// springs). The next open takes the pictures.
+    private func picturePassUnlessBarDrag(_ missing: [ItemID]) {
+        guard !barDragInFlight else {
+            if !missing.isEmpty { PelmetLog.log("panel: picture pass deferred — a bar ⌘-drag is in flight, \(missing.count) without a picture") }
+            return
+        }
+        picturePassIfNeeded(missing)
+    }
+
     /// A ⌘-drag from the bar can now end on the panel: a copy of the icon
     /// rides under the pointer while it is over it, where the tap keeps the
     /// real one in its slot (`BarDragRedirect`).
     func beginBarDrag(_ id: ItemID?) {
+        barDragging = true
         barGhost?.release()
         barGhost = nil
         guard isOpen, let window, let grid = lastContent?.blocks.first?.grid else { return }
@@ -1519,6 +1620,7 @@ final class PanelPresenter: RevealPresenter {
     }
 
     func endBarDrag() {
+        barDragging = false
         barGhost?.release()
         barGhost = nil
         springTask?.cancel()
@@ -1531,21 +1633,27 @@ final class PanelPresenter: RevealPresenter {
     /// Columns from the pointer, `distance` left of the panel's right edge:
     /// that edge stays put, so each tile's width left of it is one more
     /// column. Two at least, no more than the widest section of `model` can
-    /// fill, ten at most. Stored for the current names mode; returned for
-    /// the tip.
+    /// fill, ten at most. Stored for the current names mode, and saved once
+    /// the drag is let go (`ended`); returned for the tip.
     @discardableResult
-    func setColumns(distance: CGFloat, model: PanelModel?) -> Int {
+    func setColumns(distance: CGFloat, model: PanelModel?, ended: Bool) -> Int {
         guard let appState else { return 0 }
         let options = appState.settings.panel
         let metrics = PanelMetrics.standard(layout: .panel, showsNames: options.showsNames)
         let pitch = metrics.tileSize.width + metrics.columnGap
         let want = Int(((distance - metrics.padding + metrics.columnGap) / pitch).rounded())
-        let most = max(2, model?.sections.map { PanelGrid.neededColumns(of: $0.tiles, maximum: 10) }.max() ?? 2)
-        let columns = min(max(want, 2), most)
+        let range = PanelOptions.columnRange
+        let most = max(range.lowerBound,
+                       model?.sections.map { PanelGrid.neededColumns(of: $0.tiles, maximum: range.upperBound) }.max() ?? range.lowerBound)
+        let columns = min(max(want, range.lowerBound), most)
         if options.columns != columns {
             appState.settings.panel.columns = columns
-            appState.settingsChanged()
+            columnsUnsaved = true
             PelmetLog.log("panel: \(columns) column(s)")
+        }
+        if ended, columnsUnsaved {
+            columnsUnsaved = false
+            appState.settingsChanged()
         }
         return columns
     }
@@ -1559,11 +1667,49 @@ final class PanelPresenter: RevealPresenter {
 
     private func dragColumns(ended: Bool) {
         guard let window else { return }
+        // The mouse-up seen directly ended it first: the gesture's own end,
+        // when SwiftUI reports one, has nothing left to do.
+        if ended, !draggingColumns { return }
+        if !ended, !draggingColumns { watchColumnRelease() }
         draggingColumns = !ended
-        if ended { awaitsPointer = true }
+        if ended {
+            awaitsPointer = true
+            stopWatchingColumnRelease()
+        }
         // The window moves as it widens: the pointer is read on screen.
-        let columns = setColumns(distance: window.frame.maxX - NSEvent.mouseLocation.x, model: lastModel)
+        let columns = setColumns(distance: window.frame.maxX - NSEvent.mouseLocation.x, model: lastModel, ended: ended)
         showTip(String(localized: "\(columns) per row"), for: ended ? 0.5 : nil)
+    }
+
+    /// A column drag cut short by the panel closing: saved where it got to.
+    private func endColumnDrag() {
+        draggingColumns = false
+        stopWatchingColumnRelease()
+        if columnsUnsaved, let appState {
+            columnsUnsaved = false
+            appState.settingsChanged()
+        }
+    }
+
+    private func watchColumnRelease() {
+        guard columnMonitors.isEmpty else { return }
+        let seen: (NSEvent) -> Void = { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.draggingColumns else { return }
+                PelmetLog.log("panel: column drag let go")
+                self.dragColumns(ended: true)
+            }
+        }
+        if let global = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseUp, handler: seen) { columnMonitors.append(global) }
+        if let local = NSEvent.addLocalMonitorForEvents(matching: .leftMouseUp, handler: { event in
+            seen(event)
+            return event
+        }) { columnMonitors.append(local) }
+    }
+
+    private func stopWatchingColumnRelease() {
+        for monitor in columnMonitors { NSEvent.removeMonitor(monitor) }
+        columnMonitors = []
     }
 
     private func resetColumns() {
@@ -1627,8 +1773,7 @@ final class PanelPresenter: RevealPresenter {
                 appState.concealNow()
                 ItemMenuActions.editShortcut(key, appState: appState, source: "panel")
             })
-            let app = corpus.first { if case .item(let id) = $0.action { id == key } else { false } }?.app
-            if let app, ItemMenuActions.isRunning(app.bundleID) {
+            if let app = corpusApps[key], ItemMenuActions.isRunning(app.bundleID) {
                 rows.append(.divider)
                 rows.append(.action(ItemMenuActions.quitTitle(app.name)) { [weak appState] in
                     appState?.concealNow()
@@ -1689,20 +1834,36 @@ final class PanelPresenter: RevealPresenter {
     }
 
     /// Always Hidden's fold flipped on a panel that shows it (`shown`) or
-    /// not; returns that panel's own fold. As you left it: the setting
-    /// carries the fold to the next open, and the panel's own stays shut.
-    func flipFold(shown: Bool, foldOpen: Bool) -> Bool {
-        guard let appState, appState.settings.panel.alwaysHidden == .asLeft else { return !foldOpen }
-        appState.settings.panel.alwaysHiddenOpen = !shown
-        appState.settingsChanged()
+    /// not; returns that panel's own fold: open when it was not shown. As
+    /// you left it: the setting carries the fold to the next open, saved
+    /// only when it changes, and the panel's own stays shut.
+    func flipFold(shown: Bool) -> Bool {
+        guard let appState, appState.settings.panel.alwaysHidden == .asLeft else { return !shown }
+        if appState.settings.panel.alwaysHiddenOpen == shown {
+            appState.settings.panel.alwaysHiddenOpen = !shown
+            appState.settingsChanged()
+        }
         return false
     }
 
     private func toggleFold() {
-        foldOpen = flipFold(shown: lastContent?.showsAlwaysHidden ?? false, foldOpen: foldOpen)
+        // A right-click menu can outlive the panel it was opened on.
+        guard isOpen else {
+            PelmetLog.log("panel: fold ignored — the panel is closed")
+            return
+        }
+        let shown = lastContent?.showsAlwaysHidden ?? false
+        // Opened for Always Hidden (⌥-click, a double-click, its shortcut):
+        // the ask held the fold open whatever the fold said, so folding it
+        // lets go of the ask.
+        if shown, sections.contains(.alwaysHidden) {
+            sections.remove(.alwaysHidden)
+            PelmetLog.log("panel: Always Hidden folded, the open's ask for it let go")
+        }
+        foldOpen = flipFold(shown: shown)
         if let appState { foldMotion = Self.foldStyle(appState.settings.revealAnimation) }
-        let shown = refresh()
-        picturePassIfNeeded(shown.missing)
+        let drawn = refresh()
+        picturePassIfNeeded(drawn.missing)
     }
 
     // MARK: - Dev
@@ -1836,10 +1997,4 @@ private final class PointerWatch: NSResponder {
 
     override func mouseEntered(with event: NSEvent) { entered() }
     override func mouseExited(with event: NSEvent) { exited() }
-}
-
-private extension NSScreen {
-    var displayID: CGDirectDisplayID? {
-        deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID
-    }
 }

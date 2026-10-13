@@ -62,6 +62,8 @@ final class PelmetStatusItem {
     /// re-applied without the caller re-stating it (and vice versa).
     private var revealedFace = false
     private var warning = false
+    /// The face, style and warning the button's image was last drawn for.
+    private var appliedImage: String?
     /// Uptime of the last left click on the chevron, to time a double (#77).
     private var lastLeftClickAt: TimeInterval?
 
@@ -122,6 +124,11 @@ final class PelmetStatusItem {
         // The style is only a preference — losing the weak appState is not a
         // reason to show nothing.
         let style = appState?.settings.statusIconStyle ?? .chevron
+        // The same glyph again is a ~5ms swap for nothing on macOS 27, and
+        // every settingsChanged asks (a column drag asked per step).
+        let key = "\(style.rawValue) \(revealedFace) \(warning)"
+        guard key != appliedImage || item.button?.image == nil else { return }
+        appliedImage = key
         let symbol = NSImage(
             systemSymbolName: style.symbol(revealed: revealedFace),
             accessibilityDescription: "Pelmet"
@@ -202,24 +209,12 @@ final class PelmetStatusItem {
     }
 
     /// Under the bar of the display `point` is on, at its x (Cocoa). The
-    /// bar's own window gives its height: off the main display the
-    /// visibleFrame keeps no band for it, and a 30pt bar read as none.
+    /// bar's own window gives its height (`GlassPanel.barHeight`): off the
+    /// main display the visibleFrame keeps no band for it, and a 30pt bar
+    /// read as none.
     private static func underBar(at point: NSPoint) -> NSPoint {
         guard let screen = NSScreen.screens.first(where: { NSMouseInRect(point, $0.frame, false) }) else { return point }
-        var height = GlassPanel.barHeight(of: screen)
-        if let id = screen.directDisplayID, let list = ConcealGhostOverlay.onScreenWindows() {
-            let display = CGDisplayBounds(id)
-            let barLevel = Int(CGWindowLevelForKey(.mainMenuWindow))
-            for w in list where (w[kCGWindowLayer as String] as? Int) == barLevel && (w[kCGWindowOwnerName as String] as? String) == "Window Server" {
-                guard let b = w[kCGWindowBounds as String] as? [String: CGFloat],
-                      let x = b["X"], let y = b["Y"], let h = b["Height"],
-                      abs(y - display.minY) < 1, x >= display.minX - 1, x < display.maxX
-                else { continue }
-                height = h
-                break
-            }
-        }
-        return NSPoint(x: point.x, y: screen.frame.maxY - height)
+        return NSPoint(x: point.x, y: screen.frame.maxY - GlassPanel.barHeight(of: screen))
     }
 
     static func contextMenu(appState: AppState) -> NSMenu {

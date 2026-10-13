@@ -330,8 +330,8 @@ private struct PanelPreviewStage: View {
             barRevealed.toggle()
         } else {
             withAnimation(panelShown
-                ? .timingCurve(0.55, 0, 0.8, 0.4, duration: AppTiming.panelExit)
-                : .timingCurve(0.16, 1, 0.3, 1, duration: AppTiming.panelEntrance)) {
+                ? HouseEasing.exit(AppTiming.panelExit)
+                : HouseEasing.enter(AppTiming.panelEntrance)) {
                 panelShown.toggle()
             }
             if !panelShown { focused = false }
@@ -387,7 +387,7 @@ private struct PanelPreviewStage: View {
             shrinkTask = Task {
                 try? await Task.sleep(for: .milliseconds(260))
                 guard !Task.isCancelled else { return }
-                withAnimation(.timingCurve(0.16, 1, 0.3, 1, duration: 0.22)) { height = need }
+                withAnimation(HouseEasing.enter(0.22)) { height = need }
             }
         }
     }
@@ -401,7 +401,7 @@ private struct PanelPreviewStage: View {
         barRevealed = false
         focused = false
         guard target == .menuBar else { return }
-        withAnimation(.timingCurve(0.16, 1, 0.3, 1, duration: 0.22)) { height = Self.minHeight }
+        withAnimation(HouseEasing.enter(0.22)) { height = Self.minHeight }
         // Once, so the style shows without a click.
         revealTask = Task {
             try? await Task.sleep(for: .milliseconds(350))
@@ -410,11 +410,11 @@ private struct PanelPreviewStage: View {
     }
 
     private func flipFold(_ shown: PanelContent) {
-        foldOpen = presenter.flipFold(shown: shown.showsAlwaysHidden, foldOpen: foldOpen)
+        foldOpen = presenter.flipFold(shown: shown.showsAlwaysHidden)
     }
 
     private func dragColumns(x: CGFloat, ended: Bool, model: PanelModel) {
-        let columns = presenter.setColumns(distance: panelMaxX - x, model: model)
+        let columns = presenter.setColumns(distance: panelMaxX - x, model: model, ended: ended)
         showTip(String(localized: "\(columns) per row"), for: ended ? 0.5 : nil)
     }
 

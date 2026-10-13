@@ -6,6 +6,7 @@
 
 import AppKit
 import PelmetCore
+import PelmetEngine
 
 @MainActor
 final class ItemPictures {
@@ -26,14 +27,31 @@ final class ItemPictures {
     static let maxAge: TimeInterval = 900
 
     private var pictures: [ItemID: Picture] = [:]
+    /// Light or dark, as the pictures were taken. A one-colour picture is
+    /// tinted for the panel; a coloured one keeps the bar's own look (white
+    /// parts from a dark bar on light glass), so a switch drops those.
+    private var takenDark: Bool?
 
     func picture(for key: ItemID) -> Picture? {
+        dropColouredOnAppearanceChange()
         guard let picture = pictures[key], -picture.takenAt.timeIntervalSinceNow < Self.maxAge else { return nil }
         return picture
     }
 
     func store(_ new: [ItemID: Picture]) {
+        dropColouredOnAppearanceChange()
         pictures.merge(new) { _, latest in latest }
+    }
+
+    private func dropColouredOnAppearanceChange() {
+        let dark = NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        let before = takenDark
+        takenDark = dark
+        guard let before, before != dark else { return }
+        let coloured = pictures.filter { !$0.value.isMonochrome }.map(\.key)
+        guard !coloured.isEmpty else { return }
+        for key in coloured { pictures[key] = nil }
+        PelmetLog.log("panel: \(dark ? "dark" : "light") mode, \(coloured.count) coloured picture(s) dropped")
     }
 
     /// `snap` is one item's column of a keyed-out strip, trimmed to the
@@ -102,21 +120,24 @@ final class ItemPictures {
     /// the bar's colour, and a grey capsule inside the frame comes out as a
     /// faint fill (one the frame cuts through drops out, `capsuleFill`).
     private static func flatMask(raw: CGImage, background: CGImage) -> CGImage? {
-        // Measured from a capsule first. One that leaves no glyph is read
-        // from the bar as before: a text widget whose strokes touch both
-        // sides reads as a capsule too.
-        flatMask(raw: raw, background: background, fromCapsule: true)
-            ?? flatMask(raw: raw, background: background, fromCapsule: false)
-    }
-
-    /// `fromCapsule`: nil when the crop cuts through no capsule.
-    private static func flatMask(raw: CGImage, background: CGImage, fromCapsule: Bool) -> CGImage? {
         let w = raw.width, h = raw.height
+        // Both drawn once, for both reads.
         guard w > 0, h > 0, background.width == w, background.height == h,
               let rawBitmap = rgba(raw, width: w, height: h), let barBitmap = rgba(background, width: w, height: h)
         else { return nil }
         defer { withExtendedLifetime((rawBitmap.context, barBitmap.context)) {} }
         let s = rawBitmap.pixels, b = barBitmap.pixels
+        // Measured from a capsule first. One that leaves no glyph is read
+        // from the bar as before: a text widget whose strokes touch both
+        // sides reads as a capsule too.
+        return flatMask(s, b, width: w, height: h, fromCapsule: true)
+            ?? flatMask(s, b, width: w, height: h, fromCapsule: false)
+    }
+
+    /// `s` the item as filmed, `b` the empty bar, RGBA8 of one size.
+    /// `fromCapsule`: nil when the crop cuts through no capsule.
+    private static func flatMask(_ s: UnsafeMutablePointer<UInt8>, _ b: UnsafeMutablePointer<UInt8>,
+                                 width w: Int, height h: Int, fromCapsule: Bool) -> CGImage? {
         // A capsule the bar draws behind the item, wider than its frame
         // (Velja's and Herd's on macOS 27): measured from its fill rather
         // than the bar, the capsule drops out and the glyph is left. A

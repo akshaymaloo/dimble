@@ -12,6 +12,8 @@
 // glass inside it can change height without that.
 
 import AppKit
+import PelmetEngine
+import QuartzCore
 
 @MainActor
 class GlassPanel: NSPanel {
@@ -123,9 +125,21 @@ class GlassPanel: NSPanel {
 
     /// Change the glass's height inside the window, its top edge staying
     /// put; the window is not resized. Below the glass the window is clear.
+    /// A fold steps this at 120Hz: the shadow is derived again once the
+    /// glass has moved a point since it last was, a lag no one sees, and
+    /// `place` always derives it.
     func setGlassHeight(_ height: CGFloat) {
         layoutGlass(height: height)
+        guard abs(glass.frame.height - shadowHeight) >= 1 else { return }
         invalidateShadow()
+    }
+
+    /// The glass's height when the shadow was last derived.
+    private var shadowHeight: CGFloat = -1
+
+    override func invalidateShadow() {
+        shadowHeight = glass.frame.height
+        super.invalidateShadow()
     }
 
     private func layoutGlass(height: CGFloat) {
@@ -142,12 +156,59 @@ class GlassPanel: NSPanel {
     }
 
     /// The bar's own height on `screen`: the visibleFrame band, falling
-    /// back to the safe area under a full-screen app.
+    /// back to the safe area under a full-screen app, then to the bar's own
+    /// window: off the main display the visibleFrame keeps no band, and a
+    /// 30pt bar read as none and became 24 (externals, 2026-10-12).
     static func barHeight(of screen: NSScreen) -> CGFloat {
         let safeBand = screen.safeAreaInsets.top
         let visibleBand = screen.frame.maxY - screen.visibleFrame.maxY
         let band = visibleBand > 0 && (safeBand == 0 || visibleBand <= safeBand + 2) ? visibleBand : safeBand
-        return band > 0 ? band : 24
+        return band > 0 ? band : drawnBarHeight(of: screen) ?? 24
+    }
+
+    /// The bar across `screen`, at `barHeight`.
+    static func barBand(of screen: NSScreen) -> NSRect {
+        let bar = barHeight(of: screen)
+        return NSRect(x: screen.frame.minX, y: screen.frame.maxY - bar, width: screen.frame.width, height: bar)
+    }
+
+    /// The bar's window on each display, as read: kept until the screens
+    /// change (a read walks every window on screen), a miss retried after a
+    /// second.
+    private static var drawnBarHeights: [CGDirectDisplayID: (height: CGFloat?, readAt: CFTimeInterval)] = [:]
+    private static var screensObserver: NSObjectProtocol?
+
+    /// The Window Server's bar window (layer 24) whose top is the display's.
+    private static func drawnBarHeight(of screen: NSScreen) -> CGFloat? {
+        guard let id = screen.directDisplayID else { return nil }
+        let now = CACurrentMediaTime()
+        let kept = drawnBarHeights[id]
+        if let kept, kept.height != nil || now - kept.readAt < 1 { return kept.height }
+        if screensObserver == nil {
+            screensObserver = NotificationCenter.default.addObserver(
+                forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
+            ) { _ in
+                MainActor.assumeIsolated { GlassPanel.drawnBarHeights = [:] }
+            }
+        }
+        var height: CGFloat?
+        if let list = ConcealGhostOverlay.onScreenWindows() {
+            let display = CGDisplayBounds(id)
+            let barLevel = Int(CGWindowLevelForKey(.mainMenuWindow))
+            for w in list where (w[kCGWindowLayer as String] as? Int) == barLevel && (w[kCGWindowOwnerName as String] as? String) == "Window Server" {
+                guard let b = w[kCGWindowBounds as String] as? [String: CGFloat],
+                      let x = b["X"], let y = b["Y"], let h = b["Height"], h > 0, h < 100,
+                      abs(y - display.minY) < 1, x >= display.minX - 1, x < display.maxX
+                else { continue }
+                height = h
+                break
+            }
+        }
+        drawnBarHeights[id] = (height, now)
+        if kept == nil || height != kept?.height {
+            PelmetLog.log("glass: display \(id) bar \(height.map { "\(Int($0))pt from its window" } ?? "window not found, 24pt")")
+        }
+        return height
     }
 
     /// Top edge of a panel hung under the bar on `screen` (Cocoa y).

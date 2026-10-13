@@ -63,7 +63,7 @@ final class PanelDragGhost {
         }
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = Self.landing
-            context.timingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1, 0.3, 1)
+            context.timingFunction = HouseEasing.enterTiming
             if let target, !reduceMotion { window.animator().setFrame(target, display: true) }
             window.animator().alphaValue = 0
         }, completionHandler: { [window] in

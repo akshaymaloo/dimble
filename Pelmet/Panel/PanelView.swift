@@ -179,8 +179,10 @@ struct PanelView: View {
             }
         }
         .contentShape(Rectangle())
-        .onHover { hovering = $0 }
-        .contextMenu { menu(panelMenu()) }
+        // Only the grip drawn here reads it: on the open panel (whose grip
+        // is the window's own) a hover redrew every tile for nothing.
+        .onHover { if drawsGrip { hovering = $0 } }
+        .contextMenu { PanelMenuItems(rows: panelMenu) }
     }
 
     @ViewBuilder
@@ -227,23 +229,6 @@ struct PanelView: View {
     /// Where the selected tile is, with the panel's padding above and below
     /// so it never lands flush with the glass's edge.
     private static let selectionMark = "panel.selection"
-
-    @ViewBuilder
-    private func menu(_ rows: [PanelMenuRow]) -> some View {
-        ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-            switch row {
-            case .action(let title, let run):
-                Button(title, action: run)
-            case .check(let title, let on, let enabled, let run):
-                Toggle(title, isOn: Binding(get: { on }, set: { _ in run() }))
-                    .disabled(!enabled)
-            case .header(let title):
-                Text(title)
-            case .divider:
-                Divider()
-            }
-        }
-    }
 
     @ViewBuilder
     private func section(_ block: PanelBlock, first: Bool) -> some View {
@@ -481,7 +466,7 @@ struct PanelView: View {
                     // blue ring is not it.
                     .focusEffectDisabled()
                     .help(art.dimmed ? "\(art.name)\n\(String(localized: "Not running"))" : art.name)
-                    .contextMenu { menu(tileMenu(placement.tile)) }
+                    .contextMenu { PanelMenuItems(rows: { tileMenu(placement.tile) }) }
                     // A tile that can't be dragged keeps every other gesture
                     // (`.subviews`: `.none` took the button's press too).
                     // A click that never travels 4pt stays the button's.
@@ -559,6 +544,29 @@ struct PanelView: View {
     }
 
     private var ink: PanelInk { PanelInk(scheme: scheme) }
+}
+
+/// A right-click menu's rows, asked for when the menu is drawn, not on every
+/// draw of the panel: a tile's rows look up its app, and every tile has a
+/// menu.
+private struct PanelMenuItems: View {
+    let rows: () -> [PanelMenuRow]
+
+    var body: some View {
+        ForEach(Array(rows().enumerated()), id: \.offset) { _, row in
+            switch row {
+            case .action(let title, let run):
+                Button(title, action: run)
+            case .check(let title, let on, let enabled, let run):
+                Toggle(title, isOn: Binding(get: { on }, set: { _ in run() }))
+                    .disabled(!enabled)
+            case .header(let title):
+                Text(title)
+            case .divider:
+                Divider()
+            }
+        }
+    }
 }
 
 /// The mock's colours: white on dark glass, black on light, at a few
