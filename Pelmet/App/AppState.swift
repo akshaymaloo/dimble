@@ -2570,7 +2570,10 @@ final class AppState {
                 edits.clearOrder(for: section)
                 noteAppliedOrder(of: [section])
             }
-            for id in report.applied { edits.previousSection.removeValue(forKey: id.sectionKey) }
+            // A landed icon joins the baseline Discard restores for a
+            // section still pending (`OrderEdits.land`).
+            let bar = snapshot.map { ApplyPass.barOrder(ApplyPass.rememberedFrames($0, appState: self)) } ?? []
+            for id in report.applied { edits.land(id.sectionKey, bar: bar) }
             settings.orderEdits = edits
             settings.save()
         }
@@ -2732,10 +2735,14 @@ final class AppState {
     /// landing counts, the chevron end too: only drawn-slot ones did, and an
     /// editor move that went to the chevron end kept its `previousSection`
     /// and Apply lit (vorssaint Visible → Hidden, 2026-10-07).
+    /// The landed icon joins its section's baseline where the bar has it
+    /// (`OrderEdits.land`): Hidden stayed pending on a baseline without
+    /// Vorssaint, and Discard drew it last (live test, 2026-10-13).
     private func satisfyDrawnEdits(for landed: [ItemID]) {
         guard !landed.isEmpty else { return }
         var edits = settings.orderEdits
-        for id in landed { edits.previousSection.removeValue(forKey: id.sectionKey) }
+        let bar = snapshot.map { ApplyPass.barOrder(ApplyPass.rememberedFrames($0, appState: self)) } ?? []
+        for id in landed { edits.land(id.sectionKey, bar: bar) }
         if edits != settings.orderEdits { settings.orderEdits = edits }
         pruneSettledOrderEdits()
         settings.save()

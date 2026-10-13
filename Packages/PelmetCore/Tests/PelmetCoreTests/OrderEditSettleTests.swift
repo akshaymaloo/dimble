@@ -211,6 +211,61 @@ import Testing
         ).isEmpty)
     }
 
+    @Test func anIconAPassLandsJoinsItsSectionsBaselineAtItsSlot() {
+        // Vorssaint moved from Visible into a concealed Hidden, Snib dragged
+        // out of Hidden and back. The grouper landed Vorssaint between Sound
+        // and Snib, and the walk after it no longer framed Snib, so Hidden
+        // stayed pending ("Apply (1)") on a baseline taken before Vorssaint
+        // joined: Discard drew Vorssaint last, and every later "end" landed
+        // before it (live test, 2026-10-13 18:16:33).
+        let sound = ItemID.bundleKey("com.sound"), snib = ItemID.bundleKey("app.fif7y.Snib")
+        let vorssaint = ItemID.bundleKey("com.vorssaint.utils"), media = ItemID.bundleKey("com.media")
+        let roster = Roster(members: [a: .hidden, sound: .hidden, vorssaint: .hidden, snib: .hidden, media: .visible])
+        var edits = OrderEdits(
+            order: [.hidden: [a, sound, vorssaint, snib], .visible: [media]],
+            previousSection: [vorssaint: .visible],
+            previousOrder: [.hidden: [a, sound, snib], .visible: [media, vorssaint]],
+            dropped: [vorssaint, snib]
+        )
+        // Snib is no move beside Vorssaint's: the count reads one, not two.
+        #expect(OrderEditSettle.dropsInPlace(edits) == [snib])
+        let bar = [a, sound, vorssaint, media]
+        edits.land(vorssaint, bar: bar)
+        #expect(OrderEditSettle.dropsInPlace(edits) == [vorssaint, snib])
+        // Discard puts each section back to its baseline: Vorssaint stays
+        // where the pass put it, and Visible no longer lists it.
+        #expect(edits.previousSection.isEmpty)
+        #expect(edits.previousOrder[.hidden] == [a, sound, vorssaint, snib])
+        #expect(edits.previousOrder[.visible] == [media])
+        // Snib, unframed, is where it started: both sections settle.
+        let settled = OrderEditSettle.settledSections(
+            edits, bar: bar, live: [], concealed: [a, sound, vorssaint, snib], roster: roster
+        )
+        #expect(settled == [.hidden, .visible])
+        // Another reorder still pending in Hidden keeps it pending, and
+        // Discard still has Vorssaint at its slot.
+        var pending = OrderEdits(
+            order: [.hidden: [sound, a, vorssaint, snib]],
+            previousSection: [vorssaint: .visible],
+            previousOrder: [.hidden: [a, sound, snib], .visible: [media, vorssaint]],
+            dropped: [a, vorssaint]
+        )
+        pending.land(vorssaint, bar: [a, sound, vorssaint, snib, media])
+        #expect(pending.previousOrder[.hidden] == [a, sound, vorssaint, snib])
+        #expect(OrderEditSettle.settledSections(
+            pending, bar: [a, sound, vorssaint, snib, media], live: [], concealed: [a, sound, vorssaint, snib],
+            roster: roster
+        ).isEmpty)
+        // A landing the bar does not frame takes its drawn slot.
+        var unframed = OrderEdits(
+            order: [.hidden: [a, sound, vorssaint, snib]],
+            previousSection: [vorssaint: .visible],
+            previousOrder: [.hidden: [a, sound, snib]]
+        )
+        unframed.land(vorssaint, bar: [a, sound, media])
+        #expect(unframed.previousOrder[.hidden] == [a, sound, vorssaint, snib])
+    }
+
     @Test func aSectionAnIconLeftWaitsForTheCrossingThenSettlesWithoutIt() {
         // Its baseline is what Discard puts back, the icon that left
         // included: cleared before the crossing lands, the icon came back

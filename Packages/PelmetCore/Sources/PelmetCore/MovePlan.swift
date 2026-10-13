@@ -70,6 +70,41 @@ public struct OrderEdits: Codable, Equatable, Sendable {
         order.removeValue(forKey: section)
         previousOrder.removeValue(forKey: section)
     }
+
+    /// A pass landed `key` (canonical) on its section's side: Discard has
+    /// no section to put it back to. The baselines follow, since Discard
+    /// puts each pending section back to its own: the section whose
+    /// drawing holds it takes it where `bar` (canonical keys, left to
+    /// right) has it, or at its drawn slot unframed, and a baseline it
+    /// left lets it go. Only the crossing used to be dropped: the grouper
+    /// landed Vorssaint in Hidden, Hidden stayed pending on a baseline
+    /// taken before Vorssaint joined, and Discard drew it last (live test,
+    /// 2026-10-13 18:16:33). Still listed in Visible's, it would come back
+    /// in two sections.
+    public mutating func land(_ key: ItemID, bar: [ItemID]) {
+        let origin = previousSection.removeValue(forKey: key)
+        let home = order.first { $0.value.contains(key) }?.key
+        // A stray no edit moved stays in the baseline that lists it.
+        if home != nil || origin != nil {
+            for section in previousOrder.keys where section != home {
+                previousOrder[section]?.removeAll { $0 == key }
+            }
+        }
+        guard let home, let drawing = order[home], var baseline = previousOrder[home], !baseline.contains(key)
+        else { return }
+        let known = Set(baseline)
+        // The baseline icon beside `key` in `sequence`: after the one on
+        // its left, else before the one on its right.
+        func slot(in sequence: [ItemID]) -> Int? {
+            let around = sequence.filter { $0 == key || known.contains($0) }
+            guard let i = around.firstIndex(of: key) else { return nil }
+            if i > 0, let left = baseline.firstIndex(of: around[i - 1]) { return left + 1 }
+            if i + 1 < around.count { return baseline.firstIndex(of: around[i + 1]) }
+            return nil
+        }
+        baseline.insert(key, at: slot(in: bar) ?? slot(in: drawing) ?? baseline.endIndex)
+        previousOrder[home] = baseline
+    }
 }
 
 /// One item to one slot: land it right of `after` (nil = left end of the
