@@ -2812,7 +2812,8 @@ final class AppState {
         let ownExtras = Set((extras?.managedItemIDs ?? []).filter { extras?.wouldShow($0) == true }.map(\.sectionKey))
         let settled = OrderEditSettle.settledSections(
             settings.orderEdits, bar: bar, live: Set(snapshot.items.map(\.id)), concealed: snapshot.concealed,
-            ownBehindOverflow: ownItemsBehindOverflow, ownExtras: ownExtras, roster: settings.sectionModel.roster
+            ownBehindOverflow: ownItemsBehindOverflow, ownExtras: ownExtras,
+            itemsPredateSwap: snapshot.itemsPredateSwap, roster: settings.sectionModel.roster
         )
         guard !settled.isEmpty else { return }
         var edits = settings.orderEdits
@@ -3583,7 +3584,10 @@ final class AppState {
         }
         for id in snap.concealed { lastSeenAt[id.sectionKey] = now }
         pruneRetiredAppleHostSlot(snap)
-        guard snapshot?.contentEquals(snap) != true else { return }
+        // A walk replaces a swap's stamp even when it reads the same: kept,
+        // the stamp held every settle until the bar next changed.
+        let replacesStamp = snapshot?.itemsPredateSwap == true && !snap.itemsPredateSwap
+        guard snapshot?.contentEquals(snap) != true || replacesStamp else { return }
         let bundleless = snap.items.filter(\.hostIsBundleless).map(\.id.rawValue)
         if bundleless != lastBundlelessIDs {
             lastBundlelessIDs = bundleless

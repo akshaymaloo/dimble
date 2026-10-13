@@ -640,7 +640,10 @@ public actor AgentBarEngine: MenuBarEngine {
             // 2026-09-16 — SystemUIServer runs forever, so nothing else
             // ever pruned them).
             if let last = lastSnapshot, last.concealed != plan.concealed {
-                lastSnapshot = EngineSnapshot(items: snapshot.items, concealed: plan.concealed, takenAt: snapshot.takenAt, shownAlone: shownAlone)
+                lastSnapshot = EngineSnapshot(
+                    items: snapshot.items, concealed: plan.concealed, takenAt: snapshot.takenAt, shownAlone: shownAlone,
+                    itemsPredateSwap: snapshot.itemsPredateSwap
+                )
             }
             setAsideConcealed = plan.setAside
             return
@@ -718,7 +721,8 @@ public actor AgentBarEngine: MenuBarEngine {
             items: snapshot.items,
             concealed: plan.concealed,
             takenAt: Date(),
-            shownAlone: shownAlone
+            shownAlone: shownAlone,
+            itemsPredateSwap: true
         )
         setAsideConcealed = plan.setAside
         Task { await self.walkAfterSwap(concealable: concealable, epoch: epoch) }
@@ -737,7 +741,8 @@ public actor AgentBarEngine: MenuBarEngine {
                 items: last.items,
                 concealed: last.concealed.filter { $0.sectionKey != key },
                 takenAt: last.takenAt,
-                shownAlone: last.shownAlone
+                shownAlone: last.shownAlone,
+                itemsPredateSwap: last.itemsPredateSwap
             )
         }
     }

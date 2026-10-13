@@ -39,12 +39,21 @@ public struct EngineSnapshot: Equatable, Sendable {
     /// show rule) while their section stays concealed: they sit beside the
     /// chevron, not in their slot.
     public let shownAlone: Set<ItemID>
+    /// Stamped at a swap on the walk before it: icons the swap just revealed
+    /// are in neither `items` nor `concealed` until the walk behind the swap
+    /// lands. Fine for presence and covers; not for judging an order (the
+    /// settle cleared a pending reorder on it, live test 2026-10-13).
+    public let itemsPredateSwap: Bool
 
-    public init(items: [ObservedItem], concealed: Set<ItemID>, takenAt: Date, shownAlone: Set<ItemID> = []) {
+    public init(
+        items: [ObservedItem], concealed: Set<ItemID>, takenAt: Date, shownAlone: Set<ItemID> = [],
+        itemsPredateSwap: Bool = false
+    ) {
         self.items = items
         self.concealed = concealed
         self.takenAt = takenAt
         self.shownAlone = shownAlone
+        self.itemsPredateSwap = itemsPredateSwap
     }
 
     /// Equality ignoring `takenAt` — for observers that only care whether the

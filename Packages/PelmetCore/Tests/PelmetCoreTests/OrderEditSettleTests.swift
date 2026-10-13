@@ -110,6 +110,34 @@ import Testing
         ).isEmpty)
     }
 
+    @Test func aRevealsSwapStampedSnapshotSettlesNothing() {
+        // Shortcuts dragged after Sound in a concealed Hidden, then Hidden
+        // revealed. The swap stamps the mirror on the walk before it:
+        // Vorssaint, Snib and Sound just left the concealed set and are not
+        // walked yet, so they read as off the bar and the drawing compared
+        // over Shortcuts alone. Live test, 2026-10-13: cleared at the reveal.
+        let vorssaint = ItemID.bundleKey("com.vorssaint"), snib = ItemID.bundleKey("com.snib")
+        let sound = ItemID.bundleKey("com.sound"), clock = ItemID.bundleKey("com.clock")
+        let shortcuts = ItemID(rawValue: "status:\(PelmetBundle.mainID)::Pelmet.Shortcuts")
+        let members: [ItemID: Section] = [
+            vorssaint: .hidden, snib: .hidden, sound: .hidden, shortcuts: .hidden, clock: .visible,
+        ]
+        let edits = OrderEdits(
+            order: [.hidden: [vorssaint, snib, sound, shortcuts]],
+            previousOrder: [.hidden: [vorssaint, shortcuts, snib, sound]]
+        )
+        #expect(OrderEditSettle.settledSections(
+            edits, bar: [clock], live: [clock], concealed: [], ownExtras: [shortcuts],
+            itemsPredateSwap: true, roster: Roster(members: members)
+        ).isEmpty)
+        // The walk behind the swap has the bar as it is: still pending.
+        #expect(OrderEditSettle.settledSections(
+            edits, bar: [vorssaint, shortcuts, snib, sound, clock],
+            live: [vorssaint, shortcuts, snib, sound, clock], concealed: [], ownExtras: [shortcuts],
+            roster: Roster(members: members)
+        ).isEmpty)
+    }
+
     @Test func iconsOfOtherSectionsDoNotCount() {
         let visible = ItemID.bundleKey("com.visible")
         #expect(settled([a, b], bar: [a, visible, b], onBar: [a, b, visible]) == [.alwaysHidden])
