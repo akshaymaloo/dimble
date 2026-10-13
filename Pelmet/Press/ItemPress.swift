@@ -68,6 +68,9 @@ final class ItemPress {
     /// What the window oracles need from the screens, read on the main
     /// actor so the window list can be walked off it.
     private nonisolated struct Geometry: Sendable {
+        /// The clicked bar's display top, CG global (0 on the main one).
+        let barTop: CGFloat
+        /// The bar's height below that top.
         let barBottom: CGFloat
         let screenWidth: CGFloat
     }
@@ -159,7 +162,7 @@ final class ItemPress {
         var onBar = Self.onBar(key, in: snap)
         // Where the click lands: `onBar`'s frame, or its copy on the
         // display the press was made from.
-        var aim = await aimed(key, display: aimDisplay, fallback: onBar?.frame)
+        var aim = await aimed(onBar, display: aimDisplay)?.aim
         if onBar == nil, key.bundleID == PelmetBundle.mainID {
             // Pelmet's own items hide by their own visibility, not the
             // assertion: out of the AX tree and out of the concealed set
@@ -188,11 +191,12 @@ final class ItemPress {
             return
         }
         let revealsItem = onBar == nil
-        var trapped = onBar != nil && ApplyPass.trapped(snap, appState: appState).contains(key)
-        // Behind the main bar's « it is reached as it always was: that
-        // bar's « expanded, its copy there clicked.
-        if trapped { aim = onBar?.frame }
-        PelmetLog.log("press: \(key.rawValue) (\(button == .secondary ? "secondary" : "primary")) — \(revealsItem ? "concealed, revealed alone" : trapped ? "behind the «" : "on the bar")")
+        // Behind the main bar's « the press display's copy is clicked when
+        // that bar draws it, the « left shut; without one, that bar's «
+        // expanded and its copy there clicked, as always.
+        let behindMain = onBar != nil && ApplyPass.trapped(snap, appState: appState).contains(key)
+        var trapped = behindMain && aim?.onPressDisplay != true
+        PelmetLog.log("press: \(key.rawValue) (\(button == .secondary ? "secondary" : "primary")) — \(revealsItem ? "concealed, revealed alone" : trapped ? "behind the «" : behindMain ? "behind the main bar's «, not the press display's" : "on the bar")")
 
         // Only a bar that is about to change needs hiding: an item at rest
         // on the bar is clicked as it is. The transitions are told the bar
@@ -222,10 +226,12 @@ final class ItemPress {
                 aim = found?.aim
                 if let found {
                     snap = found.snap
-                    trapped = ApplyPass.trapped(snap, appState: appState).contains(key)
-                    if trapped { aim = target?.frame }
+                    trapped = !found.aim.onPressDisplay && ApplyPass.trapped(snap, appState: appState).contains(key)
                 }
-                PelmetLog.log("press: \(key.rawValue) revealed at \(ms())ms (\(found?.walks ?? 0) walk(s)\(found?.settled == false ? ", frame still moving" : ""))")
+                let unsettled = found?.settled != false ? ""
+                    : aimDisplay != nil && found?.aim.onPressDisplay == false ? ", no copy on the press display's bar by the cap"
+                    : ", frame still moving"
+                PelmetLog.log("press: \(key.rawValue) revealed at \(ms())ms (\(found?.walks ?? 0) walk(s)\(unsettled))")
             }
             if trapped {
                 toggle = await OverflowToggle.expandForPass()
@@ -255,9 +261,10 @@ final class ItemPress {
         } else if trapped, toggle == nil {
             // The frame is the « 's phantom: a click there lands on a neighbour.
             PelmetLog.log("press: \(key.rawValue) — behind the « and it would not expand, not clicked, \(ms())ms")
-        } else if let target, let frame = aim {
-            clickedElsewhere = frame != target.frame
-            let geometry = Self.geometry()
+        } else if let target, let aim {
+            let frame = aim.frame
+            clickedElsewhere = aim.onPressDisplay
+            let geometry = Self.geometry(at: frame)
             let before = await Self.counts(pid: target.pid, geometry: geometry)
             let wasFront = Self.isFrontmost(target.pid)
             await ItemMover.shieldedClick(
@@ -265,8 +272,7 @@ final class ItemPress {
                 button: button == .secondary ? .right : .left
             )
             let bar = aimDisplay.map {
-                clickedElsewhere ? ", on display \($0)'s bar"
-                    : ", on the main bar (display \($0)'s \(trapped ? "skipped, behind the «" : "bar named no copy"))"
+                clickedElsewhere ? ", on display \($0)'s bar" : ", on the main bar (display \($0)'s had no copy to click)"
             } ?? ""
             PelmetLog.log("press: \(key.rawValue) clicked at \(ms())ms\(toggle == nil ? "" : " (« expanded)")\(bar)")
             // The reveal and the click are behind the cover; from here the
@@ -411,39 +417,44 @@ final class ItemPress {
             ?? copies.first
     }
 
-    /// Where a press made from `display` clicks: the item's copy on that
-    /// display's bar in the last walk, `fallback` (the main display's) when
-    /// there is no display or the walk named no copy there.
-    private func aimed(_ key: ItemID, display: CGDirectDisplayID?, fallback: CGRect?) async -> CGRect? {
-        guard let display, let appState else { return fallback }
-        let frames = await appState.engine.barCopies().filter { $0.key.sectionKey == key }.flatMap(\.value)
-        return MenuBarGeometry.copy(onDisplay: CGDisplayBounds(display), among: frames) ?? fallback
+    /// Where a press made from `display` clicks the walk's `item`: its own
+    /// copy on that display's bar in the last walk, paired by full id
+    /// (`PressAim`), else its main copy. `awaitingDisplay`: that bar lists
+    /// icons, so a missing copy may still come (a stand-in mid-swap).
+    private func aimed(_ item: ObservedItem?, display: CGDirectDisplayID?) async -> (aim: PressAim, awaitingDisplay: Bool)? {
+        guard let item, let frame = item.frame else { return nil }
+        guard let display, let appState else { return (PressAim(frame: frame, onPressDisplay: false), false) }
+        let copies = await appState.engine.barCopies()
+        let bounds = CGDisplayBounds(display)
+        return (PressAim.aim(id: item.id, main: frame, display: bounds, copies: copies),
+                PressAim.barListed(on: bounds, copies: copies))
     }
 
     /// The item once the frame the click aims at has stopped moving: the
     /// agent slides a revealed icon in, and a click aimed at a frame read
-    /// mid-slide lands beside it. Walks until two in a row agree, bounded
-    /// by `pressFrameCap`; the last frame read stands if it never settles.
-    /// `aim` is the item's frame, or its copy on `display`'s bar.
+    /// mid-slide lands beside it. Walks until two in a row agree on the
+    /// same bar (`PressAim.settles`), bounded by `pressFrameCap`; the last
+    /// frame read stands if it never settles. A press made from another
+    /// display waits there for that display's copy while its bar lists
+    /// icons, and falls back to the main copy only at the cap.
     private func settledItem(
         _ key: ItemID, display: CGDirectDisplayID? = nil, run: Run
-    ) async -> (item: ObservedItem, snap: EngineSnapshot, aim: CGRect, walks: Int, settled: Bool)? {
+    ) async -> (item: ObservedItem, snap: EngineSnapshot, aim: PressAim, walks: Int, settled: Bool)? {
         guard let appState else { return nil }
         let by = Date().addingTimeInterval(AppTiming.pressFrameCap)
         let tolerance = AppTiming.pressFrameTolerance
-        var last: (item: ObservedItem, snap: EngineSnapshot, aim: CGRect)?
+        var last: (item: ObservedItem, snap: EngineSnapshot, aim: PressAim)?
         var walks = 0
         while !run.yielded {
             let snap = await appState.engine.freshSnapshot()
             lastWalkEmpty = snap.items.isEmpty
             walks += 1
-            if let item = Self.onBar(key, in: snap), let frame = item.frame,
-               let aim = await aimed(key, display: display, fallback: frame) {
-                if let before = last?.aim,
-                   abs(before.midX - aim.midX) <= tolerance, abs(before.midY - aim.midY) <= tolerance {
-                    return (item, snap, aim, walks, true)
+            let item = Self.onBar(key, in: snap)
+            if let item, let read = await aimed(item, display: display) {
+                if PressAim.settles(last?.aim, read.aim, tolerance: tolerance, awaitingDisplay: read.awaitingDisplay) {
+                    return (item, snap, read.aim, walks, true)
                 }
-                last = (item, snap, aim)
+                last = (item, snap, read.aim)
             } else {
                 last = nil
             }
@@ -476,8 +487,20 @@ final class ItemPress {
         pid > 0 && NSWorkspace.shared.frontmostApplication?.processIdentifier == pid
     }
 
-    private static func geometry() -> Geometry {
-        Geometry(
+    /// The oracles' geometry on the display whose bar the click lands on:
+    /// what it shows drops from that bar. Read against the main bar, a
+    /// layer-0 popover on the BenQ (its top near y −83) never counted, and
+    /// the item went back under it, orphaned (#26). Off the main display
+    /// the visibleFrame keeps no bar band: the clicked frame gives it.
+    private static func geometry(at frame: CGRect) -> Geometry {
+        let mid = CGPoint(x: frame.midX, y: frame.midY)
+        if let id = NSScreen.screens.compactMap(\.directDisplayID).first(where: { CGDisplayBounds($0).contains(mid) }),
+           id != CGMainDisplayID() {
+            let bounds = CGDisplayBounds(id)
+            return Geometry(barTop: bounds.minY, barBottom: max(frame.maxY - bounds.minY, 24), screenWidth: bounds.width)
+        }
+        return Geometry(
+            barTop: 0,
             barBottom: NSScreen.screens.first.map { $0.frame.maxY - $0.visibleFrame.maxY } ?? 24,
             screenWidth: NSScreen.screens.first?.frame.width ?? 1440
         )
@@ -515,10 +538,12 @@ final class ItemPress {
             // height.
             if layer > 0, layer != 25 || height > 60 {
                 counts.elevated += 1
-            } else if layer == 0, height > 40, width < geometry.screenWidth * 0.6, y >= 0, y <= geometry.barBottom + 60 {
+            } else if layer == 0, height > 40, width < geometry.screenWidth * 0.6,
+                      y >= geometry.barTop, y <= geometry.barTop + geometry.barBottom + 60 {
                 // A popover at the normal level: its top sits between the
-                // bar and 60pt below it (its bounds carry a margin), and it
-                // is nowhere near a document window's width.
+                // clicked bar's display top and 60pt below the bar (its
+                // bounds carry a margin), and it is nowhere near a document
+                // window's width.
                 counts.elevated += 1
             }
         }
