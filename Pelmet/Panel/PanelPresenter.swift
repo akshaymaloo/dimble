@@ -107,7 +107,7 @@ final class PanelPresenter: RevealPresenter {
     /// name the launchers.
     private var corpus: [CommandBarEntry] = []
     /// Each item's app, from `corpus`: a tile's menu looks it up.
-    private var corpusApps: [ItemID: (bundleID: String, name: String)] = [:]
+    private var corpusApps: [ItemID: ItemMenuActions.ItemApp] = [:]
     /// Whether `corpus` was read at all, for the preview to read it once.
     private var corpusRead = false
     private var history = SearchHistory()
