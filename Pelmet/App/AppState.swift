@@ -1722,6 +1722,7 @@ final class AppState {
         }
         settings.orderEdits.order[home] = order
         settings.orderEdits.created.insert(key)
+        settings.orderEdits.dropped.insert(key)
         applyReport = nil
         settingsChanged()
         PelmetLog.log("editor: separator added → \(home), pending Apply")
@@ -2183,6 +2184,7 @@ final class AppState {
             settings.orderEdits.order[edited]?.removeAll { $0 == key }
         }
         settings.orderEdits.order[section] = order
+        settings.orderEdits.dropped.insert(key)
         pruneSettledOrderEdits()
         applyReport = nil
         settings.save()
@@ -3241,6 +3243,11 @@ final class AppState {
     @ObservationIgnored private var overflowNoticeTask: Task<Void, Never>?
 
     private func noteOverflow(in snap: EngineSnapshot) {
+        // A pass's bar is under its cover, a whole bar out at once: what it
+        // pushes behind the « is not the bar anyone sees, and "Didn't fit"
+        // flashed Snib and the chevron mid-pass (2026-10-12 23:20). The read
+        // after it conceals decides again.
+        guard picturePassSections == nil else { return }
         let primaryMaxX = NSScreen.screens.first?.frame.maxX ?? .greatestFiniteMagnitude
         // Only what the bar draws now: an icon just put away lingers in the
         // walk (Pelmet's own extras collapse in place for 0.7s) on top of its

@@ -24,22 +24,28 @@ public struct OrderEdits: Codable, Equatable, Sendable {
     /// Own items (separators) created by this edit set: drawn, not yet in
     /// the bar's order. Apply places them; Discard removes them again.
     public var created: Set<ItemID>
+    /// The icons the person dropped. When two plans take as many moves, the
+    /// one that drags these wins: Wi-Fi dropped at the end of Always Hidden
+    /// had Apply drag Sconce past it instead (2026-10-12 23:21).
+    public var dropped: Set<ItemID>
 
     public init(
         order: [Section: [ItemID]] = [:],
         previousSection: [ItemID: Section] = [:],
         previousOrder: [Section: [ItemID]] = [:],
-        created: Set<ItemID> = []
+        created: Set<ItemID> = [],
+        dropped: Set<ItemID> = []
     ) {
         self.order = order
         self.previousSection = previousSection
         self.previousOrder = previousOrder
         self.created = created
+        self.dropped = dropped
     }
 
     public var isEmpty: Bool { order.isEmpty && previousSection.isEmpty }
 
-    private enum CodingKeys: String, CodingKey { case order, previousSection, previousOrder, created }
+    private enum CodingKeys: String, CodingKey { case order, previousSection, previousOrder, created, dropped }
 
     /// `previousSection` arrived after `order` shipped on the branch: an
     /// edit set saved without it still decodes.
@@ -49,6 +55,7 @@ public struct OrderEdits: Codable, Equatable, Sendable {
         previousSection = try c.decodeIfPresent([ItemID: Section].self, forKey: .previousSection) ?? [:]
         previousOrder = try c.decodeIfPresent([Section: [ItemID]].self, forKey: .previousOrder) ?? [:]
         created = try c.decodeIfPresent(Set<ItemID>.self, forKey: .created) ?? []
+        dropped = try c.decodeIfPresent(Set<ItemID>.self, forKey: .dropped) ?? []
     }
 
     /// The edit for `section` is done with (applied, or the bar matches):
@@ -56,7 +63,10 @@ public struct OrderEdits: Codable, Equatable, Sendable {
     public mutating func clearOrder(for section: Section) {
         // A created item drawn in this section is placed now: no longer
         // Discard's to remove.
-        if let drawn = order[section] { created.subtract(drawn) }
+        if let drawn = order[section] {
+            created.subtract(drawn)
+            dropped.subtract(drawn)
+        }
         order.removeValue(forKey: section)
         previousOrder.removeValue(forKey: section)
     }
@@ -177,10 +187,15 @@ public enum MovePlan {
             let current = bar.filter(run.contains)
             let index = Dictionary(run.enumerated().map { ($1, $0) }, uniquingKeysWith: { first, _ in first })
             // Heaviest subsequence already in desired order stays; anchors
-            // outweigh everything else so they are always part of it.
+            // outweigh everything else so they are always part of it. Among
+            // the longest, the one that keeps the icons nobody dropped: one
+            // extra point each, worth less than one more icon kept.
+            let unit = run.count + 1
             let keep = heaviestIncreasing(
                 current.map { index[$0]! },
-                weights: current.map { anchor($0) == nil ? 1 : run.count + 1 }
+                weights: current.map {
+                    anchor($0) != nil ? unit * (unit + 1) : unit + (edits.dropped.contains($0) ? 0 : 1)
+                }
             )
             let staying = Set(keep.map { current[$0] })
             // Bounds must already be where the run says when the drag

@@ -30,6 +30,31 @@ import Testing
         #expect(plan.moves == [Move(item: c, after: nil, before: a)])
     }
 
+    @Test func aTieDragsTheDroppedIcon() {
+        // b dropped after c, or c dropped before b: one move either way, and
+        // it is the icon the person dropped (Wi-Fi vs Sconce, 2026-10-12).
+        let bar = [a, b, c, chevron, v1]
+        let droppedB = MovePlan.compute(
+            bar: bar, edits: OrderEdits(order: [.hidden: [a, c, b]], dropped: [b]),
+            roster: roster, chevron: chevron
+        )
+        #expect(droppedB.moves == [Move(item: b, after: c, before: chevron)])
+        let droppedC = MovePlan.compute(
+            bar: bar, edits: OrderEdits(order: [.hidden: [a, c, b]], dropped: [c]),
+            roster: roster, chevron: chevron
+        )
+        #expect(droppedC.moves == [Move(item: c, after: a, before: b)])
+    }
+
+    @Test func aDroppedIconNeverCostsAnExtraMove() {
+        let plan = MovePlan.compute(
+            bar: [a, b, c, chevron, v1],
+            edits: OrderEdits(order: [.hidden: [c, a, b]], dropped: [a]),
+            roster: roster, chevron: chevron
+        )
+        #expect(plan.moves == [Move(item: c, after: nil, before: a)])
+    }
+
     @Test func reversalMovesAllButOne() {
         let plan = MovePlan.compute(
             bar: [a, b, c, chevron],
