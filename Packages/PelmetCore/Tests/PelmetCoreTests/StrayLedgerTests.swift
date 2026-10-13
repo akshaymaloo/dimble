@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import PelmetCore
 
@@ -53,6 +54,29 @@ import Testing
         inPlace.observe([look(a, nil, .hidden, pid: 2)])
         inPlace.observe([look(a, .left, .hidden, pid: 2)])
         #expect(inPlace.standing(of: a) == .settled)
+    }
+
+    @Test func aRelaunchMetOffTheBarLapsesWhenFramedLongAfter() {
+        let t0 = Date(timeIntervalSinceReferenceDate: 0)
+        var ledger = StrayLedger()
+        ledger.observe([look(a, .left, .hidden, pid: 1)], now: t0)
+        ledger.observe([look(a, nil, .hidden, pid: 2)], now: t0 + 1)
+        // Hours on another display, then dragged by hand to the wrong side.
+        ledger.observe([look(a, nil, .hidden, pid: 2)], now: t0 + 3600)
+        ledger.observe([look(a, .right, .hidden, pid: 2)], strays: [a], now: t0 + 7200)
+        #expect(ledger.actionable([a]).isEmpty)
+        // No look in between: the same.
+        var quiet = StrayLedger()
+        quiet.observe([look(a, .left, .hidden, pid: 1)], now: t0)
+        quiet.observe([look(a, nil, .hidden, pid: 2)], now: t0 + 1)
+        quiet.observe([look(a, .right, .hidden, pid: 2)], strays: [a], now: t0 + 7200)
+        #expect(quiet.actionable([a]).isEmpty)
+        // Framed inside the window: still explained.
+        var prompt = StrayLedger()
+        prompt.observe([look(a, .left, .hidden, pid: 1)], now: t0)
+        prompt.observe([look(a, nil, .hidden, pid: 2)], now: t0 + 1)
+        prompt.observe([look(a, .right, .hidden, pid: 2)], strays: [a], now: t0 + 20)
+        #expect(prompt.actionable([a]) == [a])
     }
 
     @Test func aDropAcrossSectionsIsActionableWhileTheSideStays() {

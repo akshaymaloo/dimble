@@ -473,8 +473,9 @@ public actor AgentBarEngine: MenuBarEngine {
     /// followed by a second animated swap when AX populates. Defer with fast
     /// retries, then slow ones until a walk reads: nothing else walks at
     /// rest, so a bound left the bar un-hidden until the next interaction.
-    /// The slow ones back off, and stop while the session is locked: a 2s
-    /// retry walked the agent tree all night (≈14k walks).
+    /// The slow ones keep 2s for the first two minutes of the run (a launch
+    /// reads empty for up to 40s), then back off; they stop while the
+    /// session is locked. 2s flat walked the agent tree all night (≈14k).
     private func deferEmptyWalkRetry() {
         if emptyAXSince == nil { emptyAXSince = Date() }
         guard emptyAXRetry == nil else { return }
@@ -491,9 +492,10 @@ public actor AgentBarEngine: MenuBarEngine {
             emptyAXRetriesRemaining -= 1
             delay = EngineTiming.emptyAXRetryDelay
         } else {
-            delay = EngineTiming.emptyAXSlowRetry(after: emptyAXSlowDelay)
+            let emptyFor = emptyAXSince.map { -$0.timeIntervalSinceNow } ?? 0
+            delay = EngineTiming.emptyAXSlowRetry(after: emptyAXSlowDelay, emptyFor: emptyFor)
             if emptyAXSlowDelay == nil {
-                PelmetLog.log("converge: AX walk still empty — retrying every \(delay), backing off to \(EngineTiming.emptyAXSlowRetryMax), until the bar reads")
+                PelmetLog.log("converge: AX walk still empty — retrying every \(delay) until the bar reads, backing off to \(EngineTiming.emptyAXSlowRetryMax) after \(Int(EngineTiming.emptyAXFlatRetryWindow))s")
             } else if delay != emptyAXSlowDelay {
                 PelmetLog.log("converge: AX walk still empty — backing off to \(delay)")
             }
@@ -540,7 +542,9 @@ public actor AgentBarEngine: MenuBarEngine {
     }
 
     /// A chain stopped for the lock, or backed off to a minute, starts over
-    /// with fast retries, so the bar hides as soon as it reads again.
+    /// with fast retries, so the bar hides as soon as it reads again. The
+    /// run restarts too: its flat 2s window counts from here, not from the
+    /// lock (the "walk back" line then measures from here).
     private func restartEmptyWalkRetries(_ reason: String) async {
         guard let since = emptyAXSince else { return }
         emptyAXRetry?.cancel()
@@ -548,6 +552,7 @@ public actor AgentBarEngine: MenuBarEngine {
         emptyAXPaused = false
         emptyAXRetriesRemaining = EngineTiming.emptyAXRetries
         emptyAXSlowDelay = nil
+        emptyAXSince = Date()
         PelmetLog.log("converge: \(reason) after \(Self.ms(since: since))ms of empty walks — retrying")
         await converge()
     }

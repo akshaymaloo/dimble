@@ -45,9 +45,17 @@ public struct StrayLedger: Equatable, Sendable {
         var section: Section
         var pid: Int32?
         var standing: Standing
+        /// An actionable icon's first look off the primary bar since it was
+        /// explained (or since a look last placed it).
+        var unplacedSince: Date?
     }
 
     private var records: [ItemID: Record] = [:]
+
+    /// How long an explanation outlives looks that can't place the icon (a
+    /// relaunch not framed yet, another display). Framed after that, the
+    /// wrong side may be a hand drag: it is left alone.
+    public static let unplacedWindow: TimeInterval = 30
 
     public init() {}
 
@@ -70,10 +78,11 @@ public struct StrayLedger: Equatable, Sendable {
     /// not. Items missing from it are forgotten (back later = newly seen).
     /// `strays` are the items whose side disagrees with their section right
     /// now. `ownMoves` are the items a pass of ours just tried to move: their
-    /// side flips are ours. Returns the items that flipped by hand this look.
+    /// side flips are ours. `now` is the look's time. Returns the items that
+    /// flipped by hand this look.
     @discardableResult
     public mutating func observe(
-        _ sightings: [Sighting], strays: Set<ItemID> = [], ownMoves: Set<ItemID> = []
+        _ sightings: [Sighting], strays: Set<ItemID> = [], ownMoves: Set<ItemID> = [], now: Date = Date()
     ) -> [ItemID] {
         var next: [ItemID: Record] = [:]
         var byHand: [ItemID] = []
@@ -103,9 +112,24 @@ public struct StrayLedger: Equatable, Sendable {
             // (a drop BarAdoption could not read) is not mistaken for one.
             // Only a look that places it can say so: a relaunched icon not
             // framed yet kept no explanation, and framed on the wrong side a
-            // look later (nil → side is no flip) it stayed there.
-            if standing == .actionable, s.side != nil, !strays.contains(s.id) { standing = .settled }
-            next[s.id] = Record(side: s.side, section: s.section, pid: s.pid ?? prev.pid, standing: standing)
+            // look later (nil → side is no flip) it stayed there. Unplaced,
+            // the explanation lasts `unplacedWindow`: held for good, a hand
+            // drag hours later read as explained and was moved back.
+            let explained = relaunched || (sectionChanged && !sideChanged)
+            var unplacedSince: Date?
+            if standing == .actionable {
+                let since = (explained ? nil : prev.unplacedSince) ?? now
+                if now.timeIntervalSince(since) > Self.unplacedWindow {
+                    standing = .settled
+                } else if s.side == nil {
+                    unplacedSince = since
+                } else if !strays.contains(s.id) {
+                    standing = .settled
+                }
+            }
+            next[s.id] = Record(
+                side: s.side, section: s.section, pid: s.pid ?? prev.pid, standing: standing, unplacedSince: unplacedSince
+            )
         }
         records = next
         return byHand
