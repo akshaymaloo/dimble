@@ -20,6 +20,9 @@ struct ShortcutRecorder: View {
     @State private var recording = false
     @State private var hovering = false
     @State private var monitor: Any?
+    /// Recorders listening for a shortcut now: the hover panel's typing tap
+    /// leaves their keys alone (`HoverTypingTap`).
+    private(set) static var listening = 0
 
     private var isOff: Bool { shortcut?.isOff == true }
 
@@ -122,10 +125,14 @@ struct ShortcutRecorder: View {
             }
             return consumed ? nil : event
         }
+        Self.listening += 1
     }
 
     private func stopRecording() {
-        if let monitor { NSEvent.removeMonitor(monitor) }
+        if let monitor {
+            NSEvent.removeMonitor(monitor)
+            Self.listening -= 1
+        }
         monitor = nil
         recording = false
     }

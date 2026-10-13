@@ -176,11 +176,12 @@ final class MenuBarBandMonitor {
                 // The panel a ⌘-drag opened arrives a beat after the drag.
                 if panelDropZone == nil { armPanelDrop(appState) }
                 if panelDropZone != nil {
-                    if let zone = appState.panelPresenter.barDragZone(), zone != panelDropZone {
+                    // One read of the panel's drop zones per drag event.
+                    let zone = appState.panelPresenter.barDrag(at: dragRedirect.realPointer() ?? event.locationInWindow).zone
+                    if let zone, zone != panelDropZone {
                         panelDropZone = zone
                         dragRedirect.update(zone: zone)
                     }
-                    appState.panelPresenter.barDrag(at: dragRedirect.realPointer() ?? event.locationInWindow)
                 }
             }
             guard event.modifierFlags.contains(.command) else { return }
@@ -221,7 +222,7 @@ final class MenuBarBandMonitor {
             cmdDragActive = false
             if panelDropZone != nil {
                 let drop = dragRedirect.takeDrop()
-                let section = drop.flatMap { $0.rewrote ? appState.panelPresenter.barDrag(at: $0.point) : nil }
+                let section = drop.flatMap { $0.rewrote ? appState.panelPresenter.barDrag(at: $0.point).section : nil }
                 endPanelDrop(appState)
                 // The tap's word decides: it told macOS the icon went home,
                 // or it didn't and macOS has the drop.
@@ -359,7 +360,24 @@ final class MenuBarBandMonitor {
             // Leaving the band arms the countdown (never an instant conceal),
             // and catches a ⌘-drag whose mouse-up the monitor missed.
             appState.pointerLeftBand()
-            // A drag on its way to the panel is still in the air.
+            // A drag on its way to the panel is still in the air, unless no
+            // button is down: then its mouse-up may have been missed, and the
+            // drag held the bar and the panel's drop open until the next
+            // click. A beat first: this move came by the pointer tap and the
+            // mouse-up comes by the monitor, in either order, and ending the
+            // drag here lost a drop the mouse-up was about to file.
+            if dragSinceAdoption, panelDropZone != nil, NSEvent.pressedMouseButtons & 1 == 0 {
+                let started = dragStartedAt
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                    guard let self, let appState = self.appState, self.cmdDragActive, self.dragStartedAt == started,
+                          self.panelDropZone != nil, NSEvent.pressedMouseButtons & 1 == 0 else { return }
+                    PelmetLog.log("band: ⌘-drag's mouse-up was missed on the way to the panel, leaving the bar ends it")
+                    self.cmdDragActive = false
+                    self.endPanelDrop(appState)
+                    self.dragSinceAdoption = false
+                    appState.adoptSectionsFromBar()
+                }
+            }
             if dragSinceAdoption, panelDropZone == nil {
                 dragSinceAdoption = false
                 appState.adoptSectionsFromBar()
@@ -532,8 +550,21 @@ final class MenuBarBandMonitor {
             // reveal under the running drag (seen live during rescue).
             // The item menu relay's click on an icon behind an open « reads
             // the same way: it opened the panel over the menu it was
-            // opening, "showed nothing" (#81, CleanMyMac, twice).
-            guard !appState.syntheticDragInFlight, !appState.pressRunning else { return }
+            // opening, "showed nothing" (#81, CleanMyMac, twice). Only the
+            // relay's own click: refusing every click while a relay ran left
+            // the empty bar dead for as long as what it opened stayed up
+            // (up to a minute for an app's window).
+            guard !appState.syntheticDragInFlight else { return }
+            if let own = ownPostedClick(event) {
+                PelmetLog.log("band: click refused — Pelmet's own posted click (\(own))")
+                return
+            }
+            // The icons a relay's open « exposed hit-test as empty bar too:
+            // a click on one is that icon's, never a reveal over its menu.
+            if ItemPress.holdsOverflowOpen {
+                PelmetLog.log("band: click refused — a press relay holds the « open")
+                return
+            }
             // Stamped before the gates so the perf line counts the
             // hit-test IPCs a click pays on its way to `dispatch`.
             PerfTrace.markTrigger("click")
@@ -620,6 +651,22 @@ final class MenuBarBandMonitor {
                 appState.rehideTriggered(.clickedElsewhere)
             }
         }
+    }
+
+    /// How long after Pelmet posts a shielded click a click is taken for it,
+    /// should a monitor's copy of the event come without the tag.
+    private static let ownClickWindow: TimeInterval = 0.25
+
+    /// Why `event` is a click Pelmet posted itself (the press relay's, the
+    /// « toggle's, the clock's replay), nil for the user's. Pelmet's sources
+    /// tag their events (`SyntheticInput.tag`); a shielded click (the relay's
+    /// and the « toggle's) is also known by its time.
+    private func ownPostedClick(_ event: NSEvent) -> String? {
+        if event.cgEvent?.getIntegerValueField(.eventSourceUserData) == SyntheticInput.tag { return "tagged" }
+        guard let posted = SyntheticInput.clickPostedAt else { return nil }
+        let after = event.timestamp - posted
+        guard after > -0.05, after < Self.ownClickWindow else { return nil }
+        return "untagged, \(Int(after * 1000))ms after a shielded click"
     }
 
     // MARK: - Geometry
@@ -766,10 +813,12 @@ final class MenuBarBandMonitor {
     /// The drawn chevron's right edge as a main-display x (the bar repeats
     /// on every screen at the same right inset), nil when it isn't in a
     /// screen's band (icon off, behind Apple's «, not placed yet).
+    /// On the per-move path: the screens come from the cache, the main
+    /// display first as in `NSScreen.screens`.
     private func liveChevronMaxX() -> CGFloat? {
         guard let frame = appState?.chevronWindowFrame,
-              let primary = NSScreen.screens.first,
               let geometry = screenGeometry(containing: NSPoint(x: frame.midX, y: frame.midY)),
+              let primary = screenGeometry.first,
               geometry.band.intersects(frame) else { return nil }
         return primary.frame.maxX - (geometry.frame.maxX - frame.maxX)
     }

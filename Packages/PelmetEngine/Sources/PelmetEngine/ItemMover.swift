@@ -17,6 +17,7 @@
 import AppKit
 import CoreGraphics
 import Foundation
+import Synchronization
 
 public enum ItemMover {
     /// Performs a ⌘-drag from one menubar point to another (top-left-origin
@@ -120,6 +121,7 @@ public enum ItemMover {
             ) else { return }
             event.post(tap: .cghidEventTap)
         }
+        SyntheticInput.noteClickPosted()
         post(downType)
         for _ in 0..<2 {
             shield.reassert()
@@ -176,6 +178,16 @@ public enum ItemMover {
 /// event taps let them through and only physical input is intercepted.
 public enum SyntheticInput {
     public static let tag: Int64 = 0x504C_4D54 // "PLMT"
+
+    /// When Pelmet last posted a shielded click (system uptime, like an
+    /// event's timestamp): a monitor that sees the click can tell it from
+    /// the user's by its time, should its copy come without the tag.
+    public static var clickPostedAt: TimeInterval? { posted.withLock { $0 } }
+    private static let posted = Mutex<TimeInterval?>(nil)
+
+    static func noteClickPosted() {
+        posted.withLock { $0 = ProcessInfo.processInfo.systemUptime }
+    }
 }
 
 private final class DragShield {

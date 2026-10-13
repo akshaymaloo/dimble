@@ -43,6 +43,8 @@ final class PanelDragGhost {
 
     func show(at point: CGPoint) {
         move(toCenter: point)
+        // Once per showing: a bar drag calls this on every drag event.
+        guard !window.isVisible || window.alphaValue < 1 else { return }
         window.orderFrontRegardless()
         window.alphaValue = 1
     }

@@ -128,7 +128,11 @@ nonisolated final class BarDragRedirect: @unchecked Sendable {
             return rewrite ? self.anchor : nil
         }
         // Off until the next arm, even if the main thread never hears of it.
-        if type == .leftMouseUp, let tap { CGEvent.tapEnable(tap: tap, enable: false) }
+        // An arm that came in between may have enabled it first: on again.
+        if type == .leftMouseUp, let tap {
+            CGEvent.tapEnable(tap: tap, enable: false)
+            if lock.withLock({ armed }) { CGEvent.tapEnable(tap: tap, enable: true) }
+        }
         if let anchor { event.location = anchor }
         return Unmanaged.passUnretained(event)
     }

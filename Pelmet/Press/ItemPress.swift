@@ -83,6 +83,9 @@ final class ItemPress {
     private var current: Run?
     /// A relay is on the bar (locating, revealing, clicking, putting back).
     var isRunning: Bool { current != nil }
+    /// A relay holds the « open for an icon behind it: the icons it exposed
+    /// hit-test as empty bar, and a click on one is never an empty-bar click.
+    private(set) static var holdsOverflowOpen = false
 
     init(appState: AppState) {
         self.appState = appState
@@ -199,6 +202,7 @@ final class ItemPress {
             }
             if trapped {
                 toggle = await OverflowToggle.expandForPass()
+                Self.holdsOverflowOpen = toggle != nil
                 if toggle != nil, let found = await settledItem(key, run: run) { target = found.item }
             }
         }
@@ -248,6 +252,7 @@ final class ItemPress {
                 await appState.panelPresenter.repicture(key, frame: frame)
             }
             if let toggle { await OverflowToggle.collapseAfterPass(toggle) }
+            Self.holdsOverflowOpen = false
             if revealed {
                 await appState.engine.conceal(items: [key])
                 appState.updateSnapshot(await appState.engine.snapshot())

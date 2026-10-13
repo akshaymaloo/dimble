@@ -262,7 +262,7 @@ final class PanelPresenter: RevealPresenter {
 
     private func armTyping() {
         guard isOpen, openedByHover, let zone = glassZone else { return }
-        typingTap.arm(zone: zone)
+        typingTap.arm(zone: zone, window: window)
     }
 
     private func updateTypingZone() {
@@ -285,7 +285,7 @@ final class PanelPresenter: RevealPresenter {
             PelmetLog.log("panel: typed over the hover panel, search \"\(typed)\"")
             // The window server may not have moved focus here yet: for a
             // moment longer the tap keeps the keys that follow, in order.
-            if let zone = glassZone, typingTap.arm(zone: zone, keepingPresses: true) {
+            if let zone = glassZone, typingTap.arm(zone: zone, window: window, keepingPresses: true) {
                 typingGrace = Task { @MainActor [weak self] in
                     try? await Task.sleep(for: .milliseconds(300))
                     guard let self, !Task.isCancelled else { return }
@@ -1476,6 +1476,10 @@ final class PanelPresenter: RevealPresenter {
     /// so a drop on the bar stays the bar's.
     func barDragZone() -> CGRect? {
         guard isOpen, let zones = dropZones() else { return nil }
+        return Self.barDragZone(of: zones)
+    }
+
+    private static func barDragZone(of zones: PanelDropZones) -> CGRect {
         var zone = zones.zone
         zone.size.height = max(0, min(zone.maxY, zones.bar.minY) - zone.minY)
         return zone
@@ -1498,17 +1502,20 @@ final class PanelPresenter: RevealPresenter {
     }
 
     /// A ⌘-drag from the bar is at `point`: lights the section a drop there
-    /// files the icon in, and returns it.
+    /// files the icon in, and returns it with the zone the drag can end on,
+    /// both from one read of the drop zones (a drag event comes every few ms).
     @discardableResult
-    func barDrag(at point: CGPoint) -> PelmetCore.Section? {
-        var hit = isOpen ? dropZones()?.hit(at: point) ?? .none : .none
+    func barDrag(at point: CGPoint) -> (section: PelmetCore.Section?, zone: CGRect?) {
+        let zones = isOpen ? dropZones() : nil
+        let zone = zones.map(Self.barDragZone(of:))
+        var hit = zones?.hit(at: point) ?? .none
         if hit == .section(.visible) { hit = .none }
         if let barGhost {
-            if barDragZone()?.contains(point) == true { barGhost.show(at: point) } else { barGhost.hide() }
+            if zone?.contains(point) == true { barGhost.show(at: point) } else { barGhost.hide() }
         }
         // Held over the fold it springs open, as for a tile.
         if hit != dragState.target { targetChanged(to: hit) }
-        return hit.section
+        return (hit.section, zone)
     }
 
     func endBarDrag() {
