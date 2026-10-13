@@ -690,13 +690,14 @@ final class PanelPresenter: RevealPresenter {
     /// does the chevron's menu, #26). A shortcut or Settings can come with
     /// the pointer anywhere: its display only when a bar is drawn there, or
     /// the panel hung under no bar, over an app (Displays have separate
-    /// Spaces off, an app full screen); the chevron's or the main one if not.
+    /// Spaces off, an app full screen); the chevron's or the primary one (the
+    /// first screen, never NSScreen.main: that is the key window's) if not.
     private func targetScreen() -> NSScreen? {
         let screens = NSScreen.screens
         if let id = openScreen, let kept = screens.first(where: { $0.directDisplayID == id }) { return kept }
         let pointerScreen = screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }
         let barUnderPointer = pointerScreen.map { openedAtBar || GlassPanel.drawnBarHeight(of: $0, fresh: true) != nil } ?? false
-        let target = (barUnderPointer ? pointerScreen : nil) ?? drawnChevron()?.screen ?? NSScreen.main ?? screens.first
+        let target = (barUnderPointer ? pointerScreen : nil) ?? drawnChevron()?.screen ?? screens.first
         openScreen = target?.directDisplayID
         if let target {
             let from = barUnderPointer ? "the pointer's"
