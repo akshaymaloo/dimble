@@ -36,15 +36,8 @@ enum ApplyPass {
 
     /// Primary-band frames by canonical key, leftmost representative per
     /// key (title-variant twins collapse the same way the editor does).
-    static func primaryFrames(_ snap: EngineSnapshot) -> [ItemID: CGRect] {
-        let maxX = NSScreen.screens.first?.frame.maxX ?? .greatestFiniteMagnitude
-        var frames: [ItemID: CGRect] = [:]
-        for item in snap.items {
-            guard let f = item.frame, PlacementGeometry.isPrimary(f, screenMaxX: maxX) else { continue }
-            let key = item.id.sectionKey
-            if let existing = frames[key], existing.minX <= f.minX { continue }
-            frames[key] = f
-        }
+    static func primaryFrames(_ snap: EngineSnapshot, appState: AppState) -> [ItemID: CGRect] {
+        var frames = leftmostPrimaryFrames(snap)
         // Items the native « holds report overlapping phantom frames (one
         // shared minX, or staggered a few points apart; see
         // `PlacementGeometry.overflowTrapped`). They are not on screen:
@@ -52,19 +45,11 @@ enum ApplyPass {
         // 2026-09-20); staggered ones slipped through and every Apply
         // aimed into the « (13:36, 2026-09-21). Drop them here so no
         // plan, count or verify sees them.
-        for key in trappedKeys(in: frames) { frames.removeValue(forKey: key) }
+        for key in trappedKeys(in: frames, drawn: appState.drawnNow(in: snap)) { frames.removeValue(forKey: key) }
         return frames
     }
 
-    /// Keys whose primary-band frame overlaps another's: the «'s phantom,
-    /// on the bar but not on screen.
-    private static func trappedKeys(in frames: [ItemID: CGRect]) -> Set<ItemID> {
-        let entries = Array(frames)
-        return Set(PlacementGeometry.overflowTrapped(entries.map(\.value)).map { entries[$0].key })
-    }
-
-    /// Items behind the « right now, by canonical key.
-    static func trapped(_ snap: EngineSnapshot) -> Set<ItemID> {
+    private static func leftmostPrimaryFrames(_ snap: EngineSnapshot) -> [ItemID: CGRect] {
         let maxX = NSScreen.screens.first?.frame.maxX ?? .greatestFiniteMagnitude
         var frames: [ItemID: CGRect] = [:]
         for item in snap.items {
@@ -73,7 +58,21 @@ enum ApplyPass {
             if let existing = frames[key], existing.minX <= f.minX { continue }
             frames[key] = f
         }
-        return trappedKeys(in: frames)
+        return frames
+    }
+
+    /// Keys whose primary-band frame overlaps another's: the «'s phantom,
+    /// on the bar but not on screen. A frame the bar no longer draws
+    /// (`AppState.drawnNow`) never makes a drawn one read as one.
+    private static func trappedKeys(in frames: [ItemID: CGRect], drawn: (ItemID) -> Bool) -> Set<ItemID> {
+        let entries = Array(frames)
+        let trapped = PlacementGeometry.overflowTrapped(entries.map(\.value), drawn: entries.map { drawn($0.key) })
+        return Set(trapped.map { entries[$0].key })
+    }
+
+    /// Items behind the « right now, by canonical key.
+    static func trapped(_ snap: EngineSnapshot, appState: AppState) -> Set<ItemID> {
+        trappedKeys(in: leftmostPrimaryFrames(snap), drawn: appState.drawnNow(in: snap))
     }
 
     /// Drawn entries the plan skipped as notOnScreen that are not on the bar
@@ -96,9 +95,9 @@ enum ApplyPass {
 
     /// Trapped icons a drawn edit names — the only reason a pass expands
     /// the « (Gab, 2026-09-21: never for moves that do not need it).
-    static func trappedEdited(_ snap: EngineSnapshot, edits: OrderEdits) -> Set<ItemID> {
+    static func trappedEdited(_ snap: EngineSnapshot, edits: OrderEdits, appState: AppState) -> Set<ItemID> {
         let drawn = Set(edits.order.values.flatMap { $0 })
-        return trapped(snap).intersection(drawn)
+        return trapped(snap, appState: appState).intersection(drawn)
     }
 
     /// `primaryFrames` plus the last frame remembered for each item that is
@@ -113,7 +112,7 @@ enum ApplyPass {
         // Hidden until the next reveal drew it last (2026-09-25).
         let revealed = appState.revealedSectionsForExtras
         let roster = appState.settings.sectionModel.roster
-        var frames = primaryFrames(snap).filter { key, _ in
+        var frames = primaryFrames(snap, appState: appState).filter { key, _ in
             guard MenuBarPolicy.isPelmetExtraID(key) else { return true }
             let section = roster.section(of: key)
             return section == .visible || revealed.contains(section)
@@ -169,7 +168,7 @@ enum ApplyPass {
     private static func barFacts(
         for appState: AppState, snapshot snap: EngineSnapshot, remembered: Bool
     ) -> BarFacts {
-        let frames = remembered ? rememberedFrames(snap, appState: appState) : primaryFrames(snap)
+        let frames = remembered ? rememberedFrames(snap, appState: appState) : primaryFrames(snap, appState: appState)
         let bar = barOrder(frames)
         let chevron = appState.pelmetChevronItem(in: snap)?.id.sectionKey
         // The trailing system cluster only pins while it IS the cluster:
@@ -222,9 +221,16 @@ enum ApplyPass {
         let facts = barFacts(for: appState, snapshot: snap, remembered: true)
         var pids: [ItemID: Int32] = [:]
         for item in snap.items where item.pid > 0 { pids[item.id.sectionKey] = item.pid }
+        // A concealed system icon (Sound) can leave the engine's concealed
+        // set too, as a stale alias: unlisted, the ledger forgot that the user
+        // had placed it by hand, met it again as newly seen, and the grouper
+        // dragged it back. Every member of a running app stays known.
+        let running = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
+        let members = facts.roster.members.keys.filter { $0.bundleID.map(running.contains) ?? false }
         let known = Set(snap.items.map(\.id.sectionKey))
             .union(snap.concealed.map(\.sectionKey))
             .union(facts.bar)
+            .union(members.map(\.sectionKey))
         return known.compactMap { id in
             guard id != facts.chevron else { return nil }
             return StrayLedger.Sighting(
@@ -293,7 +299,7 @@ enum ApplyPass {
     }
 
     /// Post-drag read that waits for the moved item to stop animating.
-    private static func quiesced(_ engine: AgentBarEngine, watching key: ItemID) async -> EngineSnapshot {
+    private static func quiesced(_ engine: AgentBarEngine, watching key: ItemID, appState: AppState) async -> EngineSnapshot {
         try? await Task.sleep(for: AppTiming.postDragSettleFloor)
         let started = ContinuousClock.now
         var snap = await engine.snapshot()
@@ -302,7 +308,7 @@ enum ApplyPass {
               started.duration(to: .now) < AppTiming.postDragQuiesceCap {
             try? await Task.sleep(for: AppTiming.postDragQuiescePoll)
             let next = await engine.snapshot()
-            matches = primaryFrames(next)[key] == primaryFrames(snap)[key] ? matches + 1 : 0
+            matches = primaryFrames(next, appState: appState)[key] == primaryFrames(snap, appState: appState)[key] ? matches + 1 : 0
             snap = next
         }
         return snap
@@ -412,7 +418,7 @@ enum ApplyPass {
         case .wholeBar:
             planFor = { self.plan(for: appState, snapshot: $0) }
             trappedFor = {
-                trappedEdited($0, edits: appState.settings.orderEdits).union(trapped($0).intersection(counted))
+                trappedEdited($0, edits: appState.settings.orderEdits, appState: appState).union(trapped($0, appState: appState).intersection(counted))
             }
         case .strays(let allowed):
             planFor = { self.plan(for: appState, snapshot: $0, strays: allowed) }
@@ -434,7 +440,7 @@ enum ApplyPass {
                 plan.skipped = plan.skipped.filter { $0.0 == key }
                 return plan
             }
-            trappedFor = { trapped($0).contains(key) ? [key] : [] }
+            trappedFor = { trapped($0, appState: appState).contains(key) ? [key] : [] }
         }
         var plan = planFor(snap)
         if case .ownItem(let own) = scope, plan.moves.isEmpty, plan.skipped.isEmpty {
@@ -510,7 +516,7 @@ enum ApplyPass {
                 report.planned = plan.moves.count
                 report.skipped = plan.skipped.map { ApplyReport.Skipped(item: $0.0, why: $0.1) }
                 dropAbsentSkips(&report, snap: snap, scope: scope)
-                let framed = trappedForPass.filter { primaryFrames(snap)[$0] != nil }.count
+                let framed = trappedForPass.filter { primaryFrames(snap, appState: appState)[$0] != nil }.count
                 PelmetLog.log("apply: « expanded — \(framed)/\(trappedForPass.count) framed, replanned \(plan.moves.count) move(s), \(plan.skipped.count) skipped")
             } else {
                 PelmetLog.log("apply: « not expanded — trapped icons stay skipped")
@@ -534,7 +540,7 @@ enum ApplyPass {
         for move in moves {
             snap = await engine.snapshot()
             appState.updateSnapshot(snap)
-            var frames = primaryFrames(snap)
+            var frames = primaryFrames(snap, appState: appState)
             guard let frame = frames[move.item] else {
                 PelmetLog.log("apply: \(move.item.rawValue) has no frame — skipped")
                 report.skipped.append(.init(item: move.item, why: .notOnScreen))
@@ -577,17 +583,17 @@ enum ApplyPass {
             PelmetLog.log("apply: drag \(move.item.rawValue) x=\(frame.midX) → \(targetX) (after \(move.after?.rawValue ?? "-"), before \(move.before?.rawValue ?? "-"))")
             let ownItem = move.item.bundleID.map(PelmetBundle.ownIDs.contains) ?? false
             await ItemMover.cmdDrag(from: CGPoint(x: frame.midX, y: 12), to: CGPoint(x: targetX, y: 12), ownItem: ownItem)
-            snap = await quiesced(engine, watching: move.item)
+            snap = await quiesced(engine, watching: move.item, appState: appState)
             appState.updateSnapshot(snap)
-            frames = primaryFrames(snap)
+            frames = primaryFrames(snap, appState: appState)
             var landed = inSlot(frames)
             // One retry, re-aimed at the bounds as they sit after the reflow.
             if !landed, let x = frames[move.item]?.midX, let retryX = aim(frames), abs(retryX - x) > 4 {
                 PelmetLog.log("apply: retry \(move.item.rawValue) x=\(x) → \(retryX)")
                 await ItemMover.cmdDrag(from: CGPoint(x: x, y: 12), to: CGPoint(x: retryX, y: 12), ownItem: ownItem)
-                snap = await quiesced(engine, watching: move.item)
+                snap = await quiesced(engine, watching: move.item, appState: appState)
                 appState.updateSnapshot(snap)
-                frames = primaryFrames(snap)
+                frames = primaryFrames(snap, appState: appState)
                 landed = inSlot(frames)
             }
             let finalX = frames[move.item]?.midX ?? -1

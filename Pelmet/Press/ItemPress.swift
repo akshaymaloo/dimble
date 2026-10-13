@@ -168,7 +168,7 @@ final class ItemPress {
             return
         }
         let revealsItem = onBar == nil
-        var trapped = onBar != nil && ApplyPass.trapped(snap).contains(key)
+        var trapped = onBar != nil && ApplyPass.trapped(snap, appState: appState).contains(key)
         PelmetLog.log("press: \(key.rawValue) (\(button == .secondary ? "secondary" : "primary")) — \(revealsItem ? "concealed, revealed alone" : trapped ? "behind the «" : "on the bar")")
 
         // Only a bar that is about to change needs hiding: an item at rest
@@ -196,7 +196,7 @@ final class ItemPress {
                 target = found?.item
                 if let found {
                     snap = found.snap
-                    trapped = ApplyPass.trapped(snap).contains(key)
+                    trapped = ApplyPass.trapped(snap, appState: appState).contains(key)
                 }
                 PelmetLog.log("press: \(key.rawValue) revealed at \(ms())ms (\(found?.walks ?? 0) walk(s)\(found?.settled == false ? ", frame still moving" : ""))")
             }

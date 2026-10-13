@@ -50,6 +50,18 @@ public enum PlacementGeometry {
         return trapped
     }
 
+    /// `overflowTrapped` over a walk that still lists frames the bar no
+    /// longer draws (`drawn[i]` false: an own item collapsing in place, an
+    /// icon its section's conceal just put away). Such a frame never makes a
+    /// drawn one read as behind the «: an idle Camera & mic collapsing onto
+    /// the chevron took the chevron off the bar for every plan and stray
+    /// read (2026-10-12). It is itself trapped wherever it overlaps, as before.
+    public static func overflowTrapped(_ frames: [CGRect], drawn: [Bool]) -> Set<Int> {
+        let shown = frames.indices.filter { drawn[$0] }
+        let amongShown = overflowTrapped(shown.map { frames[$0] }).map { shown[$0] }
+        return overflowTrapped(frames).filter { !drawn[$0] }.union(amongShown)
+    }
+
     /// How many measured items the native « has trapped. The editor's
     /// overflow note reads this.
     public static func overflowTrappedCount(_ frames: [CGRect]) -> Int {

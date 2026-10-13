@@ -30,9 +30,19 @@ final class EditorDragSession {
     private(set) var payload: Payload?
     var target: Target?
     private var endWatcher: Task<Void, Never>?
+    /// The session with a tile lifted. Weak: a session whose editor went
+    /// away mid-drag (the Settings shortcut switched tabs, ⌘W) takes its
+    /// lift with it instead of leaving one that never ends.
+    private static weak var lifting: EditorDragSession?
+
     /// A tile is lifted right now, in any session: the automatic grouping
-    /// pass waits it out (the user is mid-gesture in the editor).
-    private(set) static var anyActive = false
+    /// pass waits it out (the user is mid-gesture in the editor). A drag
+    /// holds the button down; with it up nothing is lifted, whatever a
+    /// session missed (a static flag only `end()` cleared held every
+    /// grouping pass until the next editor drag).
+    static var anyActive: Bool {
+        lifting?.payload != nil && NSEvent.pressedMouseButtons != 0
+    }
 
     var liftedItem: ItemID? {
         if case .item(let id, _, _) = payload { return id }
@@ -42,7 +52,7 @@ final class EditorDragSession {
     func begin(_ payload: Payload) {
         PelmetLog.log("editor-drag: begin \(payload)")
         self.payload = payload
-        Self.anyActive = true
+        Self.lifting = self
         target = nil
         endWatcher?.cancel()
         // SwiftUI exposes no drag-end hook and the drop delegate only fires
@@ -68,7 +78,12 @@ final class EditorDragSession {
         endWatcher = nil
         payload = nil
         target = nil
-        Self.anyActive = false
+        if Self.lifting === self { Self.lifting = nil }
+    }
+
+    isolated deinit {
+        endWatcher?.cancel()
+        if payload != nil { PelmetLog.log("editor-drag: end — the editor went away mid-drag") }
     }
 }
 

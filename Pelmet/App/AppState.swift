@@ -2267,9 +2267,8 @@ final class AppState {
     private func placeOwnItemNow(_ id: ItemID) async {
         guard !applying else { return }
         // Boot: measure only once the bar has finished attaching
-        // (AppTiming.bootOwnItemLead after the own items were adopted).
-        let adopted = ownItemsAdoptedAt ?? ContinuousClock.now
-        let due = adopted + AppTiming.bootOwnItemLead
+        // (`barAttachesAt`); before the adoption, a full lead from now.
+        let due = barAttachesAt ?? ContinuousClock.now + AppTiming.bootOwnItemLead
         if ContinuousClock.now < due {
             PelmetLog.log("apply: own \(id.rawValue) waits for the boot lead")
             try? await Task.sleep(until: due, clock: .continuous)
@@ -2377,7 +2376,7 @@ final class AppState {
         guard let snapshot else { return 0 }
         // Drawn icons behind the « count too: the pass expands it for them.
         let moves = ApplyPass.plan(for: self, snapshot: snapshot, remembered: true).moves
-        let trapped = ApplyPass.trappedEdited(snapshot, edits: settings.orderEdits)
+        let trapped = ApplyPass.trappedEdited(snapshot, edits: settings.orderEdits, appState: self)
         // Logged on change only (the button reads this every render): which
         // move pads the count when the drop read "Apply (2)" (2026-09-21).
         let line = moves.map { "\($0.item.rawValue) after=\($0.after?.rawValue ?? "-") before=\($0.before?.rawValue ?? "-")" }.joined(separator: "; ")
@@ -2478,59 +2477,103 @@ final class AppState {
 
     // MARK: - Keep sections grouped (docs/CORE-SETS.md, #80)
 
+    /// Why the bar is not at rest, nil when it is: fully concealed, nothing
+    /// of Pelmet's or the user's holding it out. The one list every reader
+    /// takes its part of, from the inside out: `overflowReadHold` (Pelmet
+    /// has icons out or the « open), `barInFlux` (that, or a transition),
+    /// and the grouping gate (all of it). A strays pass that started under a
+    /// panel the hotkey opened shut it, and one under a hotkey reveal of
+    /// Hidden widened it to Always Hidden and then concealed it (2026-10-13).
+    var fluxReason: String? {
+        if let moving = barMovingReason { return moving }
+        if panelPresenter.isOpen { return "panel open" }
+        // A reveal the user holds (a hover, the chevron, a shortcut, a
+        // display set to always show), or icons Show in Menu Bar brought out
+        // (`.revealed` with no sections). An icon a show rule keeps out
+        // (Battery on battery) is no hold: it can stay out all day, and the
+        // pass's reveal puts it back in its slot anyway.
+        if isRevealed { return itemsInBar.isEmpty ? "the bar is revealed" : "icons out on their own" }
+        return nil
+    }
+
+    /// Pelmet has the bar: a pass (Apply, the quiet Apply under the panel, a
+    /// picture pass) or a relay (an item menu, the clock, Camera & mic) has
+    /// icons out or the « open, so a walk reads a bar nobody sees.
+    private var overflowReadHold: String? {
+        if applying { return "an Apply pass has the bar" }
+        if transitions.quietApplyInFlight { return "a quiet Apply has the bar" }
+        if transitions.passInFlight { return "a picture pass has the bar" }
+        if clockBlinkInFlight || audioVideoRelayActive { return "clock or Camera & mic relay in flight" }
+        if press.isRunning { return "item menu relay in flight" }
+        return nil
+    }
+
+    private var barMovingReason: String? {
+        overflowReadHold ?? (isTransitioning ? "reveal or conceal in progress" : nil)
+    }
+
     /// The bar's frames don't say where the icons sit right now: a pass or a
     /// transition is moving them, a relay has an icon out alone or the «
     /// open. The grouping ledger takes no look then: one under a press
     /// relay's open « read Cardhop as in place and spent the editor drop
-    /// that explained it (#81).
-    var barInFlux: Bool {
-        applying || isTransitioning || clockBlinkInFlight || audioVideoRelayActive || pressRunning
-    }
+    /// that explained it (#81). A picture pass counts: its rounds show
+    /// icons alone from behind the « under the cover.
+    var barInFlux: Bool { barMovingReason != nil }
 
     /// An item menu relay is clicking: its clicks on an icon behind an open «
     /// hit-test as empty bar.
     var pressRunning: Bool { press.isRunning }
 
+    /// When the bar has finished attaching at launch: `bootOwnItemLead`
+    /// after the own items were adopted (the chevron lands on its neighbours
+    /// meanwhile). nil until they are.
+    private var barAttachesAt: ContinuousClock.Instant? {
+        ownItemsAdoptedAt.map { $0 + AppTiming.bootOwnItemLead }
+    }
+
+    /// The bar has attached at launch: frames read now are where the icons sit.
+    private var barAttached: Bool {
+        barAttachesAt.map { ContinuousClock.now >= $0 } ?? false
+    }
+
     /// Why the automatic grouping pass must not start right now (nil = the
     /// door is open). `transient` gates clear on their own and are re-checked
     /// on the debounce beat; the others wait for the snapshot or roster
-    /// change that ends them (overflow, a policy switched off).
+    /// change that ends them (overflow, a policy switched off), or for the
+    /// wake or unlock `SectionGrouper` listens for. Cheap reads first: the
+    /// window-list reads run last, and only on an idle, awake bar.
     func groupingGate() -> (why: String, transient: Bool)? {
         // Boot: the bar is still attaching, as for the own-item passes.
-        guard engineStarted, let adopted = ownItemsAdoptedAt,
-              ContinuousClock.now >= adopted + AppTiming.bootOwnItemLead
-        else { return ("booting", true) }
+        guard engineStarted, barAttached else { return ("booting", true) }
         guard accessibilityGranted else { return ("no accessibility access", false) }
-        // The bar's frames and the pointer are not ours right now.
-        if applying { return ("an Apply pass has the bar", true) }
-        if isTransitioning { return ("reveal or conceal in progress", true) }
-        if clockBlinkInFlight || audioVideoRelayActive { return ("clock or Camera & mic relay in flight", true) }
-        if press.isRunning { return ("item menu relay in flight", true) }
+        // The bar's frames and the pointer are not ours right now, or the
+        // user has the bar: grouping runs only from a fully concealed bar.
+        if let flux = fluxReason { return (flux, true) }
         if !ownItemPassLeads.isEmpty { return ("own item placement queued", true) }
         if adoptionInFlight || dropAdoptionInFlight { return ("user drag being adopted", true) }
         // Icons behind the native « have phantom frames; Apply reports them.
         if overflowTrappedCount > 0 { return ("bar overflows", false) }
         // Something of the user's is open on screen.
         if grouper.menuIsOpen { return ("menu open", true) }
-        // Another app's open menu (or one ItemPress opened for a concealed
-        // item): any pop-up-menu-level window on screen, from any process.
-        if let owner = SectionGrouper.popUpMenuOwner() { return ("menu window on screen (\(owner))", true) }
         if commandBar.isOpen { return ("command bar open", true) }
         if EditorDragSession.anyActive { return ("editor drag in progress", true) }
         if OnboardingController.shared.isPresented { return ("onboarding showing", true) }
-        // The editor holds the bar for Apply only, so `.active` is no reason:
-        // an editor drop is the main way a stray appears.
-        if let reason = bandMonitor?.rehideDeferReason(), reason != .active {
-            return ("pointer or drag in the bar: \(reason.rawValue)", true)
-        }
         if NSEvent.pressedMouseButtons != 0 { return ("mouse button down", true) }
-        if CGDisplayIsAsleep(CGMainDisplayID()) != 0 { return ("display asleep", true) }
-        if Self.sessionAway { return ("screen locked", true) }
+        if CGDisplayIsAsleep(CGMainDisplayID()) != 0 { return ("display asleep", false) }
+        if Self.sessionAway { return ("screen locked", false) }
         // The quiet Apply asks of the pointer, asked of the keyboard too:
         // the ⌘-click of a drag makes the icon's app frontmost, and a
         // keystroke then lands in it. A busy user defers the pass instead of
         // starting one that seizes input after Apply's 8s wait.
         if ApplyPass.secondsSinceAnyInput() < AppTiming.applyIdleGap { return ("input active", true) }
+        // The editor holds the bar for Apply only, so `.active` is no reason:
+        // an editor drop is the main way a stray appears.
+        if let reason = bandMonitor?.rehideDeferReason(), reason != .active {
+            return ("pointer or drag in the bar: \(reason.rawValue)", true)
+        }
+        // Another app's open menu (or one ItemPress opened for a concealed
+        // item): any pop-up-menu-level window on screen, from any process.
+        if let owner = SectionGrouper.popUpMenuOwner() { return ("menu window on screen (\(owner))", true) }
         return nil
     }
 
@@ -2556,7 +2599,12 @@ final class AppState {
         if !report.applied.isEmpty { await engine.writeOrderHint() }
         satisfyDrawnEdits(for: report.applied)
         if let front, !report.abandoned, front.processIdentifier != ProcessInfo.processInfo.processIdentifier {
-            await restoreFocus(to: front)
+            // The processes behind the icons the pass dragged, and Pelmet:
+            // the only apps the pass can have brought forward.
+            let moved = Set((report.applied + report.failed).map(\.sectionKey))
+            var dragged = Set((snapshot?.items ?? []).filter { moved.contains($0.id.sectionKey) && $0.pid > 0 }.map(\.pid))
+            dragged.insert(ProcessInfo.processInfo.processIdentifier)
+            await restoreFocus(to: front, from: dragged)
         }
         return report
     }
@@ -2578,11 +2626,18 @@ final class AppState {
         PelmetLog.log("group: edit satisfied for [\(landed.map(\.rawValue).joined(separator: ", "))] — Apply has \(pendingMoveCount) left")
     }
 
-    private func restoreFocus(to app: NSRunningApplication) async {
+    private func restoreFocus(to app: NSRunningApplication, from dragged: Set<pid_t>) async {
         func isFront() -> Bool { NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier }
         // The flip lands on the agent's beat.
         try? await Task.sleep(for: .milliseconds(250))
         guard !isFront(), !app.isTerminated else { return }
+        // Only a drag's activation is ours to undo: an app the user switched
+        // to meanwhile (⌘-Tab within the beat) keeps the focus.
+        guard let now = NSWorkspace.shared.frontmostApplication, dragged.contains(now.processIdentifier) else {
+            let name = NSWorkspace.shared.frontmostApplication?.localizedName ?? "nothing"
+            PelmetLog.log("group: focus left with \(name) — not an app the pass dragged")
+            return
+        }
         app.activate()
         try? await Task.sleep(for: .milliseconds(150))
         if !isFront() {
@@ -2639,52 +2694,23 @@ final class AppState {
 
     /// A drawing that matches the bar again is no edit: an icon dragged
     /// out of a section and back to its slot lit Apply for a zero-move
-    /// pass (Timer, 2026-09-20 21:45). Compared over the items both sides
-    /// know, on the collapsed-bar view the count uses.
+    /// pass (Timer, 2026-09-20 21:45). Compared on the collapsed-bar view
+    /// the count uses; the rules are `OrderEditSettle`'s. A concealed icon
+    /// is on the bar, out of the AX tree, and placed only where a frame
+    /// remembers its slot: one with none (its section not revealed since
+    /// launch) keeps the edit pending.
     private func pruneSettledOrderEdits() {
         guard let snapshot, !settings.orderEdits.isEmpty else { return }
         let bar = ApplyPass.barOrder(ApplyPass.rememberedFrames(snapshot, appState: self))
-        let roster = settings.sectionModel.roster
-        // An icon not on the bar at all (its app not running, an idle
-        // extra) is no edit, as Apply drops it (`dropAbsentSkips`): counted
-        // here it kept the drawing pending and Apply lit after the grouper
-        // had placed everything (Today, Figma, four idle separators,
-        // 2026-10-07).
-        // A concealed icon is on the bar, out of the AX tree: counted absent,
-        // every reorder inside a hidden section cleared the moment it was
-        // dropped and never applied (Battery, Wi-Fi in Always Hidden,
-        // 2026-10-12). It counts where a frame remembers its slot.
-        let remembered = Set(bar)
-        let present = Set(snapshot.items.map { $0.id.sectionKey })
-            .union(snapshot.concealed.map(\.sectionKey).filter(remembered.contains))
-        // Relative order says nothing about the chevron: an icon drawn into
-        // Hidden but still on the Visible side matched its drawing, the edit
-        // cleared before the grouper ran, and it went to the chevron end
-        // instead of its drawn slot (vorssaint, Snib, 2026-10-07). Reading
-        // its side off the bar missed too, with the chevron behind the « mid
-        // reflow. A drop between sections stays unsettled until a pass lands
-        // it (`previousSection` cleared), so its section's drawing waits.
-        let crossing = Set(settings.orderEdits.previousSection.keys)
+        let onBar = Set(snapshot.items.map { $0.id.sectionKey }).union(snapshot.concealed.map(\.sectionKey))
+        let settled = OrderEditSettle.settledSections(
+            settings.orderEdits, bar: bar, onBar: onBar, roster: settings.sectionModel.roster
+        )
+        guard !settled.isEmpty else { return }
         var edits = settings.orderEdits
-        for (section, allDrawn) in edits.order {
-            let drawn = allDrawn.filter { present.contains($0.sectionKey) }
-            let onBar = bar.filter { roster.section(of: $0) == section }
-            let drawnSet = Set(drawn), barSet = Set(onBar)
-            guard drawnSet.isDisjoint(with: crossing) else { continue }
-            // A drawn item the bar cannot see (behind the «, or never
-            // framed) is exactly what the edit is about — it stays pending
-            // until a pass can reach it. Only an edit the bar already
-            // satisfies in full clears itself (Velja, Pure Paste, Unclutter,
-            // DBngin dragged in Always Hidden never lit Apply, 2026-09-21).
-            guard drawnSet.isSubset(of: barSet) else { continue }
-            if onBar.filter(drawnSet.contains) == drawn {
-                edits.clearOrder(for: section)
-            }
-        }
-        guard edits != settings.orderEdits else { return }
-        let cleared = settings.orderEdits.order.keys.filter { edits.order[$0] == nil }
+        for section in settled { edits.clearOrder(for: section) }
         settings.orderEdits = edits
-        PelmetLog.log("editor: drawing matches the bar again — edit cleared (\(cleared.map { "\($0)" }.sorted().joined(separator: ", ")))")
+        PelmetLog.log("editor: drawing matches the bar again — edit cleared (\(settled.map { "\($0)" }.sorted().joined(separator: ", ")))")
     }
 
     /// A removed separator or extra leaves its drawn slot behind in the
@@ -2762,7 +2788,7 @@ final class AppState {
         // The clock and Control Center in Hidden sit right of the chevron
         // for good: that is their spot, not a pending move.
         guard !isImmovable(id) else { return false }
-        let frames = ApplyPass.primaryFrames(snapshot)
+        let frames = ApplyPass.primaryFrames(snapshot, appState: self)
         guard let frame = frames[id.sectionKey] else { return false }
         let wantsLeft = settings.sectionModel.section(of: id) != .visible
         return wantsLeft ? frame.midX > chevron.midX : frame.midX < chevron.midX
@@ -2820,7 +2846,8 @@ final class AppState {
             isRunning: { app($0) != nil && !absentBundles.contains($0) },
             appName: { app($0)?.localizedName },
             recentlySeen: { Date.now.timeIntervalSince(lastSeenAt[$0.sectionKey] ?? .distantPast) < Self.storedTileGrace },
-            destroyed: destroyedKeys
+            destroyed: destroyedKeys,
+            drawnNow: snapshot.map(drawnNow(in:)) ?? { _ in true }
         )
     }
 
@@ -3256,6 +3283,31 @@ final class AppState {
     @ObservationIgnored private var overflowNoticeTask: Task<Void, Never>?
     /// The first overflow read once the bar has attached at launch.
     @ObservationIgnored private var bootOverflowRead: Task<Void, Never>?
+    /// The hold the last skipped overflow read was skipped for (logged once).
+    @ObservationIgnored private var overflowSkipLogged: String?
+
+    /// Whether the bar draws `id` right now, for every read of the «
+    /// (`ApplyPass.primaryFrames`, `noteOverflow`, the editor's board). A
+    /// walk still lists frames the bar no longer draws, on top of their
+    /// neighbours: an icon just put away (Pelmet's own extras collapse in
+    /// place for 0.7s), which put Siri and Shortcuts in "Didn't fit" after a
+    /// picture pass, and an idle indicator a pass attached and let go, which
+    /// read Camera & mic and the chevron as two icons behind the «
+    /// (2026-10-12). An icon out on its own is drawn whatever its section.
+    func drawnNow(in snap: EngineSnapshot) -> (ItemID) -> Bool {
+        let out = currentRevealedSections
+        let model = settings.sectionModel
+        let alone = Set(snap.shownAlone.map(\.sectionKey))
+        let extras = self.extras
+        let ownExtras = Set((extras?.managedItemIDs ?? []).map(\.sectionKey))
+        return { id in
+            let key = id.sectionKey
+            if alone.contains(key) { return true }
+            if ownExtras.contains(key), extras?.isShowing(key) == false { return false }
+            let section = model.section(of: key)
+            return section == .visible || out.contains(section)
+        }
+    }
 
     private func noteOverflow(in snap: EngineSnapshot) {
         // A pass's bar is under its cover, a whole bar out at once: what it
@@ -3263,13 +3315,23 @@ final class AppState {
         // flashed Snib and the chevron mid-pass (2026-10-12 23:20). The read
         // after it conceals decides again.
         guard picturePassSections == nil else { return }
+        // Apply and the item menu relay expand the « themselves: read then,
+        // it held nothing, the notice reset at once and needed two reads and
+        // 2s to come back after (2026-10-13). The read after the hold decides.
+        if let hold = overflowReadHold {
+            if overflowSkipLogged != hold {
+                overflowSkipLogged = hold
+                PelmetLog.log("overflow: read skipped — \(hold)")
+            }
+            return
+        }
+        overflowSkipLogged = nil
         // The bar is still attaching for `bootOwnItemLead` after the own
         // items arrive: the chevron lands on its neighbours, and now-playing,
         // Fast User Switching and the chevron read as behind the « for 0.8s
         // at every launch (2026-10-12). One read when the lead is over decides.
-        let attached = ownItemsAdoptedAt.map { $0 + AppTiming.bootOwnItemLead }
-        guard let attached, ContinuousClock.now >= attached else {
-            if let attached, bootOverflowRead == nil {
+        guard barAttached else {
+            if let attached = barAttachesAt, bootOverflowRead == nil {
                 bootOverflowRead = Task { [weak self] in
                     try? await Task.sleep(until: attached, clock: .continuous)
                     guard let self, let snapshot = self.snapshot else { return }
@@ -3279,21 +3341,11 @@ final class AppState {
             return
         }
         let primaryMaxX = NSScreen.screens.first?.frame.maxX ?? .greatestFiniteMagnitude
-        // Only what the bar draws now: an icon just put away lingers in the
-        // walk (Pelmet's own extras collapse in place for 0.7s) on top of its
-        // neighbours, and read as one behind the « it put Siri and Shortcuts
-        // in "Didn't fit" after a picture pass (2026-10-12).
-        let out = currentRevealedSections
-        let model = settings.sectionModel
-        // An idle indicator a pass attached and let go collapses on top of
-        // the chevron the same way: Camera & mic and the chevron read as two
-        // icons behind the «, and "Didn't fit" kept the camera (2026-10-12).
-        let ownExtras = Set((extras?.managedItemIDs ?? []).map(\.sectionKey))
+        // Only what the bar draws now (`drawnNow`). A frame 4pt wide or less
+        // never overlaps another by more than the « test's tolerance.
+        let drawn = drawnNow(in: snap)
         let framed = snap.items.filter { item in
-            guard let f = item.frame, f.width > 4 else { return false }
-            if ownExtras.contains(item.id.sectionKey), extras?.isShowing(item.id) == false { return false }
-            let section = model.section(of: item.id.sectionKey)
-            guard section == .visible || out.contains(section) else { return false }
+            guard let f = item.frame, drawn(item.id) else { return false }
             return PlacementGeometry.isPrimary(f, screenMaxX: primaryMaxX)
         }
         let trappedItems = PlacementGeometry.overflowTrapped(framed.map { $0.frame! }).map { framed[$0].id }
@@ -3302,6 +3354,10 @@ final class AppState {
         // items at one x for 200ms), one to leave.
         defer { lastOverflowRead = trapped }
         if trapped > 0, overflowTrappedCount == 0, lastOverflowRead == 0 { return }
+        // Same count, other icons (Velja behind the « where Snib was): the
+        // list follows every read the count takes, or "Didn't fit" kept
+        // naming the icon that had left.
+        overflowTrappedItems = trappedItems
         guard trapped != overflowTrappedCount else { return }
         if (trapped > 0) != (overflowTrappedCount > 0) {
             PelmetLog.log(trapped > 0
@@ -3309,7 +3365,6 @@ final class AppState {
                 : "overflow: cleared")
         }
         overflowTrappedCount = trapped
-        overflowTrappedItems = trappedItems
         if trapped == 0 {
             overflowNoticeTask?.cancel()
             overflowNoticeTask = nil
@@ -3334,7 +3389,7 @@ final class AppState {
     /// out on their own) is merged in, not taken as the whole order.
     func recordDrawnOrder(_ snap: EngineSnapshot, revealed sections: Set<PelmetCore.Section>) {
         let roster = settings.sectionModel.roster
-        let bar = ApplyPass.barOrder(ApplyPass.primaryFrames(snap)).map(\.sectionKey)
+        let bar = ApplyPass.barOrder(ApplyPass.primaryFrames(snap, appState: self)).map(\.sectionKey)
         for section in sections where section != .visible {
             let drawn = bar.filter { roster.section(of: $0) == section }
             guard !drawn.isEmpty else { continue }
@@ -3349,7 +3404,7 @@ final class AppState {
     func updateSnapshot(_ snap: EngineSnapshot) {
         let now = Date.now
         noteOverflow(in: snap)
-        let primary = ApplyPass.primaryFrames(snap)
+        let primary = ApplyPass.primaryFrames(snap, appState: self)
         let chevronMidX = pelmetChevronItem(in: snap).flatMap { primary[$0.id.sectionKey]?.midX }
         // An icon out on its own sits beside the chevron, and one the swap
         // just concealed is still read where it last stood: neither is its

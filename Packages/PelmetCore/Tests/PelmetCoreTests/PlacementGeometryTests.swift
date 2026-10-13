@@ -49,4 +49,15 @@ struct PlacementGeometryTests {
         #expect(PlacementGeometry.overflowTrappedCount([f(1232, 34), f(1264, 39), f(1339, 44)]) == 0)
         #expect(PlacementGeometry.overflowTrappedCount([]) == 0)
     }
+
+    @Test func aFrameNoLongerDrawnNeverTrapsADrawnOne() {
+        func f(_ x: CGFloat, _ w: CGFloat = 30) -> CGRect { CGRect(x: x, y: 0, width: w, height: 24) }
+        // Camera & mic collapsing onto the chevron: the chevron stays.
+        #expect(PlacementGeometry.overflowTrapped([f(1100), f(1105), f(1200)], drawn: [true, false, true]) == [1])
+        // Drawn phantoms are still phantoms, the leaving frame with them.
+        #expect(PlacementGeometry.overflowTrapped([f(1044, 37), f(1049, 24), f(1055, 26)], drawn: [true, true, false]) == [0, 1, 2])
+        // Two leaving frames on top of each other are trapped as before.
+        #expect(PlacementGeometry.overflowTrapped([f(900), f(902), f(1000)], drawn: [false, false, true]) == [0, 1])
+        #expect(PlacementGeometry.overflowTrapped([f(900), f(1000)], drawn: [false, true]).isEmpty)
+    }
 }

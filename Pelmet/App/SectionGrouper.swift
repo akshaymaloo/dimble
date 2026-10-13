@@ -75,7 +75,32 @@ final class SectionGrouper {
                 }
             },
         ]
+        // A sleeping display or a locked screen is waited out here, not
+        // polled every 2s all night (`groupingGate`).
+        let workspace = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.screensDidWakeNotification, NSWorkspace.didWakeNotification,
+                     NSWorkspace.sessionDidBecomeActiveNotification] {
+            observers.append(workspace.addObserver(forName: name, object: nil, queue: .main) { [weak self] notification in
+                let why = notification.name.rawValue
+                MainActor.assumeIsolated { self?.awoke(why) }
+            })
+        }
+        observers.append(DistributedNotificationCenter.default().addObserver(
+            forName: Self.screenUnlocked, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.awoke("screen unlocked") }
+        })
         if !Self.isOn { note("group: off (\(Self.defaultsKey))") }
+    }
+
+    private static let screenUnlocked = Notification.Name("com.apple.screenIsUnlocked")
+
+    /// The display woke or the screen unlocked: a pass waiting on either
+    /// looks again.
+    private func awoke(_ why: String) {
+        guard let waiting = lastWaiting else { return }
+        PelmetLog.log("group: \(why) — looking again (was waiting: \(waiting))")
+        noteChange()
     }
 
     /// A menu is tracking, or just was (it fades for a beat). A depth that
@@ -195,7 +220,8 @@ final class SectionGrouper {
                 PelmetLog.log("group: waiting — \(gate.why)")
             }
             // Transient gates clear on their own: look again on the beat.
-            // The others end with a snapshot or roster change.
+            // The others end with a snapshot or roster change, a wake or an
+            // unlock (`awoke`).
             if gate.transient { schedule(after: AppTiming.groupingDebounce) }
             return
         }

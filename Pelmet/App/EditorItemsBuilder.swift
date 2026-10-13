@@ -24,7 +24,8 @@ enum EditorItemsBuilder {
         isRunning: (String) -> Bool,
         appName: (String) -> String?,
         recentlySeen: (ItemID) -> Bool = { _ in true },
-        destroyed: Set<ItemID> = []
+        destroyed: Set<ItemID> = [],
+        drawnNow: (ItemID) -> Bool = { _ in true }
     ) -> [ObservedItem] {
         var byID: [ItemID: ObservedItem] = [:]
         // An own item hosted by a section helper is observed under the
@@ -178,8 +179,13 @@ enum EditorItemsBuilder {
         // its left edge; sorted by x they jump to the front of the section
         // (Pure Paste / Unclutter after a Discard, 13:47 2026-09-21). They
         // sort as unframed instead: explicit order, then the stable tiebreak.
+        // A frame the bar no longer draws (`AppState.drawnNow`) never makes
+        // a drawn one read as trapped.
         let framed = byKey.values.filter { $0.frame != nil }
-        let trapped = Set(PlacementGeometry.overflowTrapped(framed.map { $0.frame! }).map { framed[$0].id.sectionKey })
+        let trapped = Set(
+            PlacementGeometry.overflowTrapped(framed.map { $0.frame! }, drawn: framed.map { drawnNow($0.id) })
+                .map { framed[$0].id.sectionKey }
+        )
         return byKey.values.sorted { lhs, rhs in
             // The user's explicit order is authoritative — nothing outranks it.
             // (A left-pin experiment for extras once did, and it broke drag
