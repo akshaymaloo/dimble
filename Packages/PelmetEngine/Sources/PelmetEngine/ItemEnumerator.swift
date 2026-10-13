@@ -80,7 +80,7 @@ public actor ItemEnumerator {
             for (pid, groupsOfApp) in standIns {
                 guard let extras = extrasByPID[pid] else { continue }
                 let match = StandInMatch.items(
-                    forGroupsAt: groupsOfApp.map(\.group.frame.minX), itemsAt: extras.items.map(\.x)
+                    forGroups: groupsOfApp.map(\.group.frame), items: extras.items.map(\.frame)
                 )
                 for (entry, item) in zip(groupsOfApp, match) {
                     guard let item else { continue }
@@ -90,7 +90,8 @@ public actor ItemEnumerator {
                 let unnamed = match.filter { $0 == nil }.count
                 logOnce(unnamed == 0
                     ? "enumerate: \(groupsOfApp.count) stand-in(s) of \(bundle) named by position"
-                    : "enumerate: \(unnamed) of \(groupsOfApp.count) stand-in(s) of \(bundle) left unnamed — \(extras.items.count) item(s) on its extras bar",
+                    : "enumerate: \(unnamed) of \(groupsOfApp.count) stand-in(s) of \(bundle) left unnamed — \(extras.items.count) item(s) on its extras bar"
+                        + (unnamed == groupsOfApp.count && groupsOfApp.count == extras.items.count ? ", places or width gaps disagree" : ""),
                     pid: nil)
             }
             for case let item? in described {
@@ -331,8 +332,8 @@ public actor ItemEnumerator {
         /// (`StandInMatch`).
         let name: String?
         /// Read only for an app with several items: each item's title (the
-        /// agent tag) and its minX on the active display's bar.
-        let items: [(title: String?, x: CGFloat?)]
+        /// agent tag) and its frame on the active display's bar.
+        let items: [(title: String?, frame: CGRect?)]
     }
 
     /// The app's status items (used in the agent tag). An app node exposes
@@ -375,7 +376,7 @@ public actor ItemEnumerator {
         // Several items: never all named after the first (every Pelmet
         // stand-in read as the chevron). Frames are read only here, so a
         // one-icon app walks as cheaply as before.
-        return StatusExtras(name: nil, items: zip(allTitles, entries).map { ($0, frame(of: $1)?.minX) })
+        return StatusExtras(name: nil, items: zip(allTitles, entries).map { ($0, frame(of: $1)) })
     }
 
     /// "/System/Library/CoreServices/Menu Extras/TimeMachine.menu" → "TimeMachine".
