@@ -60,6 +60,37 @@ import Testing
         ).isEmpty)
     }
 
+    @Test func anOwnExtraConcealedWithItsSectionKeepsTheEditPending() {
+        // Shortcuts reordered while Hidden is concealed: it hides by its own
+        // visibility, so the walk has it neither live nor concealed, and no
+        // frame places it. Live test, 2026-10-13: cleared at the drop.
+        let shortcuts = ItemID(rawValue: "status:\(PelmetBundle.mainID)::Pelmet.Shortcuts")
+        let members: [ItemID: Section] = [a: .hidden, b: .hidden, shortcuts: .hidden]
+        let edits = OrderEdits(order: [.hidden: [a, shortcuts, b]])
+        #expect(OrderEditSettle.settledSections(
+            edits, bar: [a, b], live: [], concealed: [a, b], ownExtras: [shortcuts], roster: Roster(members: members)
+        ).isEmpty)
+        // Framed again (Hidden revealed) in the drawn order, it settles.
+        #expect(OrderEditSettle.settledSections(
+            edits, bar: [a, shortcuts, b], live: [a, shortcuts, b], concealed: [],
+            ownExtras: [shortcuts], roster: Roster(members: members)
+        ) == [.hidden])
+        // An idle extra (camera off) is still no edit.
+        #expect(OrderEditSettle.settledSections(
+            edits, bar: [a, b], live: [], concealed: [a, b], roster: Roster(members: members)
+        ) == [.hidden])
+    }
+
+    @Test func anOwnExtraDroppedBetweenSectionsWaitsForThePassEvenUnseen() {
+        let shortcuts = ItemID(rawValue: "status:\(PelmetBundle.mainID)::Pelmet.Shortcuts")
+        let members: [ItemID: Section] = [a: .hidden, b: .hidden, shortcuts: .hidden]
+        var edits = OrderEdits(order: [.hidden: [a, b, shortcuts]])
+        edits.previousSection[shortcuts] = .visible
+        #expect(OrderEditSettle.settledSections(
+            edits, bar: [a, b, shortcuts], live: [a, b], concealed: [], ownExtras: [shortcuts], roster: Roster(members: members)
+        ).isEmpty)
+    }
+
     @Test func iconsOfOtherSectionsDoNotCount() {
         let visible = ItemID.bundleKey("com.visible")
         #expect(settled([a, b], bar: [a, visible, b], onBar: [a, b, visible]) == [.alwaysHidden])

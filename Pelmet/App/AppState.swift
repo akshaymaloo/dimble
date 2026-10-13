@@ -2791,9 +2791,12 @@ final class AppState {
     private func pruneSettledOrderEdits() {
         guard let snapshot, !settings.orderEdits.isEmpty else { return }
         let bar = ApplyPass.barOrder(ApplyPass.rememberedFrames(snapshot, appState: self))
+        // Extras that are not idle are on the bar even while their section
+        // hides them (out of the walk and the concealed set alike).
+        let ownExtras = Set((extras?.managedItemIDs ?? []).filter { extras?.wouldShow($0) == true }.map(\.sectionKey))
         let settled = OrderEditSettle.settledSections(
             settings.orderEdits, bar: bar, live: Set(snapshot.items.map(\.id)), concealed: snapshot.concealed,
-            ownBehindOverflow: ownItemsBehindOverflow, roster: settings.sectionModel.roster
+            ownBehindOverflow: ownItemsBehindOverflow, ownExtras: ownExtras, roster: settings.sectionModel.roster
         )
         guard !settled.isEmpty else { return }
         var edits = settings.orderEdits

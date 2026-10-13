@@ -16,9 +16,11 @@ public enum OrderEditSettle {
     ///   (out of the AX tree, still on the bar).
     /// - `ownBehindOverflow`: own items (canonical keys) the last walk that
     ///   saw them live found behind the «.
+    /// - `ownExtras`: Pelmet's extras (canonical keys) that are on the bar
+    ///   whenever their section is out: not idle, whatever the walk sees.
     public static func settledSections(
         _ edits: OrderEdits, bar: [ItemID], live: Set<ItemID>, concealed: Set<ItemID>,
-        ownBehindOverflow: Set<ItemID> = [], roster: Roster
+        ownBehindOverflow: Set<ItemID> = [], ownExtras: Set<ItemID> = [], roster: Roster
     ) -> Set<Section> {
         // Pelmet's own items hide by their own visibility. One a helper drew
         // once and let go stays in the concealed set with no frame (helper
@@ -27,8 +29,12 @@ public enum OrderEditSettle {
         // bar where it is live or a frame remembers it, or where it was last
         // seen behind the « (no frame is remembered there, and a reorder of
         // only that separator cleared at once).
+        // An extra that is not idle is on the bar all the same: concealed
+        // with its section it is neither live nor in the concealed set, and
+        // a reorder of Shortcuts in a concealed Hidden cleared at the drop,
+        // past the crossing guard below too (live test, 2026-10-13).
         let placed = Set(bar)
-        let onBar = Set(live.map(\.sectionKey)).union(
+        let onBar = Set(live.map(\.sectionKey)).union(ownExtras).union(
             concealed.filter { id in
                 !(id.bundleID.map(PelmetBundle.ownIDs.contains) ?? false)
                     || placed.contains(id.sectionKey) || ownBehindOverflow.contains(id.sectionKey)
