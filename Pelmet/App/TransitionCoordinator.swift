@@ -1468,10 +1468,13 @@ extension TransitionCoordinator {
             PelmetLog.log("pass: \(first.phantoms.count) behind the «, not cropped")
         }
         let shown = primaryFrames.filter { first.solid[$0.key] == $0.frame }
+        var movedWhileFilmed = Set<ItemID>()
         if !shown.isEmpty {
-            for (key, picture) in await filmAndCut(shown, empty: empty, dump: dump, ms: ms) {
+            let film = await filmAndCut(shown, empty: empty, dump: dump, ms: ms)
+            for (key, picture) in film.pictures {
                 pictures?[key] = picture
             }
+            movedWhileFilmed = film.moved
             PelmetLog.log("pass: \(pictures?.count ?? 0) of \(onPrimary.count) pictures at \(ms())ms")
         }
 
@@ -1484,6 +1487,10 @@ extension TransitionCoordinator {
             let asking = Set(wanting.filter(wanted))
             leftovers = PicturePassBatches.leftovers(
                 wanted: asking, items: snap.items.map { (key: $0.id.sectionKey, frame: $0.frame) }, primaryMaxX: primaryMaxX)
+            // An icon that moved under the film gets a round too: the «
+            // kicked in mid-film on a full reveal, all 15 moved and none was
+            // cut (2026-10-12 23:09). Out on their own, the bar is quiet.
+            leftovers.formUnion(movedWhileFilmed.intersection(asking))
         }
         if !leftovers.isEmpty {
             // Another press's ids stay out of the rounds: putting them back
@@ -1535,7 +1542,7 @@ extension TransitionCoordinator {
                     PelmetLog.log("pass: batch \(followUps) has \(now.phantoms.count) behind the «, not cropped")
                 }
                 let cut = bar.filter { now.solid[$0.key] == $0.frame }
-                let got = cut.isEmpty ? [:] : await filmAndCut(cut, empty: empty, dump: false, ms: ms)
+                let got = cut.isEmpty ? [:] : await filmAndCut(cut, empty: empty, dump: false, ms: ms).pictures
                 for (key, picture) in got { pictures?[key] = picture }
                 lastPictured = got.count
                 leftovers = PicturePassBatches.remaining(asked, pictured: Set(got.keys))
@@ -1640,9 +1647,9 @@ extension TransitionCoordinator {
     private func filmAndCut(
         _ items: [(key: ItemID, frame: CGRect)],
         empty: [ConcealGhostOverlay.BarSnapshot], dump: Bool, ms: () -> Int
-    ) async -> [ItemID: ItemPictures.Picture] {
+    ) async -> (pictures: [ItemID: ItemPictures.Picture], moved: Set<ItemID>) {
         let frames = items.map(\.frame)
-        guard let minX = frames.map(\.minX).min(), let maxX = frames.map(\.maxX).max(), let band = frames.first else { return [:] }
+        guard let minX = frames.map(\.minX).min(), let maxX = frames.map(\.maxX).max(), let band = frames.first else { return ([:], []) }
         let rect = CGRect(x: minX - 8, y: band.minY, width: maxX - minX + 16, height: band.height)
         // AX reports where the icons land before the bar has drawn them
         // there: crops of a strip filmed mid-slide took halves of their
@@ -1671,11 +1678,11 @@ extension TransitionCoordinator {
                 $0.id.sectionKey == item.key && $0.frame.map { abs($0.minX - item.frame.minX) <= 1 && abs($0.maxX - item.frame.maxX) <= 1 } == true
             }
         }
-        if still.count < items.count {
-            let moved = items.filter { item in !still.contains { $0.key == item.key && $0.frame == item.frame } }
+        let moved = items.filter { item in !still.contains { $0.key == item.key && $0.frame == item.frame } }
+        if !moved.isEmpty {
             PelmetLog.log("pass: \(moved.count) moved while filmed, not cut \(moved.map(\.key.rawValue))")
         }
-        return Self.pictures(of: still, strip: strip, empty: empty, dump: dump)
+        return (Self.pictures(of: still, strip: strip, empty: empty, dump: dump), Set(moved.map(\.key)))
     }
 
     /// Debug trigger (`pelmet.debug.picturePass`): Hidden, dumped to disk.

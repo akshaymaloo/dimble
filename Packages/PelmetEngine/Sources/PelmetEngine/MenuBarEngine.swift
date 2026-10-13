@@ -35,11 +35,16 @@ public struct EngineSnapshot: Equatable, Sendable {
     /// AX can no longer see them).
     public let concealed: Set<ItemID>
     public let takenAt: Date
+    /// Items out on the bar on their own (a press, a picture pass round, a
+    /// show rule) while their section stays concealed: they sit beside the
+    /// chevron, not in their slot.
+    public let shownAlone: Set<ItemID>
 
-    public init(items: [ObservedItem], concealed: Set<ItemID>, takenAt: Date) {
+    public init(items: [ObservedItem], concealed: Set<ItemID>, takenAt: Date, shownAlone: Set<ItemID> = []) {
         self.items = items
         self.concealed = concealed
         self.takenAt = takenAt
+        self.shownAlone = shownAlone
     }
 
     /// Equality ignoring `takenAt` — for observers that only care whether the

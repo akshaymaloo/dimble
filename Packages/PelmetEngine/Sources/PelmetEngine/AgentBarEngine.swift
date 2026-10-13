@@ -92,6 +92,14 @@ public actor AgentBarEngine: MenuBarEngine {
     /// Battery while on battery). Apart from `revealedItems`, so a press
     /// releasing the same item never takes it off the bar.
     private var ruleShownItems: Set<ItemID> = []
+    /// Both of the above whose section is not out: stamped on snapshots
+    /// (`EngineSnapshot.shownAlone`).
+    private var shownAlone: Set<ItemID> {
+        revealedItems.union(ruleShownItems).filter {
+            let section = model.section(of: $0)
+            return section != .visible && !revealedSections.contains(section)
+        }
+    }
     /// Steady-assertion mode: hold an assertion even when nothing is
     /// concealable (allowlist = every observed bundle). Keeps macOS's
     /// collateral-hidden extras (Now Playing, camera pill, AirDrop, Focus)
@@ -532,7 +540,7 @@ public actor AgentBarEngine: MenuBarEngine {
             // 2026-09-16 — SystemUIServer runs forever, so nothing else
             // ever pruned them).
             if let last = lastSnapshot, last.concealed != plan.concealed {
-                lastSnapshot = EngineSnapshot(items: snapshot.items, concealed: plan.concealed, takenAt: snapshot.takenAt)
+                lastSnapshot = EngineSnapshot(items: snapshot.items, concealed: plan.concealed, takenAt: snapshot.takenAt, shownAlone: shownAlone)
             }
             return
         }
@@ -608,7 +616,8 @@ public actor AgentBarEngine: MenuBarEngine {
         lastSnapshot = EngineSnapshot(
             items: snapshot.items,
             concealed: plan.concealed,
-            takenAt: Date()
+            takenAt: Date(),
+            shownAlone: shownAlone
         )
         Task { await self.walkAfterSwap(concealable: concealable, epoch: epoch) }
     }
@@ -776,7 +785,8 @@ public actor AgentBarEngine: MenuBarEngine {
                 ObservedItem(id: $0.id, frame: $0.frame, appName: $0.appName, hostIsBundleless: $0.hostIsBundleless, pid: $0.pid)
             },
             concealed: lastSnapshot?.concealed ?? [],
-            takenAt: Date()
+            takenAt: Date(),
+            shownAlone: shownAlone
         )
         if let previousIDs, previousIDs != Set(raw.map(\.id)) {
             eventContinuation.yield(.itemsChanged)

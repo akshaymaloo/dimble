@@ -2045,6 +2045,18 @@ final class AppState {
         if section != .visible, let order = settings.sectionModel.order[section] { lastDrawnOrder[section] = order }
     }
 
+    /// A pass laid these sections' drawing down: the panel draws them in that
+    /// order until the next reveal reads the bar again. The editor's Apply
+    /// left the panel on the order before it (Sconce, 2026-10-12).
+    private func noteAppliedOrder(of sections: some Sequence<PelmetCore.Section>) {
+        for section in sections where section != .visible {
+            guard let order = settings.sectionModel.order[section] else { continue }
+            let moved = Set(order)
+            for drawn in lastDrawnOrder.keys where drawn != section { lastDrawnOrder[drawn]?.removeAll { moved.contains($0) } }
+            lastDrawnOrder[section] = order
+        }
+    }
+
     /// The icon a tile dropped in front of `neighbour` is filed before. A
     /// break between them is a separator, and the tile goes in front of it:
     /// the first of the run of separators before the neighbour (the order,
@@ -2439,12 +2451,14 @@ final class AppState {
         // is not done either: it stays pending like a failed move.
         let unreachable = report.skipped.filter { $0.why == .notOnScreen }.map(\.item)
         if report.failed.isEmpty, unreachable.isEmpty {
+            noteAppliedOrder(of: settings.orderEdits.order.keys)
             settings.orderEdits = OrderEdits()
             settings.save()
         } else if report.failed.isEmpty {
             var edits = settings.orderEdits
             for (section, drawn) in edits.order where !drawn.contains(where: unreachable.contains) {
                 edits.clearOrder(for: section)
+                noteAppliedOrder(of: [section])
             }
             for id in report.applied { edits.previousSection.removeValue(forKey: id.sectionKey) }
             settings.orderEdits = edits
@@ -3234,8 +3248,13 @@ final class AppState {
         // in "Didn't fit" after a picture pass (2026-10-12).
         let out = currentRevealedSections
         let model = settings.sectionModel
+        // An idle indicator a pass attached and let go collapses on top of
+        // the chevron the same way: Camera & mic and the chevron read as two
+        // icons behind the «, and "Didn't fit" kept the camera (2026-10-12).
+        let ownExtras = Set((extras?.managedItemIDs ?? []).map(\.sectionKey))
         let framed = snap.items.filter { item in
             guard let f = item.frame, f.width > 4 else { return false }
+            if ownExtras.contains(item.id.sectionKey), extras?.isShowing(item.id) == false { return false }
             let section = model.section(of: item.id.sectionKey)
             guard section == .visible || out.contains(section) else { return false }
             return PlacementGeometry.isPrimary(f, screenMaxX: primaryMaxX)
@@ -3287,14 +3306,28 @@ final class AppState {
         }
     }
 
+    /// The last `remember:` line's icons (logged on change).
+    private var lastAloneLine: [String] = []
+
     func updateSnapshot(_ snap: EngineSnapshot) {
         let now = Date.now
         noteOverflow(in: snap)
         let primary = ApplyPass.primaryFrames(snap)
         let chevronMidX = pelmetChevronItem(in: snap).flatMap { primary[$0.id.sectionKey]?.midX }
-        for (key, frame) in primary {
+        // An icon out on its own sits beside the chevron, and one the swap
+        // just concealed is still read where it last stood: neither is its
+        // slot. Remembered, the next drop's baseline (`barBasedOrder`) drew
+        // Velja and Unclutter, pictured a round at a time from behind the «,
+        // after Wi-Fi and Apply dragged them there (2026-10-12 22:50).
+        let notInSlot = Set(snap.shownAlone.map(\.sectionKey)).union(snap.concealed.map(\.sectionKey))
+        for (key, frame) in primary where !notInSlot.contains(key) {
             rememberedFrames[key] = frame
             rememberedChevronMidX[key] = chevronMidX
+        }
+        let alone = snap.shownAlone.map(\.sectionKey).filter { primary[$0] != nil }.map(\.rawValue).sorted()
+        if alone != lastAloneLine {
+            lastAloneLine = alone
+            if !alone.isEmpty { PelmetLog.log("remember: \(alone) out on their own, slot frames kept") }
         }
         for item in snap.items {
             lastSeenAt[item.id.sectionKey] = now
