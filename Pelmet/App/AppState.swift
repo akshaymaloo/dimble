@@ -2497,14 +2497,11 @@ final class AppState {
 
     /// Last primary-band frame per item, kept across conceals so the Apply
     /// count can judge a concealed icon's side without a reveal
-    /// (ApplyPass.rememberedFrames). Refreshed from every snapshot.
-    private(set) var rememberedFrames: [ItemID: CGRect] = [:]
-    /// The chevron's midX when each frame was remembered: concealed icons
-    /// sit left of the chevron and slide with it, so a frame remembered
-    /// before Apply moved an icon out of Hidden (chevron 1523 → 1451,
-    /// 2026-09-20 21:39) reads right of the new chevron and lit the button
-    /// again for nothing. The count shifts each frame by the chevron delta.
-    private(set) var rememberedChevronMidX: [ItemID: CGFloat] = [:]
+    /// (ApplyPass.rememberedFrames). Refreshed from every snapshot, and
+    /// after a pass's drags (`rereadFramesAfterPass`).
+    private(set) var frameMemory = FrameMemory()
+    var rememberedFrames: [ItemID: CGRect] { frameMemory.frames }
+    var rememberedChevronMidX: [ItemID: CGFloat] { frameMemory.chevronMidX }
     /// Own items (canonical keys) the last walk that saw them live found
     /// behind the «: no frame is remembered there, so once concealed they
     /// read as let go and a reorder of only that separator cleared at once
@@ -3581,21 +3578,36 @@ final class AppState {
     /// The last `remember:` line's icons (logged on change).
     private var lastAloneLine: [String] = []
 
-    func updateSnapshot(_ snap: EngineSnapshot) {
-        let now = Date.now
-        noteOverflow(in: snap)
-        let primary = ApplyPass.primaryFrames(snap, appState: self)
-        let chevronMidX = pelmetChevronItem(in: snap).flatMap { primary[$0.id.sectionKey]?.midX }
+    /// The primary-band frames `snap` read in their slot.
+    private func inSlotFrames(_ snap: EngineSnapshot, primary: [ItemID: CGRect]) -> [ItemID: CGRect] {
         // An icon out on its own sits beside the chevron, and one the swap
         // just concealed is still read where it last stood: neither is its
         // slot. Remembered, the next drop's baseline (`barBasedOrder`) drew
         // Velja and Unclutter, pictured a round at a time from behind the «,
         // after Wi-Fi and Apply dragged them there (2026-10-12 22:50).
         let notInSlot = Set(snap.shownAlone.map(\.sectionKey)).union(snap.concealed.map(\.sectionKey))
-        for (key, frame) in primary where !notInSlot.contains(key) {
-            rememberedFrames[key] = frame
-            rememberedChevronMidX[key] = chevronMidX
+        return primary.filter { !notInSlot.contains($0.key) }
+    }
+
+    /// A pass dragged icons where concealed ones sit: `snap` is a walk after
+    /// its last drag, before it conceals again. What that walk reads in its
+    /// slot is remembered as usual; every other frame is forgotten until a
+    /// walk at rest frames it (`FrameMemory.forget`).
+    func rereadFramesAfterPass(_ snap: EngineSnapshot) {
+        updateSnapshot(snap)
+        let stale = frameMemory.forget(allBut: Set(inSlotFrames(snap, primary: ApplyPass.primaryFrames(snap, appState: self)).keys))
+        let concealedStale = stale.intersection(snap.concealed.map(\.sectionKey)).map(\.rawValue).sorted()
+        if !stale.isEmpty {
+            PelmetLog.log("remember: \(stale.count) frame(s) the walk after the pass did not read wait for a walk at rest, concealed \(concealedStale)")
         }
+    }
+
+    func updateSnapshot(_ snap: EngineSnapshot) {
+        let now = Date.now
+        noteOverflow(in: snap)
+        let primary = ApplyPass.primaryFrames(snap, appState: self)
+        let chevronMidX = pelmetChevronItem(in: snap).flatMap { primary[$0.id.sectionKey]?.midX }
+        frameMemory.remember(inSlotFrames(snap, primary: primary), chevronMidX: chevronMidX, atRest: snap.itemsAtRest)
         let ownLive = Set(snap.items.compactMap { item in
             item.id.bundleID.map(PelmetBundle.ownIDs.contains) == true ? item.id.sectionKey : nil
         })

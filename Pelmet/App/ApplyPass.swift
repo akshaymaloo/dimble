@@ -537,17 +537,34 @@ enum ApplyPass {
         // Not a defer: the collapse click needs the shielded door, so it
         // runs after the drags, before the report leaves.
         let moves = plan.moves
-        await performMoves(moves, appState: appState, engine: engine, screenMaxX: screenMaxX, report: &report)
+        let draggedLeftOfChevron = await performMoves(
+            moves, appState: appState, engine: engine, screenMaxX: screenMaxX, report: &report
+        )
         if let expandedToggle {
             await OverflowToggle.collapseAfterPass(expandedToggle)
+        }
+        // The frames the collapsed bar keeps for concealed icons are from
+        // before these drags: one fresh walk re-reads every icon still out,
+        // before the pass conceals again, and the rest wait for a walk at
+        // rest (`AppState.rereadFramesAfterPass`).
+        if draggedLeftOfChevron {
+            appState.rereadFramesAfterPass(await engine.freshSnapshot())
         }
         return report
     }
 
+    /// Whether any drag started or landed left of the chevron, where it
+    /// shifts the concealed icons beside it (or the chevron had no frame to
+    /// tell).
     private static func performMoves(
         _ moves: [Move], appState: AppState, engine: AgentBarEngine,
         screenMaxX: CGFloat, report: inout ApplyReport
-    ) async {
+    ) async -> Bool {
+        var leftOfChevron = false
+        func noteDrag(from x: CGFloat, to target: CGFloat, in snap: EngineSnapshot, frames: [ItemID: CGRect]) {
+            let chevronX = appState.pelmetChevronItem(in: snap).flatMap { frames[$0.id.sectionKey]?.midX }
+            if chevronX.map({ min(x, target) <= $0 }) ?? true { leftOfChevron = true }
+        }
         var snap = await engine.snapshot()
         for move in moves {
             snap = await engine.snapshot()
@@ -594,6 +611,7 @@ enum ApplyPass {
             }
             PelmetLog.log("apply: drag \(move.item.rawValue) x=\(frame.midX) → \(targetX) (after \(move.after?.rawValue ?? "-"), before \(move.before?.rawValue ?? "-"))")
             let ownItem = move.item.bundleID.map(PelmetBundle.ownIDs.contains) ?? false
+            noteDrag(from: frame.midX, to: targetX, in: snap, frames: frames)
             await ItemMover.cmdDrag(from: CGPoint(x: frame.midX, y: 12), to: CGPoint(x: targetX, y: 12), ownItem: ownItem)
             snap = await quiesced(engine, watching: move.item, appState: appState)
             appState.updateSnapshot(snap)
@@ -602,6 +620,7 @@ enum ApplyPass {
             // One retry, re-aimed at the bounds as they sit after the reflow.
             if !landed, let x = frames[move.item]?.midX, let retryX = aim(frames), abs(retryX - x) > 4 {
                 PelmetLog.log("apply: retry \(move.item.rawValue) x=\(x) → \(retryX)")
+                noteDrag(from: x, to: retryX, in: snap, frames: frames)
                 await ItemMover.cmdDrag(from: CGPoint(x: x, y: 12), to: CGPoint(x: retryX, y: 12), ownItem: ownItem)
                 snap = await quiesced(engine, watching: move.item, appState: appState)
                 appState.updateSnapshot(snap)
@@ -625,5 +644,6 @@ enum ApplyPass {
                 report.failed.append(move.item)
             }
         }
+        return leftOfChevron
     }
 }
