@@ -131,9 +131,14 @@ final class SectionGrouper {
     }
 
     /// The roster was assigned: look again only if it actually changed.
+    /// The budget sees every change, not only the ones a check finds a stray
+    /// under: a drop to Hidden and back between two placements left
+    /// Vorssaint's spent attempt standing, and the third round gave up (live
+    /// test, 2026-10-13 20:17:52).
     func noteRoster(_ roster: Roster) {
         guard roster != lastRoster else { return }
         lastRoster = roster
+        budget.observe(roster)
         noteChange()
     }
 

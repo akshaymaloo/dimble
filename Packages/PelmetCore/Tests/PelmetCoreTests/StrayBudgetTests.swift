@@ -47,6 +47,34 @@ import Testing
         #expect(verdict.exhausted == [a] && verdict.ready.isEmpty)
     }
 
+    @Test func aSectionChangeMadeWhileNotAStrayStartsFresh() {
+        // Vorssaint moved to Visible and placed, moved to Hidden and back
+        // while sitting on its side (never a stray in between), placed again,
+        // and the same once more: each placement is the first attempt (live
+        // test, 2026-10-13 20:14:36, 20:16:28, 20:17:52).
+        var visible = hidden
+        visible.assign(a, to: .visible)
+        var budget = StrayBudget()
+        for _ in 0..<3 {
+            budget.observe(visible)
+            #expect(budget.check([a], roster: visible).ready == [a])
+            #expect(budget.used(a, roster: visible) == 0)
+            budget.spend([a], roster: visible)
+            #expect(budget.check([], roster: visible).ready.isEmpty)
+            budget.observe(hidden)
+        }
+    }
+
+    @Test func observingAnUnchangedSectionKeepsTheBudget() {
+        // An app that relaunches on the wrong side changes no section: still
+        // not dragged forever.
+        var budget = StrayBudget()
+        budget.spend([a], roster: hidden)
+        budget.spend([a], roster: hidden)
+        budget.observe(hidden)
+        #expect(budget.check([a], roster: hidden).exhausted == [a])
+    }
+
     @Test func aSectionGoingThereAndBackStartsFresh() {
         var budget = StrayBudget()
         budget.spend([a], roster: hidden)

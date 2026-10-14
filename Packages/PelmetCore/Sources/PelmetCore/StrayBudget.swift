@@ -6,7 +6,8 @@
 // pass and tells it which items a pass tried.
 //
 // Keyed by (item, roster section). Only a change of the item's section
-// clears its budget (the user's drop in the editor is a new question).
+// clears its budget (the user's drop in the editor is a new question),
+// whenever it happens (`observe`).
 // A bar with no strays, a pass that moved the item, the item vanishing or
 // re-registering never reset it: an app that relaunches and re-registers on
 // the wrong side again and again is not dragged forever.
@@ -63,6 +64,16 @@ public struct StrayBudget: Equatable, Sendable {
             }
         }
         return verdict
+    }
+
+    /// The roster as it is now, stray or not: an item whose section changed
+    /// since its budget opened starts fresh. Read only at a check, a change
+    /// made while the item sat on its side was never seen: Vorssaint moved
+    /// to Visible, placed, moved to Hidden and back by hand, and placed
+    /// again read "attempt 2/2", and the next round "giving up … after 2
+    /// attempts" (live test, 2026-10-13 20:17:52).
+    public mutating func observe(_ roster: Roster) {
+        entries = entries.filter { roster.section(of: $0.key) == $0.value.section }
     }
 
     /// Attempts used for `id` under its current section.
