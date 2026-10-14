@@ -26,4 +26,4 @@ jobs:
           path-to-document: 'https://github.com/fif7y/pelmet/blob/main/CLA.md'
           branch: 'cla-signatures'
           allowlist: 'fif7y,dependabot[bot]'
-          custom-notsigned-prcomment: 'Thanks for the pull request! Pelmet asks contributors to sign a short Contributor License Agreement (you keep your copyright, see [CLA.md](https://github.com/fif7y/pelmet/blob/main/CLA.md)). Please post the sentence below as a comment to sign it.'
+          custom-notsigned-prcomment: 'Thanks for the pull request! Pliss asks contributors to sign a short Contributor License Agreement (you keep your copyright, see [CLA.md](https://github.com/fif7y/pelmet/blob/main/CLA.md)). Please post the sentence below as a comment to sign it.'

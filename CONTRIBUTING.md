@@ -1,10 +1,10 @@
-# Contributing to Pelmet
+# Contributing to Pliss
 
-Thanks for helping. Issues, bug reports with `pelmet.log` excerpts, and pull requests are all welcome.
+Thanks for helping. Issues, bug reports with `pliss.log` excerpts, and pull requests are all welcome.
 
 ## Before your first pull request
 
-Pelmet uses a Contributor License Agreement. When you open a pull request, a bot asks you to sign it by posting one comment, once. The short version: you keep your copyright, the GPLv3 version of Pelmet stays GPLv3 forever, and you grant a license broad enough for things like a Mac App Store build or a future license fix. The full text and the reasons are in [CLA.md](CLA.md).
+Pliss uses a Contributor License Agreement. When you open a pull request, a bot asks you to sign it by posting one comment, once. The short version: you keep your copyright, the GPLv3 version of Pliss stays GPLv3 forever, and you grant a license broad enough for things like a Mac App Store build or a future license fix. The full text and the reasons are in [CLA.md](CLA.md).
 
 ## Building
 
