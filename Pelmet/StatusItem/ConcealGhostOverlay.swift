@@ -339,6 +339,9 @@ final class ConcealGhostOverlay {
         return content?.windows.filter { $0.owningApplication?.processID == me } ?? []
     }
 
+    /// Said once per display and heights, not per film.
+    private static var lastBandClampLine = ""
+
     /// `excludingOwnWindows`: leave Pelmet's own windows out, so a picture
     /// taken under a cover shows the real bar beneath it (the panel's
     /// picture pass); `ownWindows` names them, looked up here when nil.
@@ -384,7 +387,20 @@ final class ConcealGhostOverlay {
             let visibleBand = screen.frame.maxY - screen.visibleFrame.maxY
             let ownBand = visibleBand > 0 && (safeBand == 0 || visibleBand <= safeBand + 2)
                 ? visibleBand : safeBand
-            let bandHeight = ownBand > 0 ? ownBand : rect.maxY
+            var bandHeight = ownBand > 0 ? ownBand : rect.maxY
+            // The bar window is the bar. A visibleFrame band taller than it
+            // films a row of what lies under the bar, and the picture pass
+            // keyed that row as ink: a line under every tile (#81, a Mac
+            // Studio whose main display is external). The same on the
+            // builtin (39pt both, 2026-10-13).
+            if ownBand > 0, let drawn = GlassPanel.drawnBarHeight(of: screen), drawn < bandHeight {
+                let line = "ghost: display \(displayID) band \(Int(bandHeight))pt cut to its bar window's \(Int(drawn))pt"
+                if line != lastBandClampLine {
+                    lastBandClampLine = line
+                    PelmetLog.log(line)
+                }
+                bandHeight = drawn
+            }
             // Right-anchored translation onto this display, padded so the
             // snapshot's background is continuous with the bar around it.
             let translatedX = rect.minX + (screen.frame.maxX - primary.frame.maxX)
