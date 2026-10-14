@@ -152,7 +152,10 @@ final class ConcealGhostOverlay {
             if pid == me {
                 return layer >= menuLevel ? (id, "Pelmet menu") : nil
             }
-            guard height > bandHeight + 1, y < rect.minY + bandHeight / 2 else { return nil }
+            // Its top anywhere above the band's last row: Snib's panel
+            // hangs 2pt into the bar (y 37 of 39), and a picture filmed
+            // with it carried its top edge as a line under the tile.
+            guard height > bandHeight + 1, y < rect.minY + bandHeight - 0.5 else { return nil }
             return (id, w[kCGWindowOwnerName as String] as? String ?? "pid \(pid)")
         }
     }
