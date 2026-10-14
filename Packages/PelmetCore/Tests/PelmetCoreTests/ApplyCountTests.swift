@@ -309,12 +309,16 @@ import Testing
 
     @Test func aShowIsReadByAWalkAtRestAfterIt() {
         let shown = Date(timeIntervalSinceReferenceDate: 1000)
-        // The walk behind the swap that showed it: after, but not at rest.
-        #expect(!ApplyCount.hasWalked(since: shown, takenAt: shown.addingTimeInterval(0.085), atRest: false))
-        // A walk at rest from before the show.
-        #expect(!ApplyCount.hasWalked(since: shown, takenAt: shown.addingTimeInterval(-1), atRest: true))
+        // No walk at rest yet, or only one from before the show (the walk
+        // behind the swap that showed it is not at rest: it never counts).
+        #expect(!ApplyCount.hasWalked(since: shown, lastRestWalk: nil))
+        #expect(!ApplyCount.hasWalked(since: shown, lastRestWalk: shown.addingTimeInterval(-1)))
         // The walk at rest half a second on.
-        #expect(ApplyCount.hasWalked(since: shown, takenAt: shown.addingTimeInterval(0.52), atRest: true))
+        #expect(ApplyCount.hasWalked(since: shown, lastRestWalk: shown.addingTimeInterval(0.52)))
+        // Read once, it stays read whatever the snapshot in hand is: a later
+        // swap's stamp, not at rest, does not make it unread again (review,
+        // 2026-10-13).
+        #expect(ApplyCount.hasWalked(since: shown, lastRestWalk: shown.addingTimeInterval(3600)))
     }
 
     @Test func anExtraMovedOutOfAConcealedSectionReadsOneUntilWalked() {

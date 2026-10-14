@@ -802,6 +802,7 @@ final class AppState {
             if pointerDisplayBehavior == .alwaysShowAll {
                 reveal([.hidden], reason: .displayPolicy)
             }
+            bandMonitor?.seedPointerDisplay()
             launchBaselineApplied = true
         }
     }
@@ -2329,6 +2330,16 @@ final class AppState {
         ownItemsAwaitingReveal.insert(id)
     }
 
+    /// An extra joined the bar: the engine owes it a walk at rest, the one
+    /// the Apply count waits on (`unreadNow`). Shown outside a swap, none
+    /// came, and "Apply (1)" stayed until the next transition (review,
+    /// 2026-10-13). Background, coalesced; not before the engine runs (the
+    /// launch walks for itself).
+    func ownItemShown() {
+        guard engineStarted else { return }
+        Task { await engine.ownItemShown() }
+    }
+
     /// Deactivation edge: an indicator that left layout has nothing to
     /// place — the reveal-settle entry goes, and so does a pass still in
     /// its lead time (the media control showed and hid in the same boot
@@ -3532,9 +3543,9 @@ final class AppState {
         let concealed = Set(snap.concealed.map(\.sectionKey))
         let atRest = snap.itemsAtRest
         let extras = self.extras
-        let readAt = max(snap.takenAt, lastRestWalkAt ?? snap.takenAt)
+        let lastRestWalk = lastRestWalkAt
         let shown = Set((extras?.managedItemIDs ?? []).map(\.sectionKey).filter { key in
-            extras?.shownAt(key).map { !ApplyCount.hasWalked(since: $0, takenAt: readAt, atRest: atRest) } ?? false
+            extras?.shownAt(key).map { !ApplyCount.hasWalked(since: $0, lastRestWalk: lastRestWalk) } ?? false
         })
         return {
             ApplyCount.isUnread($0, drawn: drawn, live: live, concealedKeys: concealed, atRest: atRest, shown: shown)

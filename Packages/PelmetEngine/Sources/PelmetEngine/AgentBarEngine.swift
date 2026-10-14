@@ -145,6 +145,10 @@ public actor AgentBarEngine: MenuBarEngine {
     /// When the last assertion swap was issued — teardown detection ignores
     /// the settle window right after a swap (items take a beat to drop out).
     private var lastSwapAt = Date.distantPast
+    /// When one of Pelmet's own items last joined the bar (`ownItemShown`),
+    /// and whether the walk at rest it is owed is still to come.
+    private var ownShowAt = Date.distantPast
+    private var ownShowOwed = false
     /// Bounded retries for converges that find an EMPTY AX walk. A real bar
     /// always contains system items, so empty means the agent tree isn't
     /// readable yet (launch, locked screen) — planning from it swaps in an
@@ -792,19 +796,44 @@ public actor AgentBarEngine: MenuBarEngine {
         Task { await self.walkAtRest() }
     }
 
+    /// One of Pelmet's own items joined the bar. One outside a swap (a
+    /// Timer counting, media or the camera coming on, Show in Menu Bar)
+    /// gets no stamp, so no walk at rest reads it, and the Apply count
+    /// waits on that walk for a drop of it: "Apply (1)" stayed until the
+    /// next transition (review, 2026-10-13). This owes it one, half a second
+    /// on, coalesced with any walk at rest already pending (one riding a
+    /// swap costs nothing more), and announced even when the mirror was at
+    /// rest already.
+    public func ownItemShown() {
+        ownShowAt = Date()
+        ownShowOwed = true
+        scheduleRestWalk()
+    }
+
     private func walkAtRest() async {
-        var untilRest = EngineTiming.restWalkDelay - Date().timeIntervalSince(lastSwapAt)
-        while untilRest > 0 {
-            try? await Task.sleep(for: .seconds(untilRest))
-            untilRest = EngineTiming.restWalkDelay - Date().timeIntervalSince(lastSwapAt)
+        func untilRest() -> TimeInterval {
+            EngineTiming.restWalkDelay - Date().timeIntervalSince(max(lastSwapAt, ownShowAt))
+        }
+        var wait = untilRest()
+        while wait > 0 {
+            try? await Task.sleep(for: .seconds(wait))
+            wait = untilRest()
         }
         // Cleared before the walk: a swap that lands during it writes a
-        // stamp that schedules the next one.
+        // stamp that schedules the next one, and a show owes the next one.
         restWalkScheduled = false
-        guard restSnapshot == nil else { return }
+        let owed = ownShowOwed
+        ownShowOwed = false
+        guard restSnapshot == nil || owed else { return }
+        let wasAtRest = lastSnapshot?.itemsAtRest
         let restStarted = Date()
-        _ = await refreshSnapshot()
+        let snapshot = await refreshSnapshot()
         PelmetLog.log("converge: rest walk \(Self.ms(since: restStarted))ms (background)")
+        // `refreshSnapshot` announces a mirror coming to rest; one at rest
+        // already is announced here, for the show.
+        if owed, snapshot.itemsAtRest, wasAtRest != false {
+            eventContinuation.yield(.mirrorAtRest)
+        }
     }
 
     /// Background verify-after-apply: bounded poll until the concealed

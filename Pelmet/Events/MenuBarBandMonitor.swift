@@ -334,6 +334,15 @@ final class MenuBarBandMonitor {
 
     // MARK: - Pointer
 
+    /// The launch applied the policy for the display under the pointer: it
+    /// is the baseline, unless a move set one first. Unseeded, a conceal
+    /// (⌥⌘,) before the first move was undone by its first twitch on an
+    /// "always show all" display (review, 2026-10-13).
+    func seedPointerDisplay() {
+        guard lastDisplayUUID == nil else { return }
+        lastDisplayUUID = screenGeometry(containing: NSEvent.mouseLocation)?.uuid
+    }
+
     private func pointerMoved() {
         guard let appState else { return }
         let location = NSEvent.mouseLocation

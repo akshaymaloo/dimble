@@ -70,7 +70,9 @@ public enum EngineEvent: Equatable, Sendable {
     /// The set of menubar items changed (app launched/quit, item added/removed).
     case itemsChanged
     /// The mirror is a walk at rest again after one that was not
-    /// (`EngineSnapshot.itemsAtRest`): re-read it, nothing to converge.
+    /// (`EngineSnapshot.itemsAtRest`), or the walk at rest an own item's
+    /// show was owed (`AgentBarEngine.ownItemShown`): re-read it, nothing
+    /// to converge.
     /// Not itemsChanged: that converges, and a swap that never goes no-op
     /// (a dud activation drops the allowlist) would swap at every rest walk.
     case mirrorAtRest

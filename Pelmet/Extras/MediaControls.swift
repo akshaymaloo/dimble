@@ -611,6 +611,7 @@ final class ExtrasManager {
         guard lastVisible[id] != visible else { return }
         lastVisible[id] = visible
         shownAt[id] = visible ? Date() : nil
+        if visible { appState?.ownItemShown() }
         let wasPreattached = preattached.remove(id) != nil
         PelmetLog.log("extras: \(specs[id]?.itemTitle ?? "?") → \(visible ? (wasPreattached ? "fade (attached ahead)" : "show") : "hide (ghost)")")
         // Runs as the engine's reflow companion, so timing coincides with the

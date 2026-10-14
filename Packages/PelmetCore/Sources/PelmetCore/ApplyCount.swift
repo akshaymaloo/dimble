@@ -92,12 +92,15 @@ public enum ApplyCount {
         return !live.contains(key) && (concealedKeys.contains(key) || !atRest)
     }
 
-    /// Whether a walk has read an own extra shown at `shownAt`: a walk at
-    /// rest (`atRest`), taken (`takenAt`) after the show. A swap's stamp is
-    /// never at rest, and a walk at rest starts half a second past the swap
-    /// whose reflow showed the extra.
-    public static func hasWalked(since shownAt: Date, takenAt: Date, atRest: Bool) -> Bool {
-        atRest && takenAt > shownAt
+    /// Whether a walk has read an own extra shown at `shownAt`: the latest
+    /// walk at rest (`lastRestWalk`, nil before any) was taken after the
+    /// show. A swap's stamp is never at rest, and a walk at rest starts half
+    /// a second past the swap whose reflow showed the extra. Not whether the
+    /// snapshot in hand is at rest: read so, every later swap made an extra
+    /// shown long before unread again until that swap's walk at rest
+    /// (review, 2026-10-13).
+    public static func hasWalked(since shownAt: Date, lastRestWalk: Date?) -> Bool {
+        (lastRestWalk ?? .distantPast) > shownAt
     }
 
     /// Whether `id`'s concealed section is what keeps it off the bar right
