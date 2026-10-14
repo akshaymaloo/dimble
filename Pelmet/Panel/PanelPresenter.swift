@@ -140,6 +140,11 @@ final class PanelPresenter: RevealPresenter {
     /// nothing, one the notch hides): not asked for again until a picture
     /// would have gone stale anyway.
     private var unpicturable: [ItemID: Date] = [:]
+    /// Icons a pass revealed their section for and never found listed:
+    /// their app runs with its own icon off, and the bar shows nothing for
+    /// them (CleanShot, #26). Left out of the panel until the bar lists them
+    /// again, and asked about again by the next pass that runs anyway.
+    private var noIcon: Set<ItemID> = []
     /// Keys a pass of this open already asked for: one it got no picture of
     /// without trying (no cover, a skipped round) is asked for again next
     /// open, not by a pass straight after, which with no cover deferred the
@@ -913,8 +918,17 @@ final class PanelPresenter: RevealPresenter {
         // ones that left the AX tree (the walk's `concealed` alone misses
         // system items such as Sound) and Pelmet's own extras, less those
         // the bar would not draw either.
+        // An app that quit takes the verdict with it: relaunched, it is
+        // looked for again.
+        if !noIcon.isEmpty {
+            noIcon = noIcon.filter { key in
+                key.bundleID.map { !NSRunningApplication.runningApplications(withBundleIdentifier: $0).isEmpty } ?? true
+            }
+        }
+        let listed = noIcon.isEmpty ? [] : Set((appState.snapshot?.items ?? []).map(\.id.sectionKey))
         let items = [PelmetCore.Section.hidden, .alwaysHidden, .visible].flatMap(appState.editorItems(in:))
             .filter { appState.ownExtraWouldShow($0.id) }
+            .filter { !noIcon.contains($0.id.sectionKey) || listed.contains($0.id.sectionKey) }
         let launchers = corpus.compactMap { entry -> String? in
             if case .launcher(let bundle) = entry.action { return bundle }
             return nil
@@ -1973,6 +1987,9 @@ final class PanelPresenter: RevealPresenter {
         let roster = appState.settings.sectionModel.roster
         let needsAlways = wanted.contains { roster.section(of: $0) == .alwaysHidden }
         let reveal: Set<PelmetCore.Section> = needsAlways ? [.hidden, .alwaysHidden] : [.hidden]
+        // A pass that runs anyway looks again for icons it found missing,
+        // in the sections it reveals.
+        wanted += noIcon.filter { !wanted.contains($0) && reveal.contains(roster.section(of: $0)) }
         passTask = Task { @MainActor [weak self, weak appState] in
             guard let appState else { return }
             let found = await appState.transitions.picturePass(reveal, wanting: Set(wanted))
@@ -1988,6 +2005,13 @@ final class PanelPresenter: RevealPresenter {
                 return
             }
             self.pictures.store(found.pictures)
+            let backNow = self.noIcon.intersection(wanted).subtracting(found.absent)
+            self.noIcon.subtract(backNow)
+            let newlyMissing = found.absent.subtracting(self.noIcon)
+            self.noIcon.formUnion(found.absent)
+            if !newlyMissing.isEmpty || !backNow.isEmpty {
+                PelmetLog.log("panel: no icon in the bar, left out \(newlyMissing.map(\.rawValue).sorted())\(backNow.isEmpty ? "" : ", back \(backNow.map(\.rawValue).sorted())")")
+            }
             let now = Date()
             // Only what the pass tried and missed waits out `maxAge`; a key
             // a skipped round never reached is asked for again next open.

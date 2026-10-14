@@ -1441,7 +1441,7 @@ extension TransitionCoordinator {
     /// with or without them, and with none to follow up nothing extra runs.
     func picturePass(
         _ sections: Set<PelmetCore.Section>, wanting: Set<ItemID> = [], dump: Bool = false
-    ) async -> (pictures: [ItemID: ItemPictures.Picture], failed: Set<ItemID>)? {
+    ) async -> (pictures: [ItemID: ItemPictures.Picture], failed: Set<ItemID>, absent: Set<ItemID>)? {
         guard let appState else { return nil }
         let dump = dump || UserDefaults.standard.bool(forKey: "pelmet.debug.dumpPass")
         let start = Date()
@@ -1556,6 +1556,12 @@ extension TransitionCoordinator {
         let drawn = snap.items.filter { wanted($0.id) && $0.frame != nil }
         let onPrimary = drawn.filter { MenuBarGeometry.isInPrimaryBand($0.frame!, primaryMaxX: primaryMaxX) }
         PelmetLog.log("pass: revealed at \(ms())ms (\(drawn.count) drawn, \(onPrimary.count) on the primary bar)")
+        // Waited for and never listed, with the others drawn around it: its
+        // app runs with no icon in the bar (CleanShot with its own icon
+        // switched off kept a tile, #26). One behind the « is still listed.
+        let listedKeys = Set(snap.items.map(\.id.sectionKey))
+        let absent = drawn.isEmpty ? [] : Set(awaiting.filter { !listedKeys.contains($0.sectionKey) })
+        if !absent.isEmpty { PelmetLog.log("pass: no icon on the bar for \(absent.map(\.rawValue).sorted())") }
 
         var pictures: [ItemID: ItemPictures.Picture]? = drawn.isEmpty ? nil : [:]
         // Only what the bar draws clear: an icon the native « holds reports
@@ -1680,7 +1686,7 @@ extension TransitionCoordinator {
         // Against no empty bar nothing could be cut: says nothing either
         // (review WRAP-1, every tile stood in for 15 minutes).
         let failed = empty.isEmpty ? [] : wanting.subtracting(pictures.keys).subtracting(deferred)
-        return (pictures, failed)
+        return (pictures, failed, absent)
     }
 
     /// An Apply a panel drop started, with the panel left open: the bar goes
