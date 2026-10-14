@@ -1440,7 +1440,8 @@ extension TransitionCoordinator {
     /// or a reveal or a press wants the bar. The first round is the same
     /// with or without them, and with none to follow up nothing extra runs.
     func picturePass(
-        _ sections: Set<PelmetCore.Section>, wanting: Set<ItemID> = [], dump: Bool = false
+        _ sections: Set<PelmetCore.Section>, wanting: Set<ItemID> = [], dump: Bool = false,
+        seen: ((_ absent: Set<ItemID>) -> Void)? = nil
     ) async -> (pictures: [ItemID: ItemPictures.Picture], failed: Set<ItemID>, absent: Set<ItemID>)? {
         guard let appState else { return nil }
         let dump = dump || UserDefaults.standard.bool(forKey: "pelmet.debug.dumpPass")
@@ -1562,6 +1563,7 @@ extension TransitionCoordinator {
         let listedKeys = Set(snap.items.map(\.id.sectionKey))
         let absent = drawn.isEmpty ? [] : Set(awaiting.filter { !listedKeys.contains($0.sectionKey) })
         if !absent.isEmpty { PelmetLog.log("pass: no icon on the bar for \(absent.map(\.rawValue).sorted())") }
+        if !drawn.isEmpty { seen?(absent) }
 
         var pictures: [ItemID: ItemPictures.Picture]? = drawn.isEmpty ? nil : [:]
         // Only what the bar draws clear: an icon the native « holds reports

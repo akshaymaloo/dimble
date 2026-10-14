@@ -2063,6 +2063,21 @@ final class PanelPresenter: RevealPresenter {
         }
     }
 
+    /// Which of `wanted` a pass's walk found missing (`absent`) or back,
+    /// once per pass: true when a tile comes or goes.
+    @discardableResult
+    private func settleNoIcon(wanted: [ItemID], absent: Set<ItemID>) -> Bool {
+        let lookedAt = Date()
+        for key in wanted where noIcon.contains(key) || absent.contains(key) { lookedFor[key] = lookedAt }
+        let backNow = noIcon.intersection(wanted).subtracting(absent)
+        noIcon.subtract(backNow)
+        let newlyMissing = absent.subtracting(noIcon)
+        noIcon.formUnion(absent)
+        guard !newlyMissing.isEmpty || !backNow.isEmpty else { return false }
+        PelmetLog.log("panel: no icon in the bar, left out \(newlyMissing.map(\.rawValue).sorted())\(backNow.isEmpty ? "" : ", back \(backNow.map(\.rawValue).sorted())")")
+        return true
+    }
+
     /// Per bundle, whether any running copy lists a status item; a bundle
     /// with a copy whose accessibility doesn't answer is left out.
     @concurrent
@@ -2107,7 +2122,12 @@ final class PanelPresenter: RevealPresenter {
         wanted += noIcon.filter { !wanted.contains($0) && reveal.contains(roster.section(of: $0)) }
         passTask = Task { @MainActor [weak self, weak appState] in
             guard let appState else { return }
-            let found = await appState.transitions.picturePass(reveal, wanting: Set(wanted))
+            // The tiles come and go as soon as the reveal's walk is read,
+            // the pictures follow when the pass is done.
+            let found = await appState.transitions.picturePass(reveal, wanting: Set(wanted)) { [weak self] absent in
+                guard let self, self.settleNoIcon(wanted: wanted, absent: absent), self.isOpen else { return }
+                self.refresh()
+            }
             guard let self else { return }
             self.passTask = nil
             let waiters = self.passWaiters
@@ -2120,16 +2140,8 @@ final class PanelPresenter: RevealPresenter {
                 for key in wanted { self.extrasSaid[key] = nil }
                 return
             }
-            let lookedAt = Date()
-            for key in wanted where self.noIcon.contains(key) || found.absent.contains(key) { self.lookedFor[key] = lookedAt }
             self.pictures.store(found.pictures)
-            let backNow = self.noIcon.intersection(wanted).subtracting(found.absent)
-            self.noIcon.subtract(backNow)
-            let newlyMissing = found.absent.subtracting(self.noIcon)
-            self.noIcon.formUnion(found.absent)
-            if !newlyMissing.isEmpty || !backNow.isEmpty {
-                PelmetLog.log("panel: no icon in the bar, left out \(newlyMissing.map(\.rawValue).sorted())\(backNow.isEmpty ? "" : ", back \(backNow.map(\.rawValue).sorted())")")
-            }
+            self.settleNoIcon(wanted: wanted, absent: found.absent)
             // An extras bar the pass proved wrong is not asked again.
             for key in wanted {
                 guard let listed = self.extrasSaid.removeValue(forKey: key), let bundle = key.bundleID else { continue }
