@@ -2504,7 +2504,10 @@ final class AppState {
         )
         // Logged on change only (the button reads this every render): which
         // move pads the count when the drop read "Apply (2)" (2026-09-21).
-        let line = "\(moves.count) move(s) + \(count.trapped.count) trapped + \(count.concealed.count) concealed = \(count.total) — "
+        // The floor (`ApplyCount`: a drop the plan can't see yet) is the rest.
+        let floor = count.total - moves.count - count.trapped.count - count.concealed.count
+        let line = "\(moves.count) move(s) + \(count.trapped.count) trapped + \(count.concealed.count) concealed"
+            + (floor > 0 ? " + \(floor) floor" : "") + " = \(count.total) — "
             + moves.map { "\($0.item.rawValue) after=\($0.after?.rawValue ?? "-") before=\($0.before?.rawValue ?? "-")" }.joined(separator: "; ")
             + " | trapped=" + count.trapped.map(\.rawValue).sorted().joined(separator: ",")
             + " concealed=" + count.concealed.map(\.rawValue).sorted().joined(separator: ",")
