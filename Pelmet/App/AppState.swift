@@ -2511,6 +2511,15 @@ final class AppState {
             + moves.map { "\($0.item.rawValue) after=\($0.after?.rawValue ?? "-") before=\($0.before?.rawValue ?? "-")" }.joined(separator: "; ")
             + " | trapped=" + count.trapped.map(\.rawValue).sorted().joined(separator: ",")
             + " concealed=" + count.concealed.map(\.rawValue).sorted().joined(separator: ",")
+            // Why the plan could not place each: a drop into a concealed
+            // Hidden kept no place although its frame was remembered
+            // (Vorssaint, 2026-10-13 22:43:06).
+            + count.concealed.map { key in
+                let listed = snapshot.items.first { $0.id.sectionKey == key }
+                let inSet = snapshot.concealed.contains { $0.sectionKey == key }
+                return " [\(key.rawValue) set=\(inSet) listed=\(listed.map { $0.frame.map { "\(Int($0.minX))" } ?? "noframe" } ?? "no")"
+                    + " remembered=\(rememberedFrames[key].map { "\(Int($0.minX))" } ?? "none")]"
+            }.sorted().joined()
         if line != lastPendingLine {
             lastPendingLine = line
             PelmetLog.log("apply: pending \(line)")
@@ -3732,7 +3741,8 @@ final class AppState {
         let stale = frameMemory.forget(allBut: Set(inSlotFrames(snap, primary: ApplyPass.primaryFrames(snap, appState: self)).keys))
         let concealedStale = stale.intersection(snap.concealed.map(\.sectionKey)).map(\.rawValue).sorted()
         if !stale.isEmpty {
-            PelmetLog.log("remember: \(stale.count) frame(s) the walk after the pass did not read wait for a walk at rest, concealed \(concealedStale)")
+            let shownStale = stale.subtracting(snap.concealed.map(\.sectionKey)).map(\.rawValue).sorted()
+            PelmetLog.log("remember: \(stale.count) frame(s) the walk after the pass did not read wait for a walk at rest, concealed \(concealedStale), shown \(shownStale)")
         }
     }
 
