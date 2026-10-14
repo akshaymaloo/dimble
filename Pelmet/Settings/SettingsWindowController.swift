@@ -33,7 +33,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.isReleasedWhenClosed = false
-        window.setContentSize(NSSize(width: 780, height: 700))
+        window.setContentSize(NSSize(width: 780, height: 730))
         window.minSize = NSSize(width: 720, height: 520)
         window.center()
         // Normal level, like any app window. It used to float permanently
