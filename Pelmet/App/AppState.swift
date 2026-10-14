@@ -795,14 +795,23 @@ final class AppState {
             }
             showRules?.update(settings.showRules)
             transitions.warmAfterBoot(from: launchSnapshot)
-            // Launch baseline: the band monitor only applies display behavior
-            // on crossings, so the display Pelmet launches under gets its
-            // policy applied here (queued behind the conceal's settle).
+            // Launch baseline: the band monitor applies display behavior on
+            // crossings, and on its first sighting only from here on, so the
+            // display Pelmet launches under gets its policy applied here
+            // (queued behind the conceal's settle).
             if pointerDisplayBehavior == .alwaysShowAll {
                 reveal([.hidden], reason: .displayPolicy)
             }
+            launchBaselineApplied = true
         }
     }
+
+    /// The launch has applied the display policy for the display under the
+    /// pointer, after its conceal: the band monitor's first sighting of a
+    /// display applies it from now on (`DisplayCrossing`). Before, a reveal
+    /// would land ahead of the conceal it must follow, and the baseline
+    /// above reads the pointer where it is by then.
+    @ObservationIgnored private(set) var launchBaselineApplied = false
 
     /// Async teardown for app termination: dropping the assertion restores
     /// the user's menubar. Caller returned .terminateLater — this replies

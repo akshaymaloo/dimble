@@ -347,23 +347,25 @@ final class MenuBarBandMonitor {
         // (An instant conceal here flashed the bar open-shut when the pointer
         // crossed displays right after a hover reveal — rehide, don't snap.)
         if displayUUID != lastDisplayUUID {
-            // First sighting (nil at launch) is a baseline, not a crossing —
-            // treating it as one concealed the bar on the first mouse move
-            // after a reveal.
-            let crossed = lastDisplayUUID != nil
+            // The first sighting (nil at launch) reveals on an "always show
+            // all" display once the launch is done, and is a baseline
+            // otherwise (`DisplayCrossing`, live test 2026-10-13).
+            let action = DisplayCrossing.action(
+                from: lastDisplayUUID, to: displayUUID,
+                behavior: appState.settings.behavior(forDisplayUUID: displayUUID),
+                launched: appState.launchBaselineApplied, revealed: appState.isRevealed
+            )
             lastDisplayUUID = displayUUID
-            if crossed {
-                switch appState.settings.behavior(forDisplayUUID: displayUUID) {
-                case .alwaysShowAll:
-                    // Not .hover: a display-policy reveal must not inherit the
-                    // hover fast-rehide path, and the rehide timer defers
-                    // while the pointer stays on this display.
-                    appState.reveal([.hidden], reason: .displayPolicy)
-                case .collapse:
-                    if appState.isRevealed {
-                        appState.pointerLeftBand()
-                    }
-                }
+            switch action {
+            case .reveal:
+                // Not .hover: a display-policy reveal must not inherit the
+                // hover fast-rehide path, and the rehide timer defers
+                // while the pointer stays on this display.
+                appState.reveal([.hidden], reason: .displayPolicy)
+            case .leaveBand:
+                appState.pointerLeftBand()
+            case .none:
+                break
             }
         }
 
