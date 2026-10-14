@@ -2516,6 +2516,50 @@ final class AppState {
     }
     private var lastPendingLine = ""
 
+    /// The number on the Apply button: `pendingMoveCount` through
+    /// `ApplyCountHold`. The raw count is read off asynchronous snapshots and
+    /// dipped to 0 for 100–550ms on three paths in three rounds (a stale
+    /// walk at the drop, an own extra's show, a reveal: live test,
+    /// 2026-10-13 21:13:26), so a drop to 0 with edits pending is held here,
+    /// once for every path, rather than patched per path. Read from the
+    /// button's body: the hold only matters where the number is drawn, and
+    /// the plan is not read on every snapshot while Settings is closed.
+    var applyButtonCount: Int {
+        _ = applyCountTick
+        return feedApplyCount(now: .now)
+    }
+    /// Bumped when a held 0 is due, so the button reads the count again.
+    private var applyCountTick = 0
+    @ObservationIgnored private var applyCountHold = ApplyCountHold(hold: AppTiming.applyCountZeroHold)
+    @ObservationIgnored private var applyCountCommit: Task<Void, Never>?
+    @ObservationIgnored private var applyCountCommitDue: ContinuousClock.Instant?
+
+    private func feedApplyCount(now: ContinuousClock.Instant) -> Int {
+        let wasHolding = applyCountHold.isHolding
+        let shown = applyCountHold.feed(pendingMoveCount, editsPending: !settings.orderEdits.isEmpty, now: now)
+        if applyCountHold.isHolding != wasHolding {
+            PelmetLog.log(applyCountHold.isHolding
+                ? "apply: button holds (\(shown)) over a count of 0"
+                : "apply: button hold over — shows \(shown == 0 ? "Apply" : "Apply (\(shown))")")
+        }
+        // One read at the hold's end, for the button to redraw from.
+        guard applyCountHold.due != applyCountCommitDue else { return shown }
+        applyCountCommit?.cancel()
+        applyCountCommitDue = applyCountHold.due
+        applyCountCommit = applyCountHold.due.map { due in
+            Task { [weak self] in
+                try? await Task.sleep(until: due, clock: .continuous)
+                guard !Task.isCancelled, let self else { return }
+                self.applyCountCommit = nil
+                self.applyCountCommitDue = nil
+                // Shown only if it still reads 0 now (`feed`).
+                _ = self.feedApplyCount(now: max(ContinuousClock.now, due))
+                self.applyCountTick &+= 1
+            }
+        }
+        return shown
+    }
+
     /// Last primary-band frame per item, kept across conceals so the Apply
     /// count can judge a concealed icon's side without a reveal
     /// (ApplyPass.rememberedFrames). Refreshed from every snapshot, and

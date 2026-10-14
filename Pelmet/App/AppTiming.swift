@@ -190,6 +190,11 @@ enum AppTiming {
     static let groupingMaxWait: Duration = .seconds(6)
     /// An NSMenu fades for a beat after its tracking ends.
     static let groupingMenuHold: TimeInterval = 1
+    /// How long the Apply button keeps its number over a raw count of 0
+    /// while order edits are pending (`ApplyCountHold`). The dips measured
+    /// 100–550ms before a walk read them back; a reveal's lasted 126ms
+    /// (live test, 2026-10-13 21:13:26). A real 0 shows this much later.
+    static let applyCountZeroHold: Duration = .milliseconds(300)
     /// How long the bar must stay full before the editor says so. Pelmet's
     /// own reflow after a drop or at Apply's start overflows for 0.4–1.3s
     /// (six times in one morning, 2026-10-07).

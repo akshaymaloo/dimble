@@ -19,7 +19,8 @@ struct ApplyBarButton: View {
         @Bindable var appState = appState
         let pending = appState.applyPending
         let failed = appState.applyReport.map { !$0.failed.isEmpty } ?? false
-        let count = appState.pendingMoveCount
+        // Held over a dip to 0 while edits are pending (`applyButtonCount`).
+        let count = appState.applyButtonCount
         HStack(spacing: 10) {
             // Separators are edited on their tiles; adding one is the only
             // action that needs a home, and the title row is it.
