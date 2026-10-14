@@ -272,22 +272,79 @@ nonisolated final class ClockClickRelay: @unchecked Sendable {
         return window[kCGWindowOwnerName as String] as? String == "Notification Center"
     }
 
-    /// Notification Center's panel is on screen: its process shows one
-    /// display-sized window at layer 21 while open, none while closed.
-    /// Desktop widgets belong to the same process at the desktop layer
-    /// (Gab's "Up Next", 360pt tall), so the layer is part of the test
-    /// (2026-09-22: without it this read true all day, the press retry
-    /// never ran and the #51 shade stayed on from the first frame).
-    @MainActor static func notificationCenterIsOpen() -> Bool {
-        guard let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return false }
-        let pid = notificationCenterPID()
-        return windows.contains { window in
+    /// Window numbers that read as the open panel and were not: a click that
+    /// closed it left one on screen 0.6s later (#81: 7–20 closes in a row
+    /// with the panel shut, so it never opened). They are skipped until the
+    /// window leaves the on-screen list.
+    @MainActor static var phantomWindows: Set<CGWindowID> = []
+    /// The windows the last positive read named, so the polling loops log a
+    /// reading once instead of every 30ms.
+    @MainActor private static var lastReadOpen: [CGWindowID] = []
+
+    static func windowNumber(_ window: [String: Any]) -> CGWindowID? {
+        (window[kCGWindowNumber as String] as? Int).flatMap { CGWindowID(exactly: $0) }
+    }
+
+    /// The windows in `windows` that make Notification Center's panel read
+    /// as open: its process, a real layer, taller than 300, visible, and not
+    /// one marked phantom. Desktop widgets belong to the same process at the
+    /// desktop layer (Gab's "Up Next", 360pt tall), so the layer is part of
+    /// the test (2026-09-22: without it this read true all day, the press
+    /// retry never ran and the #51 shade stayed on from the first frame);
+    /// the alpha leaves out a window kept on the list at zero.
+    static func panelWindows(in windows: [[String: Any]], pid: pid_t?, ignoring phantoms: Set<CGWindowID>) -> [[String: Any]] {
+        windows.filter { window in
             guard isNotificationCenterWindow(window, pid: pid),
                   let layer = window[kCGWindowLayer as String] as? Int, layer >= 0,
                   let bounds = window[kCGWindowBounds as String] as? [String: CGFloat],
-                  let height = bounds["Height"] else { return false }
-            return height > 300
+                  let height = bounds["Height"], height > 300,
+                  ((window[kCGWindowAlpha as String] as? Double) ?? 1) > 0.01 else { return false }
+            if let number = windowNumber(window), phantoms.contains(number) { return false }
+            return true
         }
+    }
+
+    /// Notification Center's panel is on screen: its process shows one
+    /// display-sized window at layer 21 while open, none while closed.
+    @MainActor static func notificationCenterIsOpen() -> Bool {
+        !panelWindowsOnScreen().isEmpty
+    }
+
+    /// A close click went out and, 0.6s on, the panel still reads open: the
+    /// windows that say so are no panel. Marked phantom, the next click takes
+    /// the open path. Returns their numbers, empty when it has closed.
+    @MainActor static func markOpenWindowsPhantom() -> [CGWindowID] {
+        let numbers = panelWindowsOnScreen().compactMap(windowNumber)
+        phantomWindows.formUnion(numbers)
+        return numbers
+    }
+
+    @MainActor private static func panelWindowsOnScreen() -> [[String: Any]] {
+        guard let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return [] }
+        // A phantom is forgotten once its window has left the list, so a real
+        // panel window that only shows while open is never ignored for good.
+        if !phantomWindows.isEmpty {
+            phantomWindows.formIntersection(windows.compactMap(windowNumber))
+        }
+        let open = panelWindows(in: windows, pid: notificationCenterPID(), ignoring: phantomWindows)
+        let numbers = open.compactMap(windowNumber)
+        if open.isEmpty {
+            lastReadOpen = []
+        } else if numbers != lastReadOpen {
+            lastReadOpen = numbers
+            PelmetLog.log("clock: NC reads open — " + open.map(describe).joined(separator: "; "))
+        }
+        return open
+    }
+
+    private static func describe(_ window: [String: Any]) -> String {
+        let bounds = window[kCGWindowBounds as String] as? [String: CGFloat] ?? [:]
+        let frame = ["X", "Y", "Width", "Height"].map { String(Int(bounds[$0] ?? 0)) }
+        let alpha = (window[kCGWindowAlpha as String] as? Double) ?? 1
+        let number = windowNumber(window).map(String.init) ?? "?"
+        let layer = window[kCGWindowLayer as String] as? Int ?? -1
+        let name = window[kCGWindowName as String] as? String ?? ""
+        return "window \(number) layer \(layer) at \(frame[0]),\(frame[1]) \(frame[2])x\(frame[3]) alpha \(String(format: "%.2f", alpha)) \"\(name)\""
     }
 
     /// The clock's AX element under `point`, nil when something else is

@@ -36,4 +36,33 @@ struct NotificationCenterWindowTests {
     @Test func anEntryWithoutAnOwnerPidIsNot() {
         #expect(!ClockClickRelay.isNotificationCenterWindow([kCGWindowOwnerName as String: "알림 센터"], pid: pid))
     }
+
+    /// A tall window of Notification Center's own process, as the panel is.
+    func panel(number: Int = 7, layer: Int = 21, height: CGFloat = 900, alpha: Double = 1) -> [String: Any] {
+        [kCGWindowOwnerPID as String: pid, kCGWindowNumber as String: number, kCGWindowLayer as String: layer,
+         kCGWindowBounds as String: ["X": 0, "Y": 0, "Width": 400, "Height": height] as [String: CGFloat],
+         kCGWindowAlpha as String: alpha]
+    }
+
+    @Test func aTallVisibleWindowOnARealLayerReadsAsThePanel() {
+        #expect(ClockClickRelay.panelWindows(in: [panel()], pid: pid, ignoring: []).count == 1)
+    }
+
+    @Test func aDesktopLayerShortOrInvisibleWindowDoesNot() {
+        #expect(ClockClickRelay.panelWindows(in: [panel(layer: -2147483603)], pid: pid, ignoring: []).isEmpty)
+        #expect(ClockClickRelay.panelWindows(in: [panel(height: 200)], pid: pid, ignoring: []).isEmpty)
+        #expect(ClockClickRelay.panelWindows(in: [panel(alpha: 0)], pid: pid, ignoring: []).isEmpty)
+    }
+
+    @Test func aWindowWithoutAnAlphaCountsAsVisible() {
+        var window = panel()
+        window[kCGWindowAlpha as String] = nil
+        #expect(ClockClickRelay.panelWindows(in: [window], pid: pid, ignoring: []).count == 1)
+    }
+
+    @Test func aPhantomWindowIsSkippedAndAnotherIsNot() {
+        let windows = [panel(number: 7), panel(number: 8)]
+        let open = ClockClickRelay.panelWindows(in: windows, pid: pid, ignoring: [7])
+        #expect(open.compactMap(ClockClickRelay.windowNumber) == [8])
+    }
 }

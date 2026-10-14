@@ -1530,6 +1530,18 @@ final class AppState {
                 // window has left the list): the next click or reveal
                 // should find a picture of it, not capture (#51).
                 transitions.precaptureAfterPanel()
+                // A real close takes the panel off the list well inside
+                // 0.6s. One that still reads open is another window of the
+                // same process (#81: 7–20 closes in a row with the panel
+                // shut, so it never opened): marked phantom, the next click
+                // takes the open path. A blink since is a new panel, not it.
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(600))
+                    guard panelOpenedAt == .distantPast else { return }
+                    let stuck = ClockClickRelay.markOpenWindowsPhantom()
+                    guard !stuck.isEmpty else { return }
+                    PelmetLog.log("clock: panel still reads open after a close — window(s) \(stuck.map(String.init).joined(separator: ", ")) marked phantom")
+                }
                 return
             }
             guard !clockBlinkInFlight else {
