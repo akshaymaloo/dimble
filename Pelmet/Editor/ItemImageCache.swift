@@ -68,7 +68,10 @@ enum ItemImageCache {
     private static func systemSymbol(for item: ItemID) -> NSImage? {
         let id = item.rawValue
         if id.hasSuffix("menuextra.bluetooth"), let bluetoothIcon { return bluetoothIcon }
-        if id.hasSuffix("menuextra.siri"), let siriIcon { return siriIcon }
+        // Marks our own extras already draw: Apple's Siri menu icon read from
+        // Siri.bundle, and the drawn AirDrop mark (no symbol on 27.2).
+        if id.hasSuffix("menuextra.siri") { return ExtraGlyph.siri.copy() as? NSImage }
+        if id.hasSuffix("menuextra.airdrop") { return ExtraGlyph.airdrop.copy() as? NSImage }
         let symbol: String
         if id.contains("wifi") { symbol = "wifi" }
         else if id.contains("battery") { symbol = "battery.75percent" }
@@ -82,16 +85,10 @@ enum ItemImageCache {
         else if id.hasSuffix("menuextra.user") { symbol = "person.crop.circle" }
         else if id.hasSuffix("menuextra.now-playing") { symbol = "play.fill" }
         else if id.hasSuffix("menuextra.focusmode") { symbol = "moon.fill" }
-        // Four more that fell through to the dashed circle (#26). Where
-        // "timemachine" or "airdrop" is not in this macOS's symbol set (not
-        // on 27.2), the second name stands in. Our own Time Machine replica
-        // is keyed `Pelmet.TimeMachine`.
-        else if id.hasSuffix("menuextra.TimeMachine") || id.hasSuffix("Pelmet.TimeMachine") {
-            symbol = resolving("timemachine", else: "clock.arrow.circlepath")
-        }
+        // Two more that fell through to the dashed circle (#26): Time
+        // Machine draws the symbol our replica draws, VPN a shield.
+        else if id.hasSuffix("menuextra.TimeMachine") { symbol = ExtraGlyph.timeMachineSymbol }
         else if id.hasSuffix("menuextra.vpn") { symbol = resolving("network.badge.shield.half.filled", else: "lock.shield") }
-        else if id.hasSuffix("menuextra.airdrop") { symbol = resolving("airdrop", else: "dot.radiowaves.up.forward") }
-        else if id.hasSuffix("menuextra.siri") { symbol = "waveform.circle" }
         else { symbol = "circle.dashed" }
         return NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
             ?? NSImage(systemSymbolName: "circle.dashed", accessibilityDescription: nil)
@@ -117,8 +114,4 @@ enum ItemImageCache {
     /// drew a dashed app, #26): System Settings' own Bluetooth icon, read
     /// from macOS at run time like any app's icon, nothing shipped.
     private static let bluetoothIcon = systemIcon(atPath: "/System/Library/ExtensionKit/Extensions/Bluetooth.appex")
-
-    /// Siri's own icon, the same way; the "waveform.circle" symbol stands in
-    /// where Siri.app is not on the Mac.
-    private static let siriIcon = systemIcon(atPath: "/System/Applications/Siri.app")
 }
