@@ -3,6 +3,44 @@
     <channel>
         <title>Nook</title>
         <item>
+            <title>0.3.2-beta.6</title>
+            <pubDate>Wed, 14 Oct 2026 00:28:36 -0400</pubDate>
+            <sparkle:fullReleaseNotesLink>https://github.com/fif7y/pelmet/releases</sparkle:fullReleaseNotesLink>
+            <sparkle:channel>beta</sparkle:channel>
+            <sparkle:version>68</sparkle:version>
+            <sparkle:shortVersionString>0.3.2-beta.6</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>27.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<style>:root{color-scheme:light dark;--fg:#1d1d1f;--muted:#6e6e73;--accent:#6841ed;--tint:rgba(104,65,237,.09)}
+@media (prefers-color-scheme:dark){:root{--fg:#f2f2f7;--muted:#98989f;--accent:#a28cf8;--tint:rgba(126,95,242,.2)}}
+body{margin:0;padding:12px 16px 14px;font:13px/1.45 -apple-system,system-ui,sans-serif;color:var(--fg);-webkit-font-smoothing:antialiased}
+h2{font-size:14px;font-weight:600;margin:16px 0 4px}
+h3{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:14px 0 4px}
+p{margin:0 0 8px}
+ul{margin:0 0 8px;padding-left:18px}
+li{margin:0 0 4px}
+li::marker{color:var(--muted)}
+a{color:var(--accent);text-decoration:none}
+code{font:12px ui-monospace,monospace}
+.announce{background:var(--tint);border-radius:10px;padding:10px 12px;margin:0 0 12px}
+.announce p:last-child{margin:0}
+.announce strong{color:var(--accent)}
+body>:first-child{margin-top:0}</style>
+<div class="announce"><p><strong>The panel works on every display now.</strong> It opens on the display you click or hover, right under that display's bar. A tile there opens its icon's menu on the same bar. The rest is mostly fixes from a full review of 0.3.2 before it goes stable.</p><p>If you run Pelmet with more than one display, I'd love to hear how it does there.</p></div>
+<h3>New</h3>
+<ul><li>The panel opens on the display you clicked or hovered, under an external display's taller bar too. A shortcut opens it on the display under the pointer (<a href="https://github.com/fif7y/pelmet/issues/26">#26</a>, thanks @cpierce).</li><li>A tile pressed in the panel on another display opens the icon's menu on that display's bar (<a href="https://github.com/fif7y/pelmet/issues/26">#26</a>, thanks @cpierce).</li><li>Turn an app's own menu bar icon off and its tile leaves the panel and the row. It's back when you turn the icon on again. CleanShot kept its tile with its icon off (<a href="https://github.com/fif7y/pelmet/issues/26">#26</a>, thanks @cpierce).</li><li>Bluetooth, Display, Focus, Now Playing and the user menu show their own mark while their tile waits for a picture, instead of a dashed box (<a href="https://github.com/fif7y/pelmet/issues/26">#26</a>, thanks @cpierce).</li></ul>
+<h3>Fixed</h3>
+<ul><li>Panel tiles keep their picture while Pelmet takes a new one. They turned into colour app icons for a second every 15 minutes (<a href="https://github.com/fif7y/pelmet/issues/81">#81</a>, thanks @2f4vwwb5t6-gif).</li><li>The line under every panel tile on some displays should be gone. Pelmet now films only as tall as the bar itself (<a href="https://github.com/fif7y/pelmet/issues/81">#81</a>, thanks @2f4vwwb5t6-gif).</li><li>A panel or popover that hangs a couple of points into the bar (Snib's does) no longer draws a line under a tile.</li><li>An icon you drop into Hidden or Always Hidden in Settings crosses the arrow on its own a few seconds later, instead of waiting for Apply.</li><li>The Apply button keeps its count through a reveal or a drop. A reorder in a hidden section counts once, and an icon dragged out and back to its own spot doesn't count at all.</li><li>An icon you ⌘-drag stays where you dropped it, past one of Pelmet's own icons or on another display's bar.</li><li>Clicks open menus again after an Apply. Pelmet could leave ⌘ held after its last drag.</li><li>Hide again offers half a second again, so a 0.5s delay doesn't snap to 1 second anymore.</li><li>If you upgraded with Focus showing, it keeps coming out while a Focus is on. Wi-Fi's grace period starts over after sleep.</li><li>Typing into the command bar or a Settings field stays there with a hover panel open, and a held key never sticks.</li><li>Recording a shortcut stays in its field, and an alias keeps what you type.</li><li>A second ⌥⌘N closes Notification Center for good.</li><li>A locked Mac no longer reads the menu bar every 2 seconds all night.</li></ul>
+]]></description>
+            <enclosure url="https://github.com/fif7y/pelmet/releases/download/v0.3.2-beta.6/Pelmet-0.3.2-beta.6.dmg" length="5435305" type="application/octet-stream" sparkle:edSignature="FicEb4hKZcz2lutq6jHvdQMkGdJ5utYtpO2rSjl1SKRewc2OwgUPzAs1hQTYupy0zcYTTGoSDwLO78XD7r0tDg=="/>
+            <sparkle:deltas>
+                <enclosure url="https://github.com/fif7y/pelmet/releases/download/v0.3.2-beta.6/Pelmet68-67.delta" sparkle:deltaFrom="67" length="788730" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="jpj3rx7JSyZMl0ZxHhrTvrnh43Sxc8T9JEIFGP22k72gBuNxXGshpmT9vimeXmvmAiv2evwwdjlqosDKDljtBQ=="/>
+                <enclosure url="https://github.com/fif7y/pelmet/releases/download/v0.3.2-beta.6/Pelmet68-66.delta" sparkle:deltaFrom="66" length="1029846" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="PbHqD6sw4m6X3ZJLPbi626pIHJbR9QIAgwkbVSdqAK+cpH4xCJp0zkSfQNpevMZD/VvmD9v9v5SHXZjTx/dJBw=="/>
+                <enclosure url="https://github.com/fif7y/pelmet/releases/download/v0.3.2-beta.6/Pelmet68-65.delta" sparkle:deltaFrom="65" length="1032406" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="cEhiZlsxwe2tj8/wn+Rg7w1634GRb+rWvu44aaagAbmTbcNXQxvApNrcTKVFZlKUe/Bsi779uanA9KOSkyPrCA=="/>
+                <enclosure url="https://github.com/fif7y/pelmet/releases/download/v0.3.2-beta.6/Pelmet68-64.delta" sparkle:deltaFrom="64" length="1301034" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="16DYeqb0qVDsBe2qYXO5wAOyErJixkolCSQxkhaYI5Hss5wGuBr9ZUMwiEj54PDlhXPHSTPZiBRNJL9vm4PuDg=="/>
+                <enclosure url="https://github.com/fif7y/pelmet/releases/download/v0.3.2-beta.6/Pelmet68-63.delta" sparkle:deltaFrom="63" length="1342990" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="acENsf19L/5exvducrTvl++FGC2Pwc548FYDjs5jNNsSppxL0rwHLnPt6ida4H4UtK341teq8318cZ1YV/2gBQ=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>0.3.2-beta.5</title>
             <pubDate>Tue, 13 Oct 2026 00:06:35 -0400</pubDate>
             <sparkle:fullReleaseNotesLink>https://github.com/fif7y/pelmet/releases</sparkle:fullReleaseNotesLink>
@@ -73,44 +111,6 @@ body>:first-child{margin-top:0}</style>
                 <enclosure url="https://github.com/fif7y/pelmet/releases/download/v0.3.2-beta.4/Pelmet66-63.delta" sparkle:deltaFrom="63" length="921990" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="lEYc7rI/0hVCjeQDb+qkgoYh8M1CvF2xvb4VD7/5lSWlbQfcwYaYxr3R0V7SX4g4Ha8kItaeWpSbcT4ccnMkDA=="/>
                 <enclosure url="https://github.com/fif7y/pelmet/releases/download/v0.3.2-beta.4/Pelmet66-62.delta" sparkle:deltaFrom="62" length="922670" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="4X4vZrZ3jImFjRmvkbqSbOuPzeuOJVwNlqA2bWeH4yng81J+wMBLckACM9AyWIYYQSF/4iFnwQL++o8NqbUgAw=="/>
                 <enclosure url="https://github.com/fif7y/pelmet/releases/download/v0.3.2-beta.4/Pelmet66-61.delta" sparkle:deltaFrom="61" length="923610" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="+TC4xuvgIOraZBkHEugzf2Hkr6XaOlPfnWXJcSLImTdLUW1x3Jft+uB/ycU4nlOhuy8K3QCKdUQYK8MqlfiHBQ=="/>
-            </sparkle:deltas>
-        </item>
-        <item>
-            <title>0.3.2-beta.3</title>
-            <pubDate>Sat, 10 Oct 2026 06:17:27 -0400</pubDate>
-            <sparkle:fullReleaseNotesLink>https://github.com/fif7y/pelmet/releases</sparkle:fullReleaseNotesLink>
-            <sparkle:channel>beta</sparkle:channel>
-            <sparkle:version>65</sparkle:version>
-            <sparkle:shortVersionString>0.3.2-beta.3</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>27.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<style>:root{color-scheme:light dark;--fg:#1d1d1f;--muted:#6e6e73;--accent:#6841ed;--tint:rgba(104,65,237,.09)}
-@media (prefers-color-scheme:dark){:root{--fg:#f2f2f7;--muted:#98989f;--accent:#a28cf8;--tint:rgba(126,95,242,.2)}}
-body{margin:0;padding:12px 16px 14px;font:13px/1.45 -apple-system,system-ui,sans-serif;color:var(--fg);-webkit-font-smoothing:antialiased}
-h2{font-size:14px;font-weight:600;margin:16px 0 4px}
-h3{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:14px 0 4px}
-p{margin:0 0 8px}
-ul{margin:0 0 8px;padding-left:18px}
-li{margin:0 0 4px}
-li::marker{color:var(--muted)}
-a{color:var(--accent);text-decoration:none}
-code{font:12px ui-monospace,monospace}
-.announce{background:var(--tint);border-radius:10px;padding:10px 12px;margin:0 0 12px}
-.announce p:last-child{margin:0}
-.announce strong{color:var(--accent)}
-body>:first-child{margin-top:0}</style>
-<div class="announce"><p><strong>The most asked-for thing since the launch is in this beta</strong> (<a href="https://github.com/fif7y/pelmet/issues/26">#26</a>). Hidden icons can now open as tiles in a glass panel under the menu bar, and a click on a tile opens that icon's menu. Turn it on in Settings › Panel › "Show hidden icons in", pick Panel.</p><p>Let me know how it goes for you. The panel hasn't been tried on more than one display yet, reports from multi-display setups are very welcome.</p></div>
-<h3>New</h3>
-<ul><li>Menu bar stays the default. Panel and Row are the new choices in Settings › Panel › "Show hidden icons in". The tiles are pictures of the real icons (app icons stand in when Screen Recording isn't allowed). Open the panel with a click or a hover (the shortcut works too), then type to search, move with the arrows and Return, or Esc to close. Always Hidden sits behind a fold you click, as a Tile, a Chip or a Handle. Drag a tile to another section, or up onto the menu bar to show it there. A right-click on a tile offers Open Menu, Open Right-Click Menu, Show in Menu Bar, Move to… and Quit. Drag the panel's left edge for more or fewer columns, double-click it for Auto. Names can be shown. A "Didn't fit" section lists the icons macOS had no room for in the bar. The panel closes when the pointer leaves, like the bar does. Row shows the same tiles in one strip (<a href="https://github.com/fif7y/pelmet/issues/26">#26</a>, thanks @elijah7x, who asked for a tray below the menu bar).</li><li>Search gets its own Settings tab. The command bar (⌥⌘K) now lives in Settings › Search, and there's a working command bar to try it in. You can edit the aliases and shortcuts there too.</li><li>In a crowded bar, the panel takes its pictures a few icons at a time, so each one gets room in the bar.</li></ul>
-<h3>Fixed</h3>
-<ul><li>Hover reveal works on the first visit after you hide icons with the shortcut or from a menu. The hover zone also ends at the chevron as it's drawn, it used to end where the bar was last read (<a href="https://github.com/fif7y/pelmet/issues/84">#84</a>, thanks @swhitlow).</li><li>Hidden icons hide again on their own after Pelmet starts with the screen locked. They used to stay showing until a hover or a click.</li><li>Pelmet's own media control gets placed again when the screen was locked during a track change. Before, nothing put it back once you unlocked the screen.</li></ul>
-]]></description>
-            <enclosure url="https://github.com/fif7y/pelmet/releases/download/v0.3.2-beta.3/Pelmet-0.3.2-beta.3.dmg" length="5077878" type="application/octet-stream" sparkle:edSignature="vNtKDfTstR3U+xP0F0Fyyj8SOKq2GhfO98J8RrY8kmn8ICoLJ5nlP9b7HmRZXqATVl3qdeDqjqzdfsqNogafCw=="/>
-            <sparkle:deltas>
-                <enclosure url="https://github.com/fif7y/pelmet/releases/download/v0.3.2-beta.3/Pelmet65-64.delta" sparkle:deltaFrom="64" length="823422" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="cvsbDF6wCEP272N6E2F3BNWe/VZoHchSwGbKV+aZsCt8cEsi3l/gnn/l3qKKyJ3u0Jq+wBvnD+Oam+sd1+6OAg=="/>
-                <enclosure url="https://github.com/fif7y/pelmet/releases/download/v0.3.2-beta.3/Pelmet65-63.delta" sparkle:deltaFrom="63" length="916226" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="wDPCMnTwKlx83tmFtlO+UQHKpL0dc1By+jdNZYTuDE1WGWzHL8w/i/VMhvloiM+utcQXxMsMk3tgejNpGL53AA=="/>
-                <enclosure url="https://github.com/fif7y/pelmet/releases/download/v0.3.2-beta.3/Pelmet65-62.delta" sparkle:deltaFrom="62" length="920734" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="LECADzvo/P98oVHO2SZzC1bdz4Gc+297Ogi3kBJnXPe1rje/Lt8jOq3jeruJj07lZwsthIKMNP+E4w5S3jSSAQ=="/>
-                <enclosure url="https://github.com/fif7y/pelmet/releases/download/v0.3.2-beta.3/Pelmet65-61.delta" sparkle:deltaFrom="61" length="922386" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="0d9NkAeSu7QONSNlhkJdoUUhd0x+A/7bLMSJ3IunkITtIYwD01Nhv+fwl69TxIMyEFfU8KRsFbvdru7xPkT5Aw=="/>
-                <enclosure url="https://github.com/fif7y/pelmet/releases/download/v0.3.2-beta.3/Pelmet65-60.delta" sparkle:deltaFrom="60" length="1092258" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="TtslSnUEmk4Lg2x2cY+XJ8ne1cxQ1aDwA5rDOsU/u616695QvGuWylx2751JLQLd/7uW7dvmOA0T94nnC0zSBQ=="/>
             </sparkle:deltas>
         </item>
         <item>
