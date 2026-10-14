@@ -589,6 +589,9 @@ struct PanelTileLabel: View {
     let ink: PanelInk
     /// The well and what is on it, no name: the tile in the air.
     var glyphOnly = false
+    /// Backing pixels per point of the display the panel is on (1 on a
+    /// non-Retina screen).
+    @Environment(\.displayScale) private var displayScale
 
     var body: some View {
         let metrics = grid.metrics
@@ -619,20 +622,29 @@ struct PanelTileLabel: View {
         switch art.image {
         case .picture(let image, let size, let monochrome):
             // The bar's own size, pulled in only when it can't fit (a wide
-            // text item in a 44pt well).
-            let fit = min(1, room.width / max(size.width, 1), room.height / max(size.height, 1))
+            // text item in a 44pt well), on whole device pixels: centred in
+            // points, an odd picture in an even well sat at half a pixel and
+            // a 1px stroke came out black on one edge and grey on the other
+            // on a 1x display (#81). Drawn as it is when its pixels already
+            // fit, interpolated only when it has to be scaled.
+            let wellSize = grid.metrics.wellSize
+            let placed = PanelPictureFrame(
+                pixels: CGSize(width: image.width, height: image.height), size: size,
+                well: wellSize, room: room, displayScale: displayScale)
             let picture = Image(decorative: image, scale: CGFloat(image.width) / max(size.width, 1))
-            if monochrome {
-                picture
-                    .renderingMode(.template)
-                    .resizable()
-                    .foregroundStyle(ink.primary)
-                    .frame(width: size.width * fit, height: size.height * fit)
-            } else {
-                picture
-                    .resizable()
-                    .frame(width: size.width * fit, height: size.height * fit)
+                .renderingMode(monochrome ? .template : .original)
+                .resizable()
+                .interpolation(placed.isOneToOne ? .none : .high)
+            Group {
+                if monochrome {
+                    picture.foregroundStyle(ink.primary)
+                } else {
+                    picture
+                }
             }
+            .frame(width: placed.frame.width, height: placed.frame.height)
+            .offset(x: placed.frame.minX, y: placed.frame.minY)
+            .frame(width: wellSize.width, height: wellSize.height, alignment: .topLeading)
         case .icon(let icon):
             let side = min(icon.isTemplate ? 16 : 20, room.height)
             Image(nsImage: icon)
