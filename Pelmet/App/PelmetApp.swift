@@ -40,6 +40,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // The instance that just renamed the bundle never started AppState,
+        // so beginTermination would never reply and it would stay running
+        // beside the relaunched one.
+        guard !relaunching else { return .terminateNow }
         appState.beginTermination()
         return .terminateLater
     }
