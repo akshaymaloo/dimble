@@ -72,6 +72,7 @@ struct ApplyBarButton: View {
             }
         }
         .animation(.easeOut(duration: 0.2), value: appState.applying || pending)
+        .onDisappear { appState.resetApplyCountHold() }
     }
 }
 

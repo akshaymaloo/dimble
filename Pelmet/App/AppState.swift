@@ -2560,6 +2560,17 @@ final class AppState {
         return shown
     }
 
+    /// The button left the screen (another tab, Settings closed): the number
+    /// it held is no one's. Kept, it came back as the old "Apply (1)" for
+    /// 300ms after the grouper had placed the icon off screen (review,
+    /// 2026-10-13).
+    func resetApplyCountHold() {
+        applyCountCommit?.cancel()
+        applyCountCommit = nil
+        applyCountCommitDue = nil
+        applyCountHold = ApplyCountHold(hold: AppTiming.applyCountZeroHold)
+    }
+
     /// Last primary-band frame per item, kept across conceals so the Apply
     /// count can judge a concealed icon's side without a reveal
     /// (ApplyPass.rememberedFrames). Refreshed from every snapshot, and
