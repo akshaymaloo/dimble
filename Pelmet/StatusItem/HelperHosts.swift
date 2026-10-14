@@ -41,8 +41,8 @@ final class HelperHosts {
     }
 
     private var hosts: [PelmetCore.Section: Host] = [
-        .hidden: Host(section: .hidden, bundleID: PelmetBundle.hiddenHostID, appName: "PelmetItems-Hidden"),
-        .alwaysHidden: Host(section: .alwaysHidden, bundleID: PelmetBundle.alwaysHiddenHostID, appName: "PelmetItems-AlwaysHidden"),
+        .hidden: Host(section: .hidden, bundleID: PelmetBundle.hiddenHostID, appName: "PlissItems-Hidden"),
+        .alwaysHidden: Host(section: .alwaysHidden, bundleID: PelmetBundle.alwaysHiddenHostID, appName: "PlissItems-AlwaysHidden"),
     ]
     private var listener: MessagePortListener?
     private var terminationObserver: NSObjectProtocol?
