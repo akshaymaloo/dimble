@@ -1,5 +1,5 @@
 #!/bin/bash
-# Pelmet release pipeline: archive → Developer ID export → notarize → staple →
+# Pliss release pipeline: archive → Developer ID export → notarize → staple →
 # DMG → notarize DMG → staple → Sparkle appcast.
 #
 # One-time setup lives in docs/RELEASE.md (Developer ID cert, notarytool
@@ -25,7 +25,7 @@ VERSION=$VERSIONS
 # Empty = stable. "beta" tags the new appcast items with that channel; only
 # clients that opted in (Settings › About) see them. docs/RELEASE.md § Beta.
 CHANNEL="${CHANNEL:-}"
-echo "==> Releasing Pelmet $VERSION${CHANNEL:+ ($CHANNEL channel)}"
+echo "==> Releasing Pliss $VERSION${CHANNEL:+ ($CHANNEL channel)}"
 
 echo "==> Generating project"
 xcodegen generate
@@ -33,29 +33,29 @@ xcodegen generate
 echo "==> Archiving (Release)"
 rm -rf "$BUILD_DIR"
 xcodebuild -project Pelmet.xcodeproj -scheme Pelmet -configuration Release \
-    -archivePath "$BUILD_DIR/Pelmet.xcarchive" \
+    -archivePath "$BUILD_DIR/Pliss.xcarchive" \
     -destination 'generic/platform=macOS' \
     archive | tail -20
 
 echo "==> Exporting with Developer ID signing"
 xcodebuild -exportArchive \
-    -archivePath "$BUILD_DIR/Pelmet.xcarchive" \
+    -archivePath "$BUILD_DIR/Pliss.xcarchive" \
     -exportOptionsPlist scripts/ExportOptions.plist \
     -exportPath "$BUILD_DIR/export" | tail -10
 
-APP="$BUILD_DIR/export/Pelmet.app"
+APP="$BUILD_DIR/export/Pliss.app"
 codesign --verify --deep --strict "$APP"
 echo "==> Signature OK: $(codesign -dvv "$APP" 2>&1 | grep '^Authority' | head -1)"
 
 if [[ -z "${SKIP_NOTARIZE:-}" ]]; then
     echo "==> Notarizing app"
-    ditto -c -k --keepParent "$APP" "$BUILD_DIR/Pelmet.zip"
-    xcrun notarytool submit "$BUILD_DIR/Pelmet.zip" --keychain-profile "$NOTARY_PROFILE" --wait
+    ditto -c -k --keepParent "$APP" "$BUILD_DIR/Pliss.zip"
+    xcrun notarytool submit "$BUILD_DIR/Pliss.zip" --keychain-profile "$NOTARY_PROFILE" --wait
     xcrun stapler staple "$APP"
 fi
 
 echo "==> Building DMG"
-DMG="$RELEASES_DIR/Pelmet-$VERSION.dmg"
+DMG="$RELEASES_DIR/Pliss-$VERSION.dmg"
 mkdir -p "$RELEASES_DIR"
 scripts/make-dmg.sh "$APP" "$DMG"
 
@@ -72,7 +72,7 @@ echo "==> Release notes for the update window"
 # About's "What's new" reads for a waiting update).
 NOTES_MD="docs/release-notes/v$VERSION.md"
 if [[ -f "$NOTES_MD" ]]; then
-    python3 scripts/release-notes-html.py "$NOTES_MD" "$RELEASES_DIR/Pelmet-$VERSION.html"
+    python3 scripts/release-notes-html.py "$NOTES_MD" "$RELEASES_DIR/Pliss-$VERSION.html"
 else
     echo "warning: no $NOTES_MD, the update window shows no notes" >&2
 fi
@@ -100,11 +100,14 @@ if [[ -n "$GENERATE_APPCAST" ]]; then
     # generate_appcast stamps EVERY entry with the current release's
     # download-url-prefix, pointing prior versions' DMGs at a tag that
     # doesn't host them (404 for anyone updating from further back).
-    # Re-point each Pelmet-X.Y.Z.dmg at its own vX.Y.Z tag.
-    # (both names: nook-era DMGs still live in the releases dir and the appcast)
-    perl -pi -e 's#(releases/download/)v[\w.-]+/((?:Nook|Pelmet)-([\w.-]+)\.dmg)#$1v$3/$2#g' \
+    # Re-point each Pliss-X.Y.Z.dmg at its own vX.Y.Z tag.
+    # (all three names: nook-era Nook-*.dmg and Pelmet-*.dmg builds still live
+    # in the releases dir and the appcast, and keep their old file names; only
+    # new releases are named Pliss-*)
+    perl -pi -e 's#(releases/download/)v[\w.-]+/((?:Nook|Pelmet|Pliss)-([\w.-]+)\.dmg)#$1v$3/$2#g' \
         "$RELEASES_DIR/appcast.xml"
-    # Same for deltas: PelmetNN-MM.delta lives on the release of build NN,
+    # Same for deltas: PlissNN-MM.delta (PelmetNN-MM.delta, NookNN-MM.delta for
+    # earlier releases) lives on the release of build NN,
     # whose tag comes from the item carrying <sparkle:version>NN.
     perl -0777 -pi -e '
         my %tag;
@@ -114,7 +117,7 @@ if [[ -n "$GENERATE_APPCAST" ]]; then
             my ($short) = $item =~ m#<sparkle:shortVersionString>([^<]+)<#;
             $tag{$build} = "v$short" if defined $build && defined $short;
         }
-        s#(releases/download/)v[\w.-]+/(Pelmet(\d+)-\d+\.delta)#exists $tag{$3} ? "$1$tag{$3}/$2" : $&#ge;
+        s#(releases/download/)v[\w.-]+/((?:Nook|Pelmet|Pliss)(\d+)-\d+\.delta)#exists $tag{$3} ? "$1$tag{$3}/$2" : $&#ge;
     ' "$RELEASES_DIR/appcast.xml"
     echo "==> Appcast written to $RELEASES_DIR/appcast.xml (prior-version URLs re-pointed)"
 else
