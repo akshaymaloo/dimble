@@ -23,7 +23,9 @@ final class ItemPictures {
 
     /// Past this a picture is retaken on the next open: an app can redraw
     /// its icon (a badge, a new state) while it is hidden and nothing tells
-    /// Pelmet. One pass every 15 minutes of use at most.
+    /// Pelmet. One pass every 15 minutes of use at most. The old picture
+    /// stays on its tile until the new one lands: dropped at expiry, every
+    /// tile turned app icon for the pass's second (#81).
     static let maxAge: TimeInterval = 900
 
     private var pictures: [ItemID: Picture] = [:]
@@ -32,10 +34,14 @@ final class ItemPictures {
     /// parts from a dark bar on light glass), so a switch drops those.
     private var takenDark: Bool?
 
+    /// The latest picture, however old: `isStale` says when to retake it.
     func picture(for key: ItemID) -> Picture? {
         dropColouredOnAppearanceChange()
-        guard let picture = pictures[key], -picture.takenAt.timeIntervalSinceNow < Self.maxAge else { return nil }
-        return picture
+        return pictures[key]
+    }
+
+    func isStale(_ picture: Picture) -> Bool {
+        -picture.takenAt.timeIntervalSinceNow >= Self.maxAge
     }
 
     func store(_ new: [ItemID: Picture]) {

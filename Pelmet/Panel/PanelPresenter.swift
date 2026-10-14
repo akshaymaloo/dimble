@@ -237,7 +237,7 @@ final class PanelPresenter: RevealPresenter {
         // On screen from the next pass of the run loop: the `perf` line's
         // open → first frame.
         DispatchQueue.main.async { trace.finish("shown") }
-        PelmetLog.log("panel: \(wasOpen ? "widened" : "open") (\(reason.map { "\($0)" } ?? "no reason")) — \(shown.tiles) tile(s), \(shown.missing.count) without a picture, key=\(window?.isKeyWindow == true)")
+        PelmetLog.log("panel: \(wasOpen ? "widened" : "open") (\(reason.map { "\($0)" } ?? "no reason")) — \(shown.tiles) tile(s), \(shown.missing.count) without a fresh picture, key=\(window?.isKeyWindow == true)")
         // Settled on the next turn, as the bar's reveal settles after its
         // effect returns: the machine is still in this dispatch.
         DispatchQueue.main.async { [weak self] in self?.appState?.panelDidSettle() }
@@ -1036,6 +1036,8 @@ final class PanelPresenter: RevealPresenter {
                     if let picture = pictures.picture(for: key) {
                         content.art[tile] = PanelTileArt(
                             image: .picture(picture.image, size: picture.size, monochrome: picture.isMonochrome), name: name)
+                        // Shown while the pass retakes it.
+                        if pictures.isStale(picture), !didntFitKeys.contains(key) { missing.append(key) }
                     } else {
                         content.art[tile] = PanelTileArt(image: .icon(Self.standIn(for: item?.id ?? key)), name: name)
                         if !didntFitKeys.contains(key) { missing.append(key) }
@@ -1606,7 +1608,7 @@ final class PanelPresenter: RevealPresenter {
     /// springs). The next open takes the pictures.
     private func picturePassUnlessBarDrag(_ missing: [ItemID]) {
         guard !barDragInFlight else {
-            if !missing.isEmpty { PelmetLog.log("panel: picture pass deferred — a bar ⌘-drag is in flight, \(missing.count) without a picture") }
+            if !missing.isEmpty { PelmetLog.log("panel: picture pass deferred — a bar ⌘-drag is in flight, \(missing.count) without a fresh picture") }
             return
         }
         picturePassIfNeeded(missing)
@@ -1961,7 +1963,7 @@ final class PanelPresenter: RevealPresenter {
             let fresh = wanted.filter { !askedThisOpen.contains($0) }
             if fresh.count < wanted.count, !askedAgainLogged {
                 askedAgainLogged = true
-                PelmetLog.log("panel: \(wanted.count - fresh.count) without a picture already asked for this open, asked again next open")
+                PelmetLog.log("panel: \(wanted.count - fresh.count) without a fresh picture already asked for this open, asked again next open")
             }
             wanted = fresh
             askedThisOpen.formUnion(wanted)
