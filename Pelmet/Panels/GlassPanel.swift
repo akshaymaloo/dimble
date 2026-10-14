@@ -211,10 +211,9 @@ class GlassPanel: NSPanel {
         }
         // A fresh miss answers its caller only: kept for a second, it left
         // a strip filmed then uncut while its empty-bar picture was cut.
-        if height != nil || !fresh || kept?.height == nil || kept?.bounds != display {
-            drawnBarHeights[id] = (height, display, now)
-        }
-        if kept == nil || height != kept?.height {
+        let stored = height != nil || !fresh || kept?.height == nil || kept?.bounds != display
+        if stored { drawnBarHeights[id] = (height, display, now) }
+        if stored, kept == nil || height != kept?.height {
             PelmetLog.log("glass: display \(id) bar \(height.map { "\(Int($0))pt from its window" } ?? "window not found, 24pt")")
         }
         return height

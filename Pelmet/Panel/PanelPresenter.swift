@@ -158,6 +158,9 @@ final class PanelPresenter: RevealPresenter {
     /// Apps whose tile `noIcon` left out that came to the front since the
     /// last check: switching an icon back on is done in the app.
     private var inFrontSinceCheck: Set<String> = []
+    /// When a pass last looked for each key `noIcon` left out.
+    private var lookedFor: [ItemID: Date] = [:]
+    private static let revisitCooldown: TimeInterval = 10
     private var activationObserver: NSObjectProtocol?
     private var iconCheck: Task<Void, Never>?
     /// Keys a pass of this open already asked for: one it got no picture of
@@ -2005,19 +2008,26 @@ final class PanelPresenter: RevealPresenter {
             keys[bundle, default: []].append(key)
         }
         // An icon switched back on under the assertion parks, in no tree,
-        // its app's extras bar included: the app was in front for it, so
-        // its section is looked at again.
-        let revisit = noIcon.filter { $0.bundleID.map(inFrontSinceCheck.contains) ?? false }
-        inFrontSinceCheck = []
+        // its app's extras bar included. The app is in front to switch it
+        // on (the panel never takes that from it): its section is looked at
+        // again, once per `revisitCooldown` at most, an icon left off for
+        // good costing a pass each time.
+        let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        inFrontSinceCheck.formIntersection(Set(noIcon.compactMap(\.bundleID)))
+        let now = Date()
+        let revisit = noIcon.filter { key in
+            guard let bundle = key.bundleID, inFrontSinceCheck.contains(bundle) || bundle == front else { return false }
+            return lookedFor[key].map { now.timeIntervalSince($0) >= Self.revisitCooldown } ?? true
+        }
         let pids = keys.keys.reduce(into: [String: [pid_t]]()) { pids, bundle in
             let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundle).map(\.processIdentifier)
             if !running.isEmpty { pids[bundle] = running }
         }
         guard !pids.isEmpty || !revisit.isEmpty else { return }
         iconCheck = Task { @MainActor [weak self] in
+            defer { self?.iconCheck = nil }
             let lists = pids.isEmpty ? [:] : await Self.listStatusItems(pids)
             guard let self, let appState = self.appState else { return }
-            self.iconCheck = nil
             var said: [ItemID: Bool] = [:]
             for (bundle, listed) in lists {
                 if listed {
@@ -2035,17 +2045,20 @@ final class PanelPresenter: RevealPresenter {
                 try? await Task.sleep(for: .milliseconds(50))
             }
             guard self.passTask == nil else { return }
-            // The open's pass may have settled some already.
+            // The open's pass may have settled some already, and looked
+            // for the ones left out.
             said = said.filter { self.noIcon.contains($0.key) == $0.value }
-            let wanted = Set(said.keys).union(revisit)
+            let again = revisit.filter { self.noIcon.contains($0) && (self.lookedFor[$0] ?? .distantPast) < now }
+            let wanted = Set(said.keys).union(again)
             guard !wanted.isEmpty else { return }
             if !said.isEmpty {
                 PelmetLog.log("panel: extras bars disagree — \(said.map { "\($0.key.rawValue) \($0.value ? "lists an icon" : "lists none")" }.sorted()), pictured to check")
             }
-            if !revisit.isEmpty {
-                PelmetLog.log("panel: \(revisit.map(\.rawValue).sorted()) left out, their app came to the front, looked for again")
+            if !again.isEmpty {
+                PelmetLog.log("panel: \(again.map(\.rawValue).sorted()) left out, their app is or was in front, looked for again")
+                self.inFrontSinceCheck.subtract(again.compactMap(\.bundleID))
             }
-            self.extrasSaid.merge(said) { $1 }
+            self.extrasSaid = said
             self.picturePassIfNeeded(Array(wanted))
         }
     }
@@ -2104,8 +2117,11 @@ final class PanelPresenter: RevealPresenter {
             // empty walk) says nothing about them: the next open tries again.
             guard let found else {
                 PelmetLog.log("panel: pass saw no icons, \(wanted.count) wanted")
+                for key in wanted { self.extrasSaid[key] = nil }
                 return
             }
+            let lookedAt = Date()
+            for key in wanted where self.noIcon.contains(key) || found.absent.contains(key) { self.lookedFor[key] = lookedAt }
             self.pictures.store(found.pictures)
             let backNow = self.noIcon.intersection(wanted).subtracting(found.absent)
             self.noIcon.subtract(backNow)

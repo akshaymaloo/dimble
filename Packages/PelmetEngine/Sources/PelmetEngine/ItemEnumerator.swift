@@ -420,8 +420,9 @@ public actor ItemEnumerator {
     /// icon off lists none (Snib, probed 2026-10-13).
     public static func listsStatusItem(pid: pid_t) -> Bool? {
         let app = AXUIElementCreateApplication(pid)
-        AXUIElementSetMessagingTimeout(app, EngineTiming.axAgentTimeout)
         func value(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
+            // Per element: a child read through a hung app waits the 6s default.
+            AXUIElementSetMessagingTimeout(element, EngineTiming.axAgentTimeout)
             var out: CFTypeRef?
             return AXUIElementCopyAttributeValue(element, name as CFString, &out) == .success ? out : nil
         }
