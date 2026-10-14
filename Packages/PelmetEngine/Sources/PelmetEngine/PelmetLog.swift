@@ -1,19 +1,60 @@
 // PelmetLog.swift
-// Dead-simple file logger: ~/Library/Logs/Pelmet/pelmet.log. Exists because
+// Dead-simple file logger: ~/Library/Logs/Pliss/pliss.log. Exists because
 // os.Logger output from this app never reaches the unified log store on the
 // current macOS 27 beta — debugging blind is worse than a plain file.
+//
+// The app was called Pelmet until 0.3.2 and logged to ~/Library/Logs/Pelmet.
+// At the first use in a process, before any file is opened, that folder moves
+// to Pliss and a symlink Pelmet → Pliss takes its place, so old instructions
+// and tools that tail the old path still land on the live log.
 
 import Foundation
 
 public enum PelmetLog {
     private static let queue = DispatchQueue(label: "pelmet.log", qos: .utility)
+    private static let logsRoot = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/Logs")
+    static let folderName = "Pliss"
+    static let oldFolderName = "Pelmet"
+
+    /// Runs once, ahead of everything that touches the folder. What it did,
+    /// as a line for the log (nil when there was nothing to move).
+    private static let folderMigration: String? = migrateOldFolder(in: logsRoot)
+
     private static let dir: URL = {
-        let dir = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Logs/Pelmet")
+        _ = folderMigration
+        let dir = logsRoot.appendingPathComponent(folderName)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }()
-    private static let url = dir.appendingPathComponent("pelmet.log")
+    private static let url = dir.appendingPathComponent("pliss.log")
+
+    /// Moves `logs/Pelmet` to `logs/Pliss` and leaves `Pelmet` as a symlink
+    /// to it. Only a real old folder moves, and only into an empty spot: if
+    /// Pliss already exists (a second copy ran first, a hand-made folder)
+    /// nothing is touched. Never throws, never blocks a launch; the return
+    /// value is the one log line saying what happened.
+    static func migrateOldFolder(in logs: URL) -> String? {
+        let fm = FileManager.default
+        let old = logs.appendingPathComponent(oldFolderName)
+        let new = logs.appendingPathComponent(folderName)
+        // attributesOfItem does not follow symlinks: a symlink already at
+        // the old path reads as a link, not a folder.
+        guard (try? fm.attributesOfItem(atPath: old.path))?[.type] as? FileAttributeType == .typeDirectory,
+              (try? fm.attributesOfItem(atPath: new.path)) == nil
+        else { return nil }
+        do {
+            try fm.moveItem(at: old, to: new)
+        } catch {
+            return "log: could not move \(old.path) to \(new.path) — \(error.localizedDescription)"
+        }
+        do {
+            try fm.createSymbolicLink(atPath: old.path, withDestinationPath: folderName)
+        } catch {
+            return "log: moved \(old.path) to \(new.path), no symlink left at the old path — \(error.localizedDescription)"
+        }
+        return "log: moved \(old.path) to \(new.path), symlink left at the old path (older logs keep their pelmet.log names)"
+    }
 
     /// Rotate at 5 MB into one `.old` generation — a 24/7 agent otherwise
     /// grows the file forever (and it rides backups).
@@ -28,6 +69,9 @@ public enum PelmetLog {
         }
         let handle = try? FileHandle(forWritingTo: url)
         handle?.seekToEndOfFile()
+        if let note = folderMigration {
+            handle?.write(Data("\(stamp.string(from: Date())) \(note)\n".utf8))
+        }
         return handle
     }()
 
@@ -50,7 +94,7 @@ public enum PelmetLog {
     private static func rotateIfNeeded() {
         let size = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? Int ?? 0
         guard size > rotateBytes else { return }
-        let old = dir.appendingPathComponent("pelmet.log.old")
+        let old = dir.appendingPathComponent("pliss.log.old")
         try? FileManager.default.removeItem(at: old)
         try? FileManager.default.moveItem(at: url, to: old)
     }
