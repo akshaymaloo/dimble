@@ -32,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         guard !relaunching else { return }
+        BundleRelocation.reregisterLoginItemIfRelocated()
         appState.start()
         if let tab = AppLanguage.takeReopenSettingsTab() {
             appState.openSettings(tab: tab)
