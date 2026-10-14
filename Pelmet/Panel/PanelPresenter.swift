@@ -1900,7 +1900,7 @@ final class PanelPresenter: RevealPresenter {
             },
             .check(String(localized: "Always Hidden"), alwaysShown, enabled: hasAlways, toggleFold),
             .divider,
-            .action(String(localized: "Pelmet Settings…")) { [weak appState] in
+            .action(String(localized: "Pliss Settings…")) { [weak appState] in
                 appState?.concealNow()
                 appState?.openSettings(tab: .panel)
             },

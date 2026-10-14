@@ -209,9 +209,9 @@ final class SparkleController: NSObject {
         content.categoryIdentifier = Self.notificationID
         content.title = String(localized: "Update available")
         if staged {
-            content.body = String(localized: "Pelmet \(version) is ready. Click here to install it now.")
+            content.body = String(localized: "Pliss \(version) is ready. Click here to install it now.")
         } else {
-            content.body = String(localized: "Click here to update Pelmet to \(version).")
+            content.body = String(localized: "Click here to update Pliss to \(version).")
         }
         deliver(content, id: Self.notificationID, log: "update notification for \(version)")
     }
@@ -227,7 +227,7 @@ final class SparkleController: NSObject {
         guard previous > 0, build > previous, Self.installedNotes != nil, notifyOnUpdates() else { return }
         let version = info.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
         let content = UNMutableNotificationContent()
-        content.title = String(localized: "Pelmet \(version) is installed")
+        content.title = String(localized: "Pliss \(version) is installed")
         content.body = String(localized: "See what's new")
         content.userInfo = [Self.versionKey: version]
         deliver(content, id: Self.installedID, log: "installed notification for \(version) (was build \(previous))")

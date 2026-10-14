@@ -92,7 +92,7 @@ struct SearchPane: View {
             findRow("Names you give",
                     caption: "An alias finds an icon by any word you like.",
                     query: alias)
-            findRow("Pelmet's own commands",
+            findRow("Pliss's own commands",
                     caption: "Show or hide your icons, edit the layout, switch the animation, check for updates.",
                     query: Self.probe(String(localized: "Edit Layout")))
             // A row the index has in every language ("Hover delay" left it).

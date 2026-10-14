@@ -59,118 +59,118 @@
         }
       }
     },
-    "%@ ignores the moves Pelmet makes in the bar, so it keeps its own spot. Hold ⌘ and drag it yourself, or give it a launcher.": {
+    "%@ ignores the moves Pliss makes in the bar, so it keeps its own spot. Hold ⌘ and drag it yourself, or give it a launcher.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ ignoriert die Verschiebungen, die Pelmet in der Leiste macht, und behält seinen Platz. Halte ⌘ und zieh es selbst, oder gib ihm einen Starter."
+            "value": "%@ ignoriert die Verschiebungen, die Pliss in der Leiste macht, und behält seinen Platz. Halte ⌘ und zieh es selbst, oder gib ihm einen Starter."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ ignora los movimientos que Pelmet hace en la barra y conserva su sitio. Mantén ⌘ y arrástralo tú mismo, o dale un lanzador."
+            "value": "%@ ignora los movimientos que Pliss hace en la barra y conserva su sitio. Mantén ⌘ y arrástralo tú mismo, o dale un lanzador."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ ignore les déplacements que Pelmet fait dans la barre et garde sa place. Maintiens ⌘ et déplace-le toi-même, ou donne-lui un lanceur."
+            "value": "%@ ignore les déplacements que Pliss fait dans la barre et garde sa place. Maintiens ⌘ et déplace-le toi-même, ou donne-lui un lanceur."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ ignora gli spostamenti che Pelmet fa nella barra e tiene il suo posto. Tieni premuto ⌘ e trascinala tu, oppure dalle un avvio app."
+            "value": "%@ ignora gli spostamenti che Pliss fa nella barra e tiene il suo posto. Tieni premuto ⌘ e trascinala tu, oppure dalle un avvio app."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@はPelmetがバーで行う移動を無視し、自分の位置を保ちます。⌘を押しながら自分でドラッグするか、ランチャーを追加してください。"
+            "value": "%@はPlissがバーで行う移動を無視し、自分の位置を保ちます。⌘を押しながら自分でドラッグするか、ランチャーを追加してください。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@은(는) Pelmet이 막대에서 하는 이동을 무시하고 제자리를 지킵니다. ⌘를 누른 채 직접 드래그하거나 실행기를 추가하세요."
+            "value": "%@은(는) Pliss가 막대에서 하는 이동을 무시하고 제자리를 지킵니다. ⌘를 누른 채 직접 드래그하거나 실행기를 추가하세요."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ ignora os movimentos que o Pelmet faz na barra e mantém o seu lugar. Segure ⌘ e arraste você mesmo, ou dê a ele um atalho."
+            "value": "%@ ignora os movimentos que o Pliss faz na barra e mantém o seu lugar. Segure ⌘ e arraste você mesmo, ou dê a ele um atalho."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ игнорирует перемещения, которые Pelmet делает в строке меню, и остаётся на своём месте. Удерживайте ⌘ и перетащите её сами или добавьте для неё запуск."
+            "value": "%@ игнорирует перемещения, которые Pliss делает в строке меню, и остаётся на своём месте. Удерживайте ⌘ и перетащите её сами или добавьте для неё запуск."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ 会忽略 Pelmet 在菜单栏中的移动，保持自己的位置。按住 ⌘ 自行拖动，或为它添加一个启动器。"
+            "value": "%@ 会忽略 Pliss 在菜单栏中的移动，保持自己的位置。按住 ⌘ 自行拖动，或为它添加一个启动器。"
           }
         }
       }
     },
-    "%@ is already Pelmet's shortcut for “%@”. Press a different combination.": {
+    "%@ is already Pliss's shortcut for “%@”. Press a different combination.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ ist bereits das Pelmet-Kürzel für „%@“. Drücke eine andere Kombination."
+            "value": "%@ ist bereits das Pliss-Kürzel für „%@“. Drücke eine andere Kombination."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ ya es el atajo de Pelmet para «%@». Pulsa otra combinación."
+            "value": "%@ ya es el atajo de Pliss para «%@». Pulsa otra combinación."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ est déjà le raccourci de Pelmet pour « %@ ». Appuyez sur une autre combinaison."
+            "value": "%@ est déjà le raccourci de Pliss pour « %@ ». Appuyez sur une autre combinaison."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ è già la scorciatoia di Pelmet per «%@». Premi un’altra combinazione."
+            "value": "%@ è già la scorciatoia di Pliss per «%@». Premi un’altra combinazione."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ はすでに Pelmet の「%@」のショートカットです。別の組み合わせを押してください。"
+            "value": "%@ はすでに Pliss の「%@」のショートカットです。別の組み合わせを押してください。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ 는 이미 Pelmet의 “%@” 단축키입니다. 다른 조합을 누르세요."
+            "value": "%@ 는 이미 Pliss의 “%@” 단축키입니다. 다른 조합을 누르세요."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ já é o atalho do Pelmet para “%@”. Pressione outra combinação."
+            "value": "%@ já é o atalho do Pliss para “%@”. Pressione outra combinação."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ уже используется в Pelmet для «%@». Нажмите другое сочетание."
+            "value": "%@ уже используется в Pliss для «%@». Нажмите другое сочетание."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ 已是 Pelmet 的“%@”快捷键。请按其他组合。"
+            "value": "%@ 已是 Pliss 的“%@”快捷键。请按其他组合。"
           }
         }
       }
@@ -1509,60 +1509,60 @@
         }
       }
     },
-    "A star helps more people find Pelmet.": {
+    "A star helps more people find Pliss.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ein Stern hilft mehr Leuten, Pelmet zu finden."
+            "value": "Ein Stern hilft mehr Leuten, Pliss zu finden."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Una estrella ayuda a que más gente encuentre Pelmet."
+            "value": "Una estrella ayuda a que más gente encuentre Pliss."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Une étoile aide plus de gens à trouver Pelmet."
+            "value": "Une étoile aide plus de gens à trouver Pliss."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Una stella aiuta più persone a trovare Pelmet."
+            "value": "Una stella aiuta più persone a trovare Pliss."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "スターが、より多くの人にPelmetを届けます。"
+            "value": "スターが、より多くの人にPlissを届けます。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "별 하나가 더 많은 사람이 Pelmet을 찾게 합니다."
+            "value": "별 하나가 더 많은 사람이 Pliss를 찾게 합니다."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Uma estrela ajuda mais pessoas a encontrar o Pelmet."
+            "value": "Uma estrela ajuda mais pessoas a encontrar o Pliss."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Звезда помогает большему числу людей найти Pelmet."
+            "value": "Звезда помогает большему числу людей найти Pliss."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "一颗星能让更多人发现 Pelmet。"
+            "value": "一颗星能让更多人发现 Pliss。"
           }
         }
       }
@@ -1915,60 +1915,60 @@
         }
       }
     },
-    "Accessibility is how Pelmet sees the icons and moves them, nothing leaves your Mac. Screen Recording is optional: it lets Pelmet's animation styles play over the way macOS shows and hides icons. Nothing is recorded or kept.": {
+    "Accessibility is how Pliss sees the icons and moves them, nothing leaves your Mac. Screen Recording is optional: it lets Pliss's animation styles play over the way macOS shows and hides icons. Nothing is recorded or kept.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Über die Bedienungshilfen sieht Pelmet die Symbole und bewegt sie, nichts verlässt deinen Mac. Bildschirmaufnahme ist optional: Sie lässt Pelmets Animationsstile über dem Ein- und Ausblenden von macOS laufen. Es wird nichts aufgezeichnet oder gespeichert."
+            "value": "Über die Bedienungshilfen sieht Pliss die Symbole und bewegt sie, nichts verlässt deinen Mac. Bildschirmaufnahme ist optional: Sie lässt Pliss’ Animationsstile über dem Ein- und Ausblenden von macOS laufen. Es wird nichts aufgezeichnet oder gespeichert."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "La accesibilidad es cómo Pelmet ve los iconos y los mueve, nada sale de tu Mac. La grabación de pantalla es opcional: permite que los estilos de animación de Pelmet se reproduzcan sobre la forma en que macOS muestra y oculta los iconos. No se graba ni se guarda nada."
+            "value": "La accesibilidad es cómo Pliss ve los iconos y los mueve, nada sale de tu Mac. La grabación de pantalla es opcional: permite que los estilos de animación de Pliss se reproduzcan sobre la forma en que macOS muestra y oculta los iconos. No se graba ni se guarda nada."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "L’accessibilité est ce qui permet à Pelmet de voir les icônes et de les déplacer, rien ne quitte votre Mac. L’enregistrement de l’écran est facultatif : il permet aux styles d’animation de Pelmet de se jouer par-dessus la façon dont macOS affiche et masque les icônes. Rien n’est enregistré ni conservé."
+            "value": "L’accessibilité est ce qui permet à Pliss de voir les icônes et de les déplacer, rien ne quitte votre Mac. L’enregistrement de l’écran est facultatif : il permet aux styles d’animation de Pliss de se jouer par-dessus la façon dont macOS affiche et masque les icônes. Rien n’est enregistré ni conservé."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "L’accessibilità è il modo in cui Pelmet vede le icone e le sposta, nulla lascia il tuo Mac. La registrazione schermo è facoltativa: consente agli stili di animazione di Pelmet di sovrapporsi al modo in cui macOS mostra e nasconde le icone. Non viene registrato né conservato nulla."
+            "value": "L’accessibilità è il modo in cui Pliss vede le icone e le sposta, nulla lascia il tuo Mac. La registrazione schermo è facoltativa: consente agli stili di animazione di Pliss di sovrapporsi al modo in cui macOS mostra e nasconde le icone. Non viene registrato né conservato nulla."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "アクセシビリティは、Pelmetがアイコンを認識して移動するための仕組みで、データがMacの外に出ることはありません。画面収録は任意です。Pelmetのアニメーションスタイルを、macOS標準のアイコン表示・非表示の上で再生できるようにします。何も記録・保存されません。"
+            "value": "アクセシビリティは、Plissがアイコンを認識して移動するための仕組みで、データがMacの外に出ることはありません。画面収録は任意です。Plissのアニメーションスタイルを、macOS標準のアイコン表示・非表示の上で再生できるようにします。何も記録・保存されません。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "손쉬운 사용은 Pelmet이 아이콘을 인식하고 옮기는 방식이며 어떤 것도 Mac 밖으로 나가지 않습니다. 화면 기록은 선택 사항입니다. Pelmet의 애니메이션 스타일이 macOS가 아이콘을 표시하고 숨기는 방식 위에서 재생되게 합니다. 아무것도 기록하거나 저장하지 않습니다."
+            "value": "손쉬운 사용은 Pliss가 아이콘을 인식하고 옮기는 방식이며 어떤 것도 Mac 밖으로 나가지 않습니다. 화면 기록은 선택 사항입니다. Pliss의 애니메이션 스타일이 macOS가 아이콘을 표시하고 숨기는 방식 위에서 재생되게 합니다. 아무것도 기록하거나 저장하지 않습니다."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "A acessibilidade é como o Pelmet vê os ícones e os move, nada sai do seu Mac. A gravação de tela é opcional: permite que os estilos de animação do Pelmet rodem sobre a forma como o macOS mostra e esconde os ícones. Nada é gravado nem guardado."
+            "value": "A acessibilidade é como o Pliss vê os ícones e os move, nada sai do seu Mac. A gravação de tela é opcional: permite que os estilos de animação do Pliss rodem sobre a forma como o macOS mostra e esconde os ícones. Nada é gravado nem guardado."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Универсальный доступ — так Pelmet видит значки и перемещает их, ничего не покидает ваш Mac. Запись экрана необязательна: она позволяет стилям анимации Pelmet проигрываться поверх того, как macOS показывает и скрывает значки. Ничего не записывается и не хранится."
+            "value": "Универсальный доступ — так Pliss видит значки и перемещает их, ничего не покидает ваш Mac. Запись экрана необязательна: она позволяет стилям анимации Pliss проигрываться поверх того, как macOS показывает и скрывает значки. Ничего не записывается и не хранится."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "无障碍权限是 Pelmet 识别并移动图标的方式，数据不会离开你的 Mac。录屏是可选的：它让 Pelmet 的动画样式覆盖在 macOS 显示和隐藏图标的方式之上。不会录制或保存任何内容。"
+            "value": "无障碍权限是 Pliss 识别并移动图标的方式，数据不会离开你的 Mac。录屏是可选的：它让 Pliss 的动画样式覆盖在 macOS 显示和隐藏图标的方式之上。不会录制或保存任何内容。"
           }
         }
       }
@@ -4003,60 +4003,60 @@
         }
       }
     },
-    "An app launcher fixes that: a Pelmet icon that opens %@ and works like any other menu bar item.": {
+    "An app launcher fixes that: a Pliss icon that opens %@ and works like any other menu bar item.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ein App-Starter löst das: ein Pelmet-Symbol, das %@ öffnet und sich wie jedes andere Menüleistenelement verhält."
+            "value": "Ein App-Starter löst das: ein Pliss-Symbol, das %@ öffnet und sich wie jedes andere Menüleistenelement verhält."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Un lanzador de app lo arregla: un icono de Pelmet que abre %@ y funciona como cualquier otro elemento de la barra de menús."
+            "value": "Un lanzador de app lo arregla: un icono de Pliss que abre %@ y funciona como cualquier otro elemento de la barra de menús."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Un lanceur d’app règle ça : une icône Pelmet qui ouvre %@ et se comporte comme n’importe quel autre élément de la barre des menus."
+            "value": "Un lanceur d’app règle ça : une icône Pliss qui ouvre %@ et se comporte comme n’importe quel autre élément de la barre des menus."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Un avvio app risolve: un’icona Pelmet che apre %@ e funziona come qualsiasi altro elemento della barra dei menu."
+            "value": "Un avvio app risolve: un’icona Pliss che apre %@ e funziona come qualsiasi altro elemento della barra dei menu."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "アプリランチャーで解決できます。%@ を開くPelmetのアイコンで、ほかのメニューバー項目と同じように使えます。"
+            "value": "アプリランチャーで解決できます。%@ を開くPlissのアイコンで、ほかのメニューバー項目と同じように使えます。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "앱 실행기가 해결합니다. %@을(를) 여는 Pelmet 아이콘으로, 다른 메뉴 막대 항목처럼 작동합니다."
+            "value": "앱 실행기가 해결합니다. %@을(를) 여는 Pliss 아이콘으로, 다른 메뉴 막대 항목처럼 작동합니다."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Um atalho de app resolve: um ícone do Pelmet que abre %@ e funciona como qualquer outro item da barra de menus."
+            "value": "Um atalho de app resolve: um ícone do Pliss que abre %@ e funciona como qualquer outro item da barra de menus."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Запуск приложения это решает: значок Pelmet, который открывает %@ и работает, как любой другой элемент строки меню."
+            "value": "Запуск приложения это решает: значок Pliss, который открывает %@ и работает, как любой другой элемент строки меню."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "应用启动器可以解决：一个能打开 %@ 的 Pelmet 图标，像其他菜单栏项目一样工作。"
+            "value": "应用启动器可以解决：一个能打开 %@ 的 Pliss 图标，像其他菜单栏项目一样工作。"
           }
         }
       }
@@ -6439,60 +6439,60 @@
         }
       }
     },
-    "Click here to update Pelmet to %@.": {
+    "Click here to update Pliss to %@.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hier klicken, um Pelmet auf %@ zu aktualisieren."
+            "value": "Hier klicken, um Pliss auf %@ zu aktualisieren."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Haz clic aquí para actualizar Pelmet a %@."
+            "value": "Haz clic aquí para actualizar Pliss a %@."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cliquez ici pour mettre à jour Pelmet vers %@."
+            "value": "Cliquez ici pour mettre à jour Pliss vers %@."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fai clic qui per aggiornare Pelmet alla %@."
+            "value": "Fai clic qui per aggiornare Pliss alla %@."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ここをクリックして Pelmet を %@ にアップデート。"
+            "value": "ここをクリックして Pliss を %@ にアップデート。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "여기를 클릭하여 Pelmet을 %@(으)로 업데이트하세요."
+            "value": "여기를 클릭하여 Pliss를 %@(으)로 업데이트하세요."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Clique aqui para atualizar o Pelmet para %@."
+            "value": "Clique aqui para atualizar o Pliss para %@."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Нажмите здесь, чтобы обновить Pelmet до %@."
+            "value": "Нажмите здесь, чтобы обновить Pliss до %@."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "点击此处将 Pelmet 更新到 %@。"
+            "value": "点击此处将 Pliss 更新到 %@。"
           }
         }
       }
@@ -9977,60 +9977,60 @@
         }
       }
     },
-    "Hover the bar to peek, click the chevron to toggle (⌥⌘, does it from anywhere), right-click it for settings. Everything else is arrangeable in Pelmet Settings › Menu Bar.": {
+    "Hover the bar to peek, click the chevron to toggle (⌥⌘, does it from anywhere), right-click it for settings. Everything else is arrangeable in Pliss Settings › Menu Bar.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Leiste überfahren zum Spicken, Chevron anklicken zum Umschalten (⌥⌘, geht von überall), Rechtsklick für die Einstellungen. Alles Weitere ordnest du unter Pelmet-Einstellungen › Menüleiste."
+            "value": "Leiste überfahren zum Spicken, Chevron anklicken zum Umschalten (⌥⌘, geht von überall), Rechtsklick für die Einstellungen. Alles Weitere ordnest du unter Pliss-Einstellungen › Menüleiste."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pasa el cursor por la barra para echar un vistazo, haz clic en el chevrón para alternar (⌥⌘, lo hace desde cualquier app) y clic derecho para los ajustes. Todo lo demás se organiza en Ajustes de Pelmet › Barra de menús."
+            "value": "Pasa el cursor por la barra para echar un vistazo, haz clic en el chevrón para alternar (⌥⌘, lo hace desde cualquier app) y clic derecho para los ajustes. Todo lo demás se organiza en Ajustes de Pliss › Barra de menús."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Survolez la barre pour jeter un œil, cliquez sur le chevron pour basculer (⌥⌘, le fait de n’importe où), clic droit pour les réglages. Tout le reste s’organise dans Réglages de Pelmet › Barre des menus."
+            "value": "Survolez la barre pour jeter un œil, cliquez sur le chevron pour basculer (⌥⌘, le fait de n’importe où), clic droit pour les réglages. Tout le reste s’organise dans Réglages de Pliss › Barre des menus."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Passa il cursore sulla barra per sbirciare, fai clic sul chevron per alternare (⌥⌘, lo fa da qualsiasi app), clic destro per le impostazioni. Tutto il resto si sistema in Impostazioni di Pelmet › Barra dei menu."
+            "value": "Passa il cursore sulla barra per sbirciare, fai clic sul chevron per alternare (⌥⌘, lo fa da qualsiasi app), clic destro per le impostazioni. Tutto il resto si sistema in Impostazioni di Pliss › Barra dei menu."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "バーにホバーでちらっと表示、シェブロンをクリックで切り替え（⌥⌘, ならどこからでも）、右クリックで設定。その他はすべて「Pelmet設定」›「メニューバー」で並べ替えられます。"
+            "value": "バーにホバーでちらっと表示、シェブロンをクリックで切り替え（⌥⌘, ならどこからでも）、右クリックで設定。その他はすべて「Pliss設定」›「メニューバー」で並べ替えられます。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "막대에 마우스를 올려 살짝 보고, 쉐브론을 클릭해 전환하고(⌥⌘, 로 어디서든 가능), 오른쪽 클릭으로 설정을 엽니다. 나머지는 모두 Pelmet 설정 › 메뉴 막대에서 정리할 수 있습니다."
+            "value": "막대에 마우스를 올려 살짝 보고, 쉐브론을 클릭해 전환하고(⌥⌘, 로 어디서든 가능), 오른쪽 클릭으로 설정을 엽니다. 나머지는 모두 Pliss 설정 › 메뉴 막대에서 정리할 수 있습니다."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Passe o cursor na barra para espiar, clique no chevron para alternar (⌥⌘, faz isso de qualquer app), clique com o botão direito para os ajustes. Todo o resto se organiza em Ajustes do Pelmet › Barra de menus."
+            "value": "Passe o cursor na barra para espiar, clique no chevron para alternar (⌥⌘, faz isso de qualquer app), clique com o botão direito para os ajustes. Todo o resto se organiza em Ajustes do Pliss › Barra de menus."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Наведите на строку, чтобы взглянуть, щёлкните шеврон для переключения (⌥⌘, работает отовсюду), правый щелчок — настройки. Всё остальное настраивается в Настройки Pelmet › Строка меню."
+            "value": "Наведите на строку, чтобы взглянуть, щёлкните шеврон для переключения (⌥⌘, работает отовсюду), правый щелчок — настройки. Всё остальное настраивается в Настройки Pliss › Строка меню."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "悬停菜单栏可快速查看，点击尖角符号切换（⌥⌘, 在任何地方都可以），右键打开设置。其余一切可在 Pelmet 设置 › 菜单栏中安排。"
+            "value": "悬停菜单栏可快速查看，点击尖角符号切换（⌥⌘, 在任何地方都可以），右键打开设置。其余一切可在 Pliss 设置 › 菜单栏中安排。"
           }
         }
       }
@@ -11485,60 +11485,60 @@
         }
       }
     },
-    "Left of the chevron hides, right stays. In your real bar, hold ⌘ while dragging — or arrange everything in Pelmet's settings.": {
+    "Left of the chevron hides, right stays. In your real bar, hold ⌘ while dragging — or arrange everything in Pliss's settings.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Links vom Chevron wird ausgeblendet, rechts bleibt sichtbar. In deiner echten Leiste hältst du beim Ziehen ⌘ gedrückt – oder ordnest alles in den Pelmet-Einstellungen."
+            "value": "Links vom Chevron wird ausgeblendet, rechts bleibt sichtbar. In deiner echten Leiste hältst du beim Ziehen ⌘ gedrückt – oder ordnest alles in den Pliss-Einstellungen."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "A la izquierda del chevrón se oculta, a la derecha se queda. En tu barra real, mantén ⌘ mientras arrastras, o colócalo todo desde los ajustes de Pelmet."
+            "value": "A la izquierda del chevrón se oculta, a la derecha se queda. En tu barra real, mantén ⌘ mientras arrastras, o colócalo todo desde los ajustes de Pliss."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "À gauche du chevron, masqué ; à droite, visible. Dans votre vraie barre, maintenez ⌘ en glissant, ou organisez tout dans les réglages de Pelmet."
+            "value": "À gauche du chevron, masqué ; à droite, visible. Dans votre vraie barre, maintenez ⌘ en glissant, ou organisez tout dans les réglages de Pliss."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "A sinistra del chevron si nasconde, a destra resta. Nella barra vera tieni premuto ⌘ mentre trascini, oppure sistema tutto nelle impostazioni di Pelmet."
+            "value": "A sinistra del chevron si nasconde, a destra resta. Nella barra vera tieni premuto ⌘ mentre trascini, oppure sistema tutto nelle impostazioni di Pliss."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "シェブロンの左は隠れ、右は残ります。実際のバーでは⌘を押しながらドラッグするか、Pelmetの設定ですべてを並べ替えられます。"
+            "value": "シェブロンの左は隠れ、右は残ります。実際のバーでは⌘を押しながらドラッグするか、Plissの設定ですべてを並べ替えられます。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "쉐브론 왼쪽은 숨고 오른쪽은 남습니다. 실제 막대에서는 ⌘를 누른 채 드래그하거나, Pelmet 설정에서 모두 정리하세요."
+            "value": "쉐브론 왼쪽은 숨고 오른쪽은 남습니다. 실제 막대에서는 ⌘를 누른 채 드래그하거나, Pliss 설정에서 모두 정리하세요."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "À esquerda do chevron fica oculto, à direita fica visível. Na sua barra real, segure ⌘ ao arrastar, ou organize tudo nos ajustes do Pelmet."
+            "value": "À esquerda do chevron fica oculto, à direita fica visível. Na sua barra real, segure ⌘ ao arrastar, ou organize tudo nos ajustes do Pliss."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Левее шеврона — скрыто, правее — видно. В настоящей строке удерживайте ⌘ при перетаскивании или расставьте всё в настройках Pelmet."
+            "value": "Левее шеврона — скрыто, правее — видно. В настоящей строке удерживайте ⌘ при перетаскивании или расставьте всё в настройках Pliss."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "尖角符号左侧隐藏，右侧保留。在真实菜单栏中，拖动时按住 ⌘，或在 Pelmet 设置中统一安排。"
+            "value": "尖角符号左侧隐藏，右侧保留。在真实菜单栏中，拖动时按住 ⌘，或在 Pliss 设置中统一安排。"
           }
         }
       }
@@ -14153,60 +14153,60 @@
         }
       }
     },
-    "Open Pelmet at login": {
+    "Open Pliss at login": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelmet bei der Anmeldung öffnen"
+            "value": "Pliss bei der Anmeldung öffnen"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Abrir Pelmet al iniciar sesión"
+            "value": "Abrir Pliss al iniciar sesión"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ouvrir Pelmet à l’ouverture de session"
+            "value": "Ouvrir Pliss à l’ouverture de session"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apri Pelmet al login"
+            "value": "Apri Pliss al login"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ログイン時にPelmetを開く"
+            "value": "ログイン時にPlissを開く"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "로그인 시 Pelmet 열기"
+            "value": "로그인 시 Pliss 열기"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Abrir o Pelmet ao iniciar sessão"
+            "value": "Abrir o Pliss ao iniciar sessão"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Открывать Pelmet при входе"
+            "value": "Открывать Pliss при входе"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "登录时打开 Pelmet"
+            "value": "登录时打开 Pliss"
           }
         }
       }
@@ -15023,876 +15023,6 @@
         }
       }
     },
-    "Pelmet %@ is available.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet %@ ist verfügbar."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet %@ está disponible."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet %@ est disponible."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet %@ è disponibile."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet %@ が利用可能です。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet %@ 사용 가능."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O Pelmet %@ está disponível."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Доступна версия Pelmet %@."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet %@ 已可用。"
-          }
-        }
-      }
-    },
-    "Pelmet %@ is installed": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet %@ ist installiert"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet %@ está instalado"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet %@ est installé"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet %@ è installato"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet %@ をインストールしました"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet %@ 설치 완료"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O Pelmet %@ está instalado"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet %@ установлен"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet %@ 已安装"
-          }
-        }
-      }
-    },
-    "Pelmet %@ is ready. Click here to install it now.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet %@ ist bereit. Hier klicken, um es jetzt zu installieren."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet %@ está listo. Haz clic aquí para instalarlo ahora."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet %@ est prêt. Cliquez ici pour l’installer maintenant."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet %@ è pronto. Fai clic qui per installarlo adesso."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet %@ の準備ができました。ここをクリックして今すぐインストール。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet %@ 준비 완료. 여기를 클릭하여 지금 설치하세요."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O Pelmet %@ está pronto. Clique aqui para instalar agora."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet %@ готов к установке. Нажмите здесь, чтобы установить сейчас."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet %@ 已准备就绪。点击此处立即安装。"
-          }
-        }
-      }
-    },
-    "Pelmet Settings": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet-Einstellungen"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ajustes de Pelmet"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Réglages de Pelmet"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Impostazioni di Pelmet"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet設定"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet 설정"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ajustes do Pelmet"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Настройки Pelmet"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet 设置"
-          }
-        }
-      }
-    },
-    "Pelmet Settings…": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet-Einstellungen …"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ajustes de Pelmet…"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Réglages de Pelmet…"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Impostazioni di Pelmet…"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet設定…"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet 설정…"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ajustes do Pelmet…"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Настройки Pelmet…"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet 设置…"
-          }
-        }
-      }
-    },
-    "Pelmet app launcher — click opens the app; hides like any Pelmet item": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet-App-Starter — Klick öffnet die App; lässt sich wie jedes Pelmet-Element ausblenden"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lanzador de app de Pelmet — un clic abre la app; se oculta como cualquier elemento de Pelmet"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lanceur d’app Pelmet — un clic ouvre l’app ; se masque comme tout élément Pelmet"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Avvio app Pelmet — un clic apre l’app; si nasconde come ogni elemento Pelmet"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmetのアプリランチャー — クリックでアプリを開きます。ほかのPelmet項目と同じように隠せます"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet 앱 실행기 — 클릭하면 앱이 열립니다. 다른 Pelmet 항목처럼 숨겨집니다"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Atalho de app do Pelmet — um clique abre o app; oculta-se como qualquer item do Pelmet"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Запуск приложения Pelmet — клик открывает приложение; скрывается, как любой элемент Pelmet"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet 应用启动器 — 点击打开应用；可像任何 Pelmet 项目一样隐藏"
-          }
-        }
-      }
-    },
-    "Pelmet can hide %@, but macOS keeps it in its own spot, so the editor can't move it.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet kann %@ ausblenden, aber macOS hält es an seinem Platz, der Editor kann es also nicht verschieben."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet puede ocultar %@, pero macOS lo mantiene en su sitio, así que el editor no puede moverlo."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet peut masquer %@, mais macOS le garde à sa place, l'éditeur ne peut donc pas le déplacer."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet può nascondere %@, ma macOS lo tiene al suo posto, quindi l'editor non può spostarlo."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmetは%@を隠せますが、macOSがその位置を固定しているため、エディタでは移動できません。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet은 %@을(를) 숨길 수 있지만 macOS가 제자리에 고정하므로 편집기에서 옮길 수 없습니다."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O Pelmet pode ocultar %@, mas o macOS o mantém no lugar, então o editor não consegue movê-lo."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet может скрыть %@, но macOS держит её на своём месте, поэтому редактор не может её переместить."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet 可以隐藏 %@，但 macOS 会将它固定在原位，因此编辑器无法移动它。"
-          }
-        }
-      }
-    },
-    "Pelmet can't see or move your icons until it's on.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet kann deine Symbole erst sehen und bewegen, wenn sie aktiv sind."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet no puede ver ni mover tus iconos hasta que esté activada."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet ne peut ni voir ni déplacer vos icônes tant qu’elle n’est pas activée."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet non può vedere né spostare le tue icone finché non è attiva."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "オンにするまで、Pelmetはアイコンを認識も移動もできません。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "켜기 전에는 Pelmet이 아이콘을 인식하거나 옮길 수 없습니다."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O Pelmet não consegue ver nem mover seus ícones até que esteja ativada."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Пока доступ не включён, Pelmet не видит значки и не может их перемещать."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "开启之前，Pelmet 无法识别或移动你的图标。"
-          }
-        }
-      }
-    },
-    "Pelmet is free. It stays that way.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet ist kostenlos. Und bleibt es."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet es gratis. Y seguirá siéndolo."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet est gratuit. Et le restera."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet è gratuito. E lo resterà."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmetは無料です。これからもずっと。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet은 무료입니다. 앞으로도 그렇습니다."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O Pelmet é gratuito. E vai continuar assim."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet бесплатен. И останется таким."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet 免费，并将一直免费。"
-          }
-        }
-      }
-    },
-    "Pelmet items": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet-Elemente"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Elementos de Pelmet"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Éléments Pelmet"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Elementi Pelmet"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmetの項目"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet 항목"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Itens do Pelmet"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Элементы Pelmet"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet 项目"
-          }
-        }
-      }
-    },
-    "Pelmet keeps every icon a hover away — and the ones you never need, out of sight.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet hält jedes Symbol ein Überfahren entfernt – und die, die du nie brauchst, außer Sicht."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet mantiene cada icono a un paso del cursor, y los que nunca necesitas, fuera de la vista."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet garde chaque icône à un survol, et celles dont vous n’avez jamais besoin, hors de vue."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet tiene ogni icona a un passaggio del cursore, e quelle che non ti servono mai, fuori vista."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmetはすべてのアイコンをホバー一つで呼び出せるようにし、不要なものは視界から隠します。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet은 모든 아이콘을 마우스 한 번에 불러오고, 필요 없는 것은 시야 밖으로 치웁니다."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O Pelmet mantém cada ícone a um passar de cursor, e os que você nunca precisa, fora de vista."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet держит каждый значок в одном наведении, а те, что не нужны никогда, — вне поля зрения."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet 让每个图标悬停即现，而那些你从不需要的，则藏于视线之外。"
-          }
-        }
-      }
-    },
-    "Pelmet stays a click away": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet bleibt einen Klick entfernt"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet sigue a un clic"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet reste à portée de clic"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet resta a un clic di distanza"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmetはいつでもすぐに開けます"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet은 언제나 한 번의 클릭으로 열 수 있습니다"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O Pelmet continua a um clique"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet всегда в одном клике"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet 始终触手可及"
-          }
-        }
-      }
-    },
-    "Pelmet's items stand in for Apple's Now Playing, camera controls, AirDrop, Focus and Timer, so Apple's stay hidden.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmets Elemente ersetzen Apples „Jetzt läuft“, Kamerasteuerung, AirDrop, Fokus und Timer, die von Apple bleiben daher ausgeblendet."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Los elementos de Pelmet sustituyen a Ahora suena, los controles de cámara, AirDrop, los modos de concentración y el Temporizador de Apple, así que los de Apple siguen ocultos."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Les éléments de Pelmet remplacent Lecture en cours, les commandes de caméra, AirDrop, Concentration et Minuteur d’Apple, ceux d’Apple restent donc masqués."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gli elementi di Pelmet sostituiscono In riproduzione, i controlli fotocamera, AirDrop, Full immersion e Timer di Apple, quindi quelli di Apple restano nascosti."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmetの項目が、Appleの再生中、カメラコントロール、AirDrop、集中モード、タイマーの代わりになるため、Appleのものは隠れたままです。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet 항목이 Apple의 지금 재생 중, 카메라 제어, AirDrop, 집중 모드, 타이머를 대신하므로 Apple의 항목은 숨겨진 채로 있습니다."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Os itens do Pelmet ficam no lugar de Tocando agora, controles de câmera, AirDrop, Foco e Timer da Apple, então os da Apple continuam ocultos."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Элементы Pelmet заменяют «Сейчас играет», управление камерой, AirDrop, Фокусирование и Таймер от Apple, поэтому значки Apple остаются скрытыми."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet 的项目替代了 Apple 的现在播放、相机控制、隔空投送、专注模式和计时器，因此 Apple 的保持隐藏。"
-          }
-        }
-      }
-    },
-    "Pelmet's menu from any empty spot on the bar.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmets Menü von jeder freien Stelle der Leiste."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "El menú de Pelmet desde cualquier hueco de la barra."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Le menu de Pelmet depuis n’importe quel espace vide de la barre."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Il menu di Pelmet da qualsiasi spazio vuoto della barra."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "バーの空いた場所からPelmetのメニューを開けます。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "막대의 빈 곳 어디서든 Pelmet 메뉴를 엽니다."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O menu do Pelmet em qualquer espaço vazio da barra."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Меню Pelmet из любого пустого места строки."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在菜单栏任意空白处打开 Pelmet 菜单。"
-          }
-        }
-      }
-    },
-    "Pelmet's own commands": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmets eigene Befehle"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Los comandos de Pelmet"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Les commandes de Pelmet"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "I comandi di Pelmet"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet自体のコマンド"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet 자체 명령"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Os comandos do Pelmet"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Команды самого Pelmet"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pelmet 自身的命令"
-          }
-        }
-      }
-    },
     "Permissions": {
       "localizations": {
         "de": {
@@ -16067,60 +15197,60 @@
         }
       }
     },
-    "Pinned by macOS — Pelmet can hide it, but not move it": {
+    "Pinned by macOS — Pliss can hide it, but not move it": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Von macOS fixiert – Pelmet kann es ausblenden, aber nicht bewegen"
+            "value": "Von macOS fixiert – Pliss kann es ausblenden, aber nicht bewegen"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fijado por macOS: Pelmet puede ocultarlo, pero no moverlo"
+            "value": "Fijado por macOS: Pliss puede ocultarlo, pero no moverlo"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Épinglé par macOS – Pelmet peut le masquer, mais pas le déplacer"
+            "value": "Épinglé par macOS – Pliss peut le masquer, mais pas le déplacer"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bloccato da macOS: Pelmet può nasconderlo, ma non spostarlo"
+            "value": "Bloccato da macOS: Pliss può nasconderlo, ma non spostarlo"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOSが固定しています。Pelmetは非表示にできますが、移動はできません"
+            "value": "macOSが固定しています。Plissは非表示にできますが、移動はできません"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS가 고정함 — Pelmet이 숨길 수는 있지만 옮길 수는 없습니다"
+            "value": "macOS가 고정함 — Pliss가 숨길 수는 있지만 옮길 수는 없습니다"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fixado pelo macOS — o Pelmet pode ocultá-lo, mas não movê-lo"
+            "value": "Fixado pelo macOS — o Pliss pode ocultá-lo, mas não movê-lo"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Закреплено macOS — Pelmet может скрыть, но не переместить"
+            "value": "Закреплено macOS — Pliss может скрыть, но не переместить"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "由 macOS 固定 — Pelmet 可以隐藏它，但无法移动"
+            "value": "由 macOS 固定 — Pliss 可以隐藏它，但无法移动"
           }
         }
       }
@@ -16237,6 +15367,876 @@
           "stringUnit": {
             "state": "translated",
             "value": "不离开菜单栏即可播放、暂停和切歌。"
+          }
+        }
+      }
+    },
+    "Pliss %@ is available.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss %@ ist verfügbar."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss %@ está disponible."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss %@ est disponible."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss %@ è disponibile."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss %@ が利用可能です。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss %@ 사용 가능."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Pliss %@ está disponível."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Доступна версия Pliss %@."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss %@ 已可用。"
+          }
+        }
+      }
+    },
+    "Pliss %@ is installed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss %@ ist installiert"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss %@ está instalado"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss %@ est installé"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss %@ è installato"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss %@ をインストールしました"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss %@ 설치 완료"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Pliss %@ está instalado"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss %@ установлен"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss %@ 已安装"
+          }
+        }
+      }
+    },
+    "Pliss %@ is ready. Click here to install it now.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss %@ ist bereit. Hier klicken, um es jetzt zu installieren."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss %@ está listo. Haz clic aquí para instalarlo ahora."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss %@ est prêt. Cliquez ici pour l’installer maintenant."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss %@ è pronto. Fai clic qui per installarlo adesso."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss %@ の準備ができました。ここをクリックして今すぐインストール。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss %@ 준비 완료. 여기를 클릭하여 지금 설치하세요."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Pliss %@ está pronto. Clique aqui para instalar agora."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss %@ готов к установке. Нажмите здесь, чтобы установить сейчас."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss %@ 已准备就绪。点击此处立即安装。"
+          }
+        }
+      }
+    },
+    "Pliss Settings": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss-Einstellungen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajustes de Pliss"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réglages de Pliss"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impostazioni di Pliss"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss設定"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss 설정"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajustes do Pliss"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Настройки Pliss"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss 设置"
+          }
+        }
+      }
+    },
+    "Pliss Settings…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss-Einstellungen …"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajustes de Pliss…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réglages de Pliss…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impostazioni di Pliss…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss設定…"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss 설정…"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajustes do Pliss…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Настройки Pliss…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss 设置…"
+          }
+        }
+      }
+    },
+    "Pliss app launcher — click opens the app; hides like any Pliss item": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss-App-Starter — Klick öffnet die App; lässt sich wie jedes Pliss-Element ausblenden"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lanzador de app de Pliss — un clic abre la app; se oculta como cualquier elemento de Pliss"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lanceur d’app Pliss — un clic ouvre l’app ; se masque comme tout élément Pliss"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Avvio app Pliss — un clic apre l’app; si nasconde come ogni elemento Pliss"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plissのアプリランチャー — クリックでアプリを開きます。ほかのPliss項目と同じように隠せます"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss 앱 실행기 — 클릭하면 앱이 열립니다. 다른 Pliss 항목처럼 숨겨집니다"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atalho de app do Pliss — um clique abre o app; oculta-se como qualquer item do Pliss"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запуск приложения Pliss — клик открывает приложение; скрывается, как любой элемент Pliss"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss 应用启动器 — 点击打开应用；可像任何 Pliss 项目一样隐藏"
+          }
+        }
+      }
+    },
+    "Pliss can hide %@, but macOS keeps it in its own spot, so the editor can't move it.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss kann %@ ausblenden, aber macOS hält es an seinem Platz, der Editor kann es also nicht verschieben."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss puede ocultar %@, pero macOS lo mantiene en su sitio, así que el editor no puede moverlo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss peut masquer %@, mais macOS le garde à sa place, l'éditeur ne peut donc pas le déplacer."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss può nascondere %@, ma macOS lo tiene al suo posto, quindi l'editor non può spostarlo."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plissは%@を隠せますが、macOSがその位置を固定しているため、エディタでは移動できません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss는 %@을(를) 숨길 수 있지만 macOS가 제자리에 고정하므로 편집기에서 옮길 수 없습니다."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Pliss pode ocultar %@, mas o macOS o mantém no lugar, então o editor não consegue movê-lo."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss может скрыть %@, но macOS держит её на своём месте, поэтому редактор не может её переместить."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss 可以隐藏 %@，但 macOS 会将它固定在原位，因此编辑器无法移动它。"
+          }
+        }
+      }
+    },
+    "Pliss can't see or move your icons until it's on.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss kann deine Symbole erst sehen und bewegen, wenn sie aktiv sind."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss no puede ver ni mover tus iconos hasta que esté activada."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss ne peut ni voir ni déplacer vos icônes tant qu’elle n’est pas activée."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss non può vedere né spostare le tue icone finché non è attiva."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "オンにするまで、Plissはアイコンを認識も移動もできません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "켜기 전에는 Pliss가 아이콘을 인식하거나 옮길 수 없습니다."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Pliss não consegue ver nem mover seus ícones até que esteja ativada."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пока доступ не включён, Pliss не видит значки и не может их перемещать."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开启之前，Pliss 无法识别或移动你的图标。"
+          }
+        }
+      }
+    },
+    "Pliss is free. It stays that way.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss ist kostenlos. Und bleibt es."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss es gratis. Y seguirá siéndolo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss est gratuit. Et le restera."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss è gratuito. E lo resterà."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plissは無料です。これからもずっと。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss는 무료입니다. 앞으로도 그렇습니다."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Pliss é gratuito. E vai continuar assim."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss бесплатен. И останется таким."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss 免费，并将一直免费。"
+          }
+        }
+      }
+    },
+    "Pliss items": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss-Elemente"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elementos de Pliss"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Éléments Pliss"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elementi Pliss"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plissの項目"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss 항목"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Itens do Pliss"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Элементы Pliss"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss 项目"
+          }
+        }
+      }
+    },
+    "Pliss keeps every icon a hover away — and the ones you never need, out of sight.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss hält jedes Symbol ein Überfahren entfernt – und die, die du nie brauchst, außer Sicht."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss mantiene cada icono a un paso del cursor, y los que nunca necesitas, fuera de la vista."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss garde chaque icône à un survol, et celles dont vous n’avez jamais besoin, hors de vue."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss tiene ogni icona a un passaggio del cursore, e quelle che non ti servono mai, fuori vista."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plissはすべてのアイコンをホバー一つで呼び出せるようにし、不要なものは視界から隠します。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss는 모든 아이콘을 마우스 한 번에 불러오고, 필요 없는 것은 시야 밖으로 치웁니다."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Pliss mantém cada ícone a um passar de cursor, e os que você nunca precisa, fora de vista."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss держит каждый значок в одном наведении, а те, что не нужны никогда, — вне поля зрения."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss 让每个图标悬停即现，而那些你从不需要的，则藏于视线之外。"
+          }
+        }
+      }
+    },
+    "Pliss stays a click away": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss bleibt einen Klick entfernt"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss sigue a un clic"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss reste à portée de clic"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss resta a un clic di distanza"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plissはいつでもすぐに開けます"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss는 언제나 한 번의 클릭으로 열 수 있습니다"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Pliss continua a um clique"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss всегда в одном клике"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss 始终触手可及"
+          }
+        }
+      }
+    },
+    "Pliss's items stand in for Apple's Now Playing, camera controls, AirDrop, Focus and Timer, so Apple's stay hidden.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss’ Elemente ersetzen Apples „Jetzt läuft“, Kamerasteuerung, AirDrop, Fokus und Timer, die von Apple bleiben daher ausgeblendet."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los elementos de Pliss sustituyen a Ahora suena, los controles de cámara, AirDrop, los modos de concentración y el Temporizador de Apple, así que los de Apple siguen ocultos."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les éléments de Pliss remplacent Lecture en cours, les commandes de caméra, AirDrop, Concentration et Minuteur d’Apple, ceux d’Apple restent donc masqués."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gli elementi di Pliss sostituiscono In riproduzione, i controlli fotocamera, AirDrop, Full immersion e Timer di Apple, quindi quelli di Apple restano nascosti."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plissの項目が、Appleの再生中、カメラコントロール、AirDrop、集中モード、タイマーの代わりになるため、Appleのものは隠れたままです。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss 항목이 Apple의 지금 재생 중, 카메라 제어, AirDrop, 집중 모드, 타이머를 대신하므로 Apple의 항목은 숨겨진 채로 있습니다."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Os itens do Pliss ficam no lugar de Tocando agora, controles de câmera, AirDrop, Foco e Timer da Apple, então os da Apple continuam ocultos."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Элементы Pliss заменяют «Сейчас играет», управление камерой, AirDrop, Фокусирование и Таймер от Apple, поэтому значки Apple остаются скрытыми."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss 的项目替代了 Apple 的现在播放、相机控制、隔空投送、专注模式和计时器，因此 Apple 的保持隐藏。"
+          }
+        }
+      }
+    },
+    "Pliss's menu from any empty spot on the bar.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss’ Menü von jeder freien Stelle der Leiste."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El menú de Pliss desde cualquier hueco de la barra."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le menu de Pliss depuis n’importe quel espace vide de la barre."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il menu di Pliss da qualsiasi spazio vuoto della barra."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "バーの空いた場所からPlissのメニューを開けます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "막대의 빈 곳 어디서든 Pliss 메뉴를 엽니다."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O menu do Pliss em qualquer espaço vazio da barra."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Меню Pliss из любого пустого места строки."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在菜单栏任意空白处打开 Pliss 菜单。"
+          }
+        }
+      }
+    },
+    "Pliss's own commands": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss’ eigene Befehle"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los comandos de Pliss"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les commandes de Pliss"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I comandi di Pliss"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss自体のコマンド"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss 자체 명령"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Os comandos do Pliss"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Команды самого Pliss"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliss 自身的命令"
           }
         }
       }
@@ -16531,60 +16531,60 @@
         }
       }
     },
-    "Quit Pelmet": {
+    "Quit Pliss": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelmet beenden"
+            "value": "Pliss beenden"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Salir de Pelmet"
+            "value": "Salir de Pliss"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Quitter Pelmet"
+            "value": "Quitter Pliss"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Esci da Pelmet"
+            "value": "Esci da Pliss"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelmetを終了"
+            "value": "Plissを終了"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelmet 종료"
+            "value": "Pliss 종료"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Encerrar o Pelmet"
+            "value": "Encerrar o Pliss"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Завершить Pelmet"
+            "value": "Завершить Pliss"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "退出 Pelmet"
+            "value": "退出 Pliss"
           }
         }
       }
@@ -16705,176 +16705,176 @@
         }
       }
     },
-    "Relaunch Pelmet to change its language?": {
+    "Relaunch Pliss to change its language?": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelmet neu starten, um die Sprache zu ändern?"
+            "value": "Pliss neu starten, um die Sprache zu ändern?"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "¿Reiniciar Pelmet para cambiar el idioma?"
+            "value": "¿Reiniciar Pliss para cambiar el idioma?"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Redémarrer Pelmet pour changer de langue ?"
+            "value": "Redémarrer Pliss pour changer de langue ?"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Riavviare Pelmet per cambiare lingua?"
+            "value": "Riavviare Pliss per cambiare lingua?"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "言語を変更するためにPelmetを再起動しますか？"
+            "value": "言語を変更するためにPlissを再起動しますか？"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "언어를 변경하기 위해 Pelmet을 다시 실행할까요?"
+            "value": "언어를 변경하기 위해 Pliss를 다시 실행할까요?"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reiniciar o Pelmet para mudar o idioma?"
+            "value": "Reiniciar o Pliss para mudar o idioma?"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Перезапустить Pelmet, чтобы сменить язык?"
+            "value": "Перезапустить Pliss, чтобы сменить язык?"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "要重新启动 Pelmet 以更改语言吗？"
+            "value": "要重新启动 Pliss 以更改语言吗？"
           }
         }
       }
     },
-    "Relaunches Pelmet and the system icons with the new spacing": {
+    "Relaunches Pliss and the system icons with the new spacing": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Startet Pelmet und die Systemsymbole mit dem neuen Abstand neu"
+            "value": "Startet Pliss und die Systemsymbole mit dem neuen Abstand neu"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reinicia Pelmet y los iconos del sistema con el nuevo espaciado"
+            "value": "Reinicia Pliss y los iconos del sistema con el nuevo espaciado"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Relance Pelmet et les icônes système avec le nouvel espacement"
+            "value": "Relance Pliss et les icônes système avec le nouvel espacement"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Riavvia Pelmet e le icone di sistema con la nuova spaziatura"
+            "value": "Riavvia Pliss e le icone di sistema con la nuova spaziatura"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "新しい間隔でPelmetとシステムアイコンを再起動します"
+            "value": "新しい間隔でPlissとシステムアイコンを再起動します"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "새 간격으로 Pelmet과 시스템 아이콘을 다시 시작합니다"
+            "value": "새 간격으로 Pliss와 시스템 아이콘을 다시 시작합니다"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reinicia o Pelmet e os ícones do sistema com o novo espaçamento"
+            "value": "Reinicia o Pliss e os ícones do sistema com o novo espaçamento"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Перезапускает Pelmet и системные значки с новым интервалом"
+            "value": "Перезапускает Pliss и системные значки с новым интервалом"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "以新间距重新启动 Pelmet 和系统图标"
+            "value": "以新间距重新启动 Pliss 和系统图标"
           }
         }
       }
     },
-    "Relaunches Pelmet to apply.": {
+    "Relaunches Pliss to apply.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelmet wird neu gestartet, um die Änderung anzuwenden."
+            "value": "Pliss wird neu gestartet, um die Änderung anzuwenden."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelmet se reinicia para aplicarlo."
+            "value": "Pliss se reinicia para aplicarlo."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelmet redémarre pour appliquer."
+            "value": "Pliss redémarre pour appliquer."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelmet si riavvia per applicare."
+            "value": "Pliss si riavvia per applicare."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "適用するにはPelmetが再起動します。"
+            "value": "適用するにはPlissが再起動します。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "적용하려면 Pelmet이 다시 실행됩니다."
+            "value": "적용하려면 Pliss가 다시 실행됩니다."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O Pelmet reinicia para aplicar."
+            "value": "O Pliss reinicia para aplicar."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelmet перезапустится, чтобы применить."
+            "value": "Pliss перезапустится, чтобы применить."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelmet 将重新启动以应用。"
+            "value": "Pliss 将重新启动以应用。"
           }
         }
       }
@@ -19373,60 +19373,60 @@
         }
       }
     },
-    "Show Pelmet icon in the menu bar": {
+    "Show Pliss icon in the menu bar": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelmet-Symbol in der Menüleiste anzeigen"
+            "value": "Pliss-Symbol in der Menüleiste anzeigen"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mostrar el icono de Pelmet en la barra de menús"
+            "value": "Mostrar el icono de Pliss en la barra de menús"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Afficher l’icône Pelmet dans la barre des menus"
+            "value": "Afficher l’icône Pliss dans la barre des menus"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mostra l’icona di Pelmet nella barra dei menu"
+            "value": "Mostra l’icona di Pliss nella barra dei menu"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "メニューバーにPelmetアイコンを表示"
+            "value": "メニューバーにPlissアイコンを表示"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "메뉴 막대에 Pelmet 아이콘 표시"
+            "value": "메뉴 막대에 Pliss 아이콘 표시"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mostrar o ícone do Pelmet na barra de menus"
+            "value": "Mostrar o ícone do Pliss na barra de menus"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Показывать значок Pelmet в строке меню"
+            "value": "Показывать значок Pliss в строке меню"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在菜单栏中显示 Pelmet 图标"
+            "value": "在菜单栏中显示 Pliss 图标"
           }
         }
       }
@@ -20185,118 +20185,118 @@
         }
       }
     },
-    "Siri and Time Machine are locked macOS system icons. Turn on Pelmet's Siri and Time Machine below for separate icons you can move.": {
+    "Siri and Time Machine are locked macOS system icons. Turn on Pliss's Siri and Time Machine below for separate icons you can move.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Siri und Time Machine sind gesperrte macOS-Systemsymbole. Aktiviere unten Pelmets Siri und Time Machine für einzelne Symbole, die du bewegen kannst."
+            "value": "Siri und Time Machine sind gesperrte macOS-Systemsymbole. Aktiviere unten Pliss’ Siri und Time Machine für einzelne Symbole, die du bewegen kannst."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Siri y Time Machine son iconos del sistema bloqueados por macOS. Activa abajo el Siri y el Time Machine de Pelmet para tener iconos separados que puedas mover."
+            "value": "Siri y Time Machine son iconos del sistema bloqueados por macOS. Activa abajo el Siri y el Time Machine de Pliss para tener iconos separados que puedas mover."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Siri et Time Machine sont des icônes système verrouillées par macOS. Activez le Siri et le Time Machine de Pelmet ci-dessous pour des icônes distinctes que vous pouvez déplacer."
+            "value": "Siri et Time Machine sont des icônes système verrouillées par macOS. Activez le Siri et le Time Machine de Pliss ci-dessous pour des icônes distinctes que vous pouvez déplacer."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Siri e Time Machine sono icone di sistema bloccate da macOS. Attiva qui sotto il Siri e il Time Machine di Pelmet per avere icone separate che puoi spostare."
+            "value": "Siri e Time Machine sono icone di sistema bloccate da macOS. Attiva qui sotto il Siri e il Time Machine di Pliss per avere icone separate che puoi spostare."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "SiriとTime MachineはmacOSがロックしているシステムアイコンです。下でPelmetのSiriとTime Machineをオンにすると、個別に移動できるアイコンになります。"
+            "value": "SiriとTime MachineはmacOSがロックしているシステムアイコンです。下でPlissのSiriとTime Machineをオンにすると、個別に移動できるアイコンになります。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Siri와 Time Machine은 macOS가 잠근 시스템 아이콘입니다. 아래에서 Pelmet의 Siri와 Time Machine을 켜면 따로 옮길 수 있는 아이콘이 됩니다."
+            "value": "Siri와 Time Machine은 macOS가 잠근 시스템 아이콘입니다. 아래에서 Pliss의 Siri와 Time Machine을 켜면 따로 옮길 수 있는 아이콘이 됩니다."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "A Siri e o Time Machine são ícones de sistema bloqueados pelo macOS. Ative abaixo a Siri e o Time Machine do Pelmet para ter ícones separados que você pode mover."
+            "value": "A Siri e o Time Machine são ícones de sistema bloqueados pelo macOS. Ative abaixo a Siri e o Time Machine do Pliss para ter ícones separados que você pode mover."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Siri и Time Machine — системные значки, заблокированные macOS. Включите ниже Siri и Time Machine от Pelmet, чтобы получить отдельные значки, которые можно перемещать."
+            "value": "Siri и Time Machine — системные значки, заблокированные macOS. Включите ниже Siri и Time Machine от Pliss, чтобы получить отдельные значки, которые можно перемещать."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Siri 和时间机器是被 macOS 锁定的系统图标。在下方开启 Pelmet 的 Siri 和时间机器，即可获得可单独移动的图标。"
+            "value": "Siri 和时间机器是被 macOS 锁定的系统图标。在下方开启 Pliss 的 Siri 和时间机器，即可获得可单独移动的图标。"
           }
         }
       }
     },
-    "Siri is a locked macOS system icon. Turn on Pelmet's Siri below for an icon you can move.": {
+    "Siri is a locked macOS system icon. Turn on Pliss's Siri below for an icon you can move.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Siri ist ein gesperrtes macOS-Systemsymbol. Aktiviere unten Pelmets Siri für ein Symbol, das du bewegen kannst."
+            "value": "Siri ist ein gesperrtes macOS-Systemsymbol. Aktiviere unten Pliss’ Siri für ein Symbol, das du bewegen kannst."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Siri es un icono del sistema bloqueado por macOS. Activa abajo el Siri de Pelmet para tener un icono que puedas mover."
+            "value": "Siri es un icono del sistema bloqueado por macOS. Activa abajo el Siri de Pliss para tener un icono que puedas mover."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Siri est une icône système verrouillée par macOS. Activez le Siri de Pelmet ci-dessous pour une icône que vous pouvez déplacer."
+            "value": "Siri est une icône système verrouillée par macOS. Activez le Siri de Pliss ci-dessous pour une icône que vous pouvez déplacer."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Siri è un'icona di sistema bloccata da macOS. Attiva qui sotto il Siri di Pelmet per avere un'icona che puoi spostare."
+            "value": "Siri è un'icona di sistema bloccata da macOS. Attiva qui sotto il Siri di Pliss per avere un'icona che puoi spostare."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "SiriはmacOSがロックしているシステムアイコンです。下でPelmetのSiriをオンにすると、移動できるアイコンになります。"
+            "value": "SiriはmacOSがロックしているシステムアイコンです。下でPlissのSiriをオンにすると、移動できるアイコンになります。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Siri는 macOS가 잠근 시스템 아이콘입니다. 아래에서 Pelmet의 Siri를 켜면 옮길 수 있는 아이콘이 됩니다."
+            "value": "Siri는 macOS가 잠근 시스템 아이콘입니다. 아래에서 Pliss의 Siri를 켜면 옮길 수 있는 아이콘이 됩니다."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "A Siri é um ícone de sistema bloqueado pelo macOS. Ative abaixo a Siri do Pelmet para ter um ícone que você pode mover."
+            "value": "A Siri é um ícone de sistema bloqueado pelo macOS. Ative abaixo a Siri do Pliss para ter um ícone que você pode mover."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Siri — системный значок, заблокированный macOS. Включите ниже Siri от Pelmet, чтобы получить значок, который можно перемещать."
+            "value": "Siri — системный значок, заблокированный macOS. Включите ниже Siri от Pliss, чтобы получить значок, который можно перемещать."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Siri 是被 macOS 锁定的系统图标。在下方开启 Pelmet 的 Siri，即可获得可移动的图标。"
+            "value": "Siri 是被 macOS 锁定的系统图标。在下方开启 Pliss 的 Siri，即可获得可移动的图标。"
           }
         }
       }
@@ -20881,60 +20881,60 @@
         }
       }
     },
-    "Start using Pelmet": {
+    "Start using Pliss": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelmet verwenden"
+            "value": "Pliss verwenden"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Empezar a usar Pelmet"
+            "value": "Empezar a usar Pliss"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Commencer avec Pelmet"
+            "value": "Commencer avec Pliss"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Inizia a usare Pelmet"
+            "value": "Inizia a usare Pliss"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelmetを使い始める"
+            "value": "Plissを使い始める"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelmet 사용 시작"
+            "value": "Pliss 사용 시작"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Começar a usar o Pelmet"
+            "value": "Começar a usar o Pliss"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Начать работу с Pelmet"
+            "value": "Начать работу с Pliss"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "开始使用 Pelmet"
+            "value": "开始使用 Pliss"
           }
         }
       }
@@ -20997,60 +20997,60 @@
         }
       }
     },
-    "Stays on while the Pelmet icon is hidden. It's your way back here.": {
+    "Stays on while the Pliss icon is hidden. It's your way back here.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bleibt an, solange das Pelmet-Symbol ausgeblendet ist. So kommst du hierher zurück."
+            "value": "Bleibt an, solange das Pliss-Symbol ausgeblendet ist. So kommst du hierher zurück."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Se mantiene activo mientras el icono de Pelmet está oculto. Es tu camino de vuelta aquí."
+            "value": "Se mantiene activo mientras el icono de Pliss está oculto. Es tu camino de vuelta aquí."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reste actif tant que l’icône Pelmet est masquée. C’est votre chemin de retour ici."
+            "value": "Reste actif tant que l’icône Pliss est masquée. C’est votre chemin de retour ici."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Resta attivo finché l’icona di Pelmet è nascosta. È la tua via per tornare qui."
+            "value": "Resta attivo finché l’icona di Pliss è nascosta. È la tua via per tornare qui."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelmetのアイコンを隠している間はオンのままです。ここへ戻る手段になります。"
+            "value": "Plissのアイコンを隠している間はオンのままです。ここへ戻る手段になります。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelmet 아이콘을 숨긴 동안은 켜진 상태로 유지됩니다. 여기로 돌아오는 길입니다."
+            "value": "Pliss 아이콘을 숨긴 동안은 켜진 상태로 유지됩니다. 여기로 돌아오는 길입니다."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fica ativo enquanto o ícone do Pelmet estiver oculto. É seu caminho de volta para cá."
+            "value": "Fica ativo enquanto o ícone do Pliss estiver oculto. É seu caminho de volta para cá."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Остаётся включённым, пока значок Pelmet скрыт. Это ваш путь обратно сюда."
+            "value": "Остаётся включённым, пока значок Pliss скрыт. Это ваш путь обратно сюда."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelmet 图标隐藏时保持开启。这是你回到这里的路。"
+            "value": "Pliss 图标隐藏时保持开启。这是你回到这里的路。"
           }
         }
       }
@@ -21461,60 +21461,60 @@
         }
       }
     },
-    "System icon. Pelmet places it. Whether it's in the bar is set in System Settings › Menu Bar.": {
+    "System icon. Pliss places it. Whether it's in the bar is set in System Settings › Menu Bar.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Systemsymbol. Pelmet platziert es. Ob es in der Leiste erscheint, wird in Systemeinstellungen › Menüleiste festgelegt."
+            "value": "Systemsymbol. Pliss platziert es. Ob es in der Leiste erscheint, wird in Systemeinstellungen › Menüleiste festgelegt."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Icono del sistema. Pelmet lo coloca. Si aparece en la barra se decide en Ajustes del Sistema › Barra de menús."
+            "value": "Icono del sistema. Pliss lo coloca. Si aparece en la barra se decide en Ajustes del Sistema › Barra de menús."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Icône système. Pelmet la place. Sa présence dans la barre se règle dans Réglages Système › Barre des menus."
+            "value": "Icône système. Pliss la place. Sa présence dans la barre se règle dans Réglages Système › Barre des menus."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Icona di sistema. Pelmet la posiziona. La sua presenza nella barra si imposta in Impostazioni di Sistema › Barra dei menu."
+            "value": "Icona di sistema. Pliss la posiziona. La sua presenza nella barra si imposta in Impostazioni di Sistema › Barra dei menu."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "システムアイコン。Pelmetが配置します。バーに表示するかは「システム設定」›「メニューバー」で設定します。"
+            "value": "システムアイコン。Plissが配置します。バーに表示するかは「システム設定」›「メニューバー」で設定します。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "시스템 아이콘. Pelmet이 배치합니다. 막대에 표시할지는 시스템 설정 › 메뉴 막대에서 정합니다."
+            "value": "시스템 아이콘. Pliss가 배치합니다. 막대에 표시할지는 시스템 설정 › 메뉴 막대에서 정합니다."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ícone do sistema. O Pelmet o posiciona. Se aparece na barra é definido em Ajustes do Sistema › Barra de menus."
+            "value": "Ícone do sistema. O Pliss o posiciona. Se aparece na barra é definido em Ajustes do Sistema › Barra de menus."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Системный значок. Pelmet его размещает. Показывать ли его в строке, задаётся в Системных настройках › Строка меню."
+            "value": "Системный значок. Pliss его размещает. Показывать ли его в строке, задаётся в Системных настройках › Строка меню."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "系统图标，由 Pelmet 摆放。是否显示在菜单栏取决于“系统设置”›“菜单栏”。"
+            "value": "系统图标，由 Pliss 摆放。是否显示在菜单栏取决于“系统设置”›“菜单栏”。"
           }
         }
       }
@@ -21867,60 +21867,60 @@
         }
       }
     },
-    "The new language applies the next time Pelmet opens. Your menu bar layout is kept.": {
+    "The new language applies the next time Pliss opens. Your menu bar layout is kept.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Die neue Sprache gilt ab dem nächsten Start von Pelmet. Dein Menüleisten-Layout bleibt erhalten."
+            "value": "Die neue Sprache gilt ab dem nächsten Start von Pliss. Dein Menüleisten-Layout bleibt erhalten."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "El nuevo idioma se aplica la próxima vez que se abra Pelmet. La disposición de tu barra de menús se conserva."
+            "value": "El nuevo idioma se aplica la próxima vez que se abra Pliss. La disposición de tu barra de menús se conserva."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "La nouvelle langue s’applique à la prochaine ouverture de Pelmet. La disposition de votre barre des menus est conservée."
+            "value": "La nouvelle langue s’applique à la prochaine ouverture de Pliss. La disposition de votre barre des menus est conservée."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "La nuova lingua si applica alla prossima apertura di Pelmet. La disposizione della barra dei menu viene conservata."
+            "value": "La nuova lingua si applica alla prossima apertura di Pliss. La disposizione della barra dei menu viene conservata."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "新しい言語は次回Pelmetを開いたときに適用されます。メニューバーの配置はそのまま保持されます。"
+            "value": "新しい言語は次回Plissを開いたときに適用されます。メニューバーの配置はそのまま保持されます。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "새 언어는 다음에 Pelmet을 열 때 적용됩니다. 메뉴 막대 배치는 그대로 유지됩니다."
+            "value": "새 언어는 다음에 Pliss를 열 때 적용됩니다. 메뉴 막대 배치는 그대로 유지됩니다."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O novo idioma vale na próxima vez que o Pelmet abrir. A disposição da sua barra de menus é mantida."
+            "value": "O novo idioma vale na próxima vez que o Pliss abrir. A disposição da sua barra de menus é mantida."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Новый язык применится при следующем запуске Pelmet. Раскладка строки меню сохранится."
+            "value": "Новый язык применится при следующем запуске Pliss. Раскладка строки меню сохранится."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "新语言将在下次打开 Pelmet 时生效。菜单栏布局会保留。"
+            "value": "新语言将在下次打开 Pliss 时生效。菜单栏布局会保留。"
           }
         }
       }
@@ -22389,60 +22389,60 @@
         }
       }
     },
-    "Time Machine is a locked macOS system icon. Turn on Pelmet's Time Machine below for an icon you can move.": {
+    "Time Machine is a locked macOS system icon. Turn on Pliss's Time Machine below for an icon you can move.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Time Machine ist ein gesperrtes macOS-Systemsymbol. Aktiviere unten Pelmets Time Machine für ein Symbol, das du bewegen kannst."
+            "value": "Time Machine ist ein gesperrtes macOS-Systemsymbol. Aktiviere unten Pliss’ Time Machine für ein Symbol, das du bewegen kannst."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Time Machine es un icono del sistema bloqueado por macOS. Activa abajo el Time Machine de Pelmet para tener un icono que puedas mover."
+            "value": "Time Machine es un icono del sistema bloqueado por macOS. Activa abajo el Time Machine de Pliss para tener un icono que puedas mover."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Time Machine est une icône système verrouillée par macOS. Activez le Time Machine de Pelmet ci-dessous pour une icône que vous pouvez déplacer."
+            "value": "Time Machine est une icône système verrouillée par macOS. Activez le Time Machine de Pliss ci-dessous pour une icône que vous pouvez déplacer."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Time Machine è un'icona di sistema bloccata da macOS. Attiva qui sotto il Time Machine di Pelmet per avere un'icona che puoi spostare."
+            "value": "Time Machine è un'icona di sistema bloccata da macOS. Attiva qui sotto il Time Machine di Pliss per avere un'icona che puoi spostare."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Time MachineはmacOSがロックしているシステムアイコンです。下でPelmetのTime Machineをオンにすると、移動できるアイコンになります。"
+            "value": "Time MachineはmacOSがロックしているシステムアイコンです。下でPlissのTime Machineをオンにすると、移動できるアイコンになります。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Time Machine은 macOS가 잠근 시스템 아이콘입니다. 아래에서 Pelmet의 Time Machine을 켜면 옮길 수 있는 아이콘이 됩니다."
+            "value": "Time Machine은 macOS가 잠근 시스템 아이콘입니다. 아래에서 Pliss의 Time Machine을 켜면 옮길 수 있는 아이콘이 됩니다."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O Time Machine é um ícone de sistema bloqueado pelo macOS. Ative abaixo o Time Machine do Pelmet para ter um ícone que você pode mover."
+            "value": "O Time Machine é um ícone de sistema bloqueado pelo macOS. Ative abaixo o Time Machine do Pliss para ter um ícone que você pode mover."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Time Machine — системный значок, заблокированный macOS. Включите ниже Time Machine от Pelmet, чтобы получить значок, который можно перемещать."
+            "value": "Time Machine — системный значок, заблокированный macOS. Включите ниже Time Machine от Pliss, чтобы получить значок, который можно перемещать."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "时间机器是被 macOS 锁定的系统图标。在下方开启 Pelmet 的时间机器，即可获得可移动的图标。"
+            "value": "时间机器是被 macOS 锁定的系统图标。在下方开启 Pliss 的时间机器，即可获得可移动的图标。"
           }
         }
       }
@@ -23433,176 +23433,176 @@
         }
       }
     },
-    "Use Pelmet's Siri": {
+    "Use Pliss's Siri": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelmets Siri verwenden"
+            "value": "Pliss’ Siri verwenden"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usar el Siri de Pelmet"
+            "value": "Usar el Siri de Pliss"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Utiliser le Siri de Pelmet"
+            "value": "Utiliser le Siri de Pliss"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usa il Siri di Pelmet"
+            "value": "Usa il Siri di Pliss"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "PelmetのSiriを使う"
+            "value": "PlissのSiriを使う"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelmet의 Siri 사용"
+            "value": "Pliss의 Siri 사용"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usar a Siri do Pelmet"
+            "value": "Usar a Siri do Pliss"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Использовать Siri от Pelmet"
+            "value": "Использовать Siri от Pliss"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "使用 Pelmet 的 Siri"
+            "value": "使用 Pliss 的 Siri"
           }
         }
       }
     },
-    "Use Pelmet's Siri and Time Machine": {
+    "Use Pliss's Siri and Time Machine": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelmets Siri und Time Machine verwenden"
+            "value": "Pliss’ Siri und Time Machine verwenden"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usar el Siri y el Time Machine de Pelmet"
+            "value": "Usar el Siri y el Time Machine de Pliss"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Utiliser le Siri et le Time Machine de Pelmet"
+            "value": "Utiliser le Siri et le Time Machine de Pliss"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usa il Siri e il Time Machine di Pelmet"
+            "value": "Usa il Siri e il Time Machine di Pliss"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "PelmetのSiriとTime Machineを使う"
+            "value": "PlissのSiriとTime Machineを使う"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelmet의 Siri와 Time Machine 사용"
+            "value": "Pliss의 Siri와 Time Machine 사용"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usar a Siri e o Time Machine do Pelmet"
+            "value": "Usar a Siri e o Time Machine do Pliss"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Использовать Siri и Time Machine от Pelmet"
+            "value": "Использовать Siri и Time Machine от Pliss"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "使用 Pelmet 的 Siri 和时间机器"
+            "value": "使用 Pliss 的 Siri 和时间机器"
           }
         }
       }
     },
-    "Use Pelmet's Time Machine": {
+    "Use Pliss's Time Machine": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelmets Time Machine verwenden"
+            "value": "Pliss’ Time Machine verwenden"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usar el Time Machine de Pelmet"
+            "value": "Usar el Time Machine de Pliss"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Utiliser le Time Machine de Pelmet"
+            "value": "Utiliser le Time Machine de Pliss"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usa il Time Machine di Pelmet"
+            "value": "Usa il Time Machine di Pliss"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "PelmetのTime Machineを使う"
+            "value": "PlissのTime Machineを使う"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelmet의 Time Machine 사용"
+            "value": "Pliss의 Time Machine 사용"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usar o Time Machine do Pelmet"
+            "value": "Usar o Time Machine do Pliss"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Использовать Time Machine от Pelmet"
+            "value": "Использовать Time Machine от Pliss"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "使用 Pelmet 的时间机器"
+            "value": "使用 Pliss 的时间机器"
           }
         }
       }
@@ -24651,60 +24651,60 @@
         }
       }
     },
-    "Why can't Pelmet hide this?": {
+    "Why can't Pliss hide this?": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Warum kann Pelmet das nicht ausblenden?"
+            "value": "Warum kann Pliss das nicht ausblenden?"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "¿Por qué Pelmet no puede ocultar esto?"
+            "value": "¿Por qué Pliss no puede ocultar esto?"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pourquoi Pelmet ne peut-il pas masquer ceci ?"
+            "value": "Pourquoi Pliss ne peut-il pas masquer ceci ?"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Perché Pelmet non può nasconderla?"
+            "value": "Perché Pliss non può nasconderla?"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "なぜPelmetはこれを隠せないの？"
+            "value": "なぜPlissはこれを隠せないの？"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelmet이 왜 이것을 숨길 수 없나요?"
+            "value": "Pliss가 왜 이것을 숨길 수 없나요?"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Por que o Pelmet não consegue ocultar isto?"
+            "value": "Por que o Pliss não consegue ocultar isto?"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Почему Pelmet не может это скрыть?"
+            "value": "Почему Pliss не может это скрыть?"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "为什么 Pelmet 无法隐藏它？"
+            "value": "为什么 Pliss 无法隐藏它？"
           }
         }
       }
@@ -24883,176 +24883,176 @@
         }
       }
     },
-    "Without it: press %@, reopen Pelmet from Spotlight, or right-click a separator or empty menu bar spot.": {
+    "Without it: press %@, reopen Pliss from Spotlight, or right-click a separator or empty menu bar spot.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ohne Symbol: %@ drücken, Pelmet erneut über Spotlight öffnen oder mit der rechten Maustaste auf einen Trenner oder eine freie Stelle der Menüleiste klicken."
+            "value": "Ohne Symbol: %@ drücken, Pliss erneut über Spotlight öffnen oder mit der rechten Maustaste auf einen Trenner oder eine freie Stelle der Menüleiste klicken."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sin él: pulsa %@, vuelve a abrir Pelmet desde Spotlight, o haz clic derecho en un separador o en un espacio vacío de la barra de menús."
+            "value": "Sin él: pulsa %@, vuelve a abrir Pliss desde Spotlight, o haz clic derecho en un separador o en un espacio vacío de la barra de menús."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sans elle : appuyez sur %@, rouvrez Pelmet depuis Spotlight, ou faites un clic droit sur un séparateur ou une zone vide de la barre des menus."
+            "value": "Sans elle : appuyez sur %@, rouvrez Pliss depuis Spotlight, ou faites un clic droit sur un séparateur ou une zone vide de la barre des menus."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Senza icona: premi %@, riapri Pelmet da Spotlight, oppure fai clic destro su un separatore o su uno spazio vuoto della barra dei menu."
+            "value": "Senza icona: premi %@, riapri Pliss da Spotlight, oppure fai clic destro su un separatore o su uno spazio vuoto della barra dei menu."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "非表示の場合：%@ を押すか、SpotlightからPelmetを再度開くか、区切りまたはメニューバーの空いている場所を右クリックしてください。"
+            "value": "非表示の場合：%@ を押すか、SpotlightからPlissを再度開くか、区切りまたはメニューバーの空いている場所を右クリックしてください。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "숨기면: %@ 를 누르거나, Spotlight에서 Pelmet을 다시 열거나, 구분선 또는 메뉴 막대의 빈 곳을 오른쪽 클릭하세요."
+            "value": "숨기면: %@ 를 누르거나, Spotlight에서 Pliss를 다시 열거나, 구분선 또는 메뉴 막대의 빈 곳을 오른쪽 클릭하세요."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sem ele: pressione %@, reabra o Pelmet pelo Spotlight, ou clique com o botão direito em um separador ou em um espaço vazio da barra de menus."
+            "value": "Sem ele: pressione %@, reabra o Pliss pelo Spotlight, ou clique com o botão direito em um separador ou em um espaço vazio da barra de menus."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Без значка: нажмите %@, откройте Pelmet через Spotlight или нажмите правой кнопкой на разделитель или пустое место строки меню."
+            "value": "Без значка: нажмите %@, откройте Pliss через Spotlight или нажмите правой кнопкой на разделитель или пустое место строки меню."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "隐藏后：可按 %@，通过 Spotlight 重新打开 Pelmet，或右键点击分隔符或菜单栏的空白处。"
+            "value": "隐藏后：可按 %@，通过 Spotlight 重新打开 Pliss，或右键点击分隔符或菜单栏的空白处。"
           }
         }
       }
     },
-    "Without it: reopen Pelmet from Spotlight, or right-click a separator or empty menu bar spot.": {
+    "Without it: reopen Pliss from Spotlight, or right-click a separator or empty menu bar spot.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ohne Symbol: Pelmet erneut über Spotlight öffnen oder mit der rechten Maustaste auf einen Trenner oder eine freie Stelle der Menüleiste klicken."
+            "value": "Ohne Symbol: Pliss erneut über Spotlight öffnen oder mit der rechten Maustaste auf einen Trenner oder eine freie Stelle der Menüleiste klicken."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sin él: vuelve a abrir Pelmet desde Spotlight, o haz clic derecho en un separador o en un espacio vacío de la barra de menús."
+            "value": "Sin él: vuelve a abrir Pliss desde Spotlight, o haz clic derecho en un separador o en un espacio vacío de la barra de menús."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sans elle : rouvrez Pelmet depuis Spotlight, ou faites un clic droit sur un séparateur ou une zone vide de la barre des menus."
+            "value": "Sans elle : rouvrez Pliss depuis Spotlight, ou faites un clic droit sur un séparateur ou une zone vide de la barre des menus."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Senza icona: riapri Pelmet da Spotlight, oppure fai clic destro su un separatore o su uno spazio vuoto della barra dei menu."
+            "value": "Senza icona: riapri Pliss da Spotlight, oppure fai clic destro su un separatore o su uno spazio vuoto della barra dei menu."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "非表示の場合：SpotlightからPelmetを再度開くか、区切りまたはメニューバーの空いている場所を右クリックしてください。"
+            "value": "非表示の場合：SpotlightからPlissを再度開くか、区切りまたはメニューバーの空いている場所を右クリックしてください。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "숨기면: Spotlight에서 Pelmet을 다시 열거나, 구분선 또는 메뉴 막대의 빈 곳을 오른쪽 클릭하세요."
+            "value": "숨기면: Spotlight에서 Pliss를 다시 열거나, 구분선 또는 메뉴 막대의 빈 곳을 오른쪽 클릭하세요."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sem ele: reabra o Pelmet pelo Spotlight, ou clique com o botão direito em um separador ou em um espaço vazio da barra de menus."
+            "value": "Sem ele: reabra o Pliss pelo Spotlight, ou clique com o botão direito em um separador ou em um espaço vazio da barra de menus."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Без значка: откройте Pelmet через Spotlight или нажмите правой кнопкой на разделитель или пустое место строки меню."
+            "value": "Без значка: откройте Pliss через Spotlight или нажмите правой кнопкой на разделитель или пустое место строки меню."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "隐藏后：可通过 Spotlight 重新打开 Pelmet，或右键点击分隔符或菜单栏的空白处。"
+            "value": "隐藏后：可通过 Spotlight 重新打开 Pliss，或右键点击分隔符或菜单栏的空白处。"
           }
         }
       }
     },
-    "Works with icons hidden. Pelmet handles the click.": {
+    "Works with icons hidden. Pliss handles the click.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Funktioniert auch bei ausgeblendeten Symbolen. Pelmet übernimmt den Klick."
+            "value": "Funktioniert auch bei ausgeblendeten Symbolen. Pliss übernimmt den Klick."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Funciona con los iconos ocultos. Pelmet se encarga del clic."
+            "value": "Funciona con los iconos ocultos. Pliss se encarga del clic."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fonctionne même icônes masquées. Pelmet se charge du clic."
+            "value": "Fonctionne même icônes masquées. Pliss se charge du clic."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Funziona anche con le icone nascoste. Pelmet gestisce il clic."
+            "value": "Funziona anche con le icone nascoste. Pliss gestisce il clic."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "アイコンが隠れていても使えます。クリックはPelmetが処理します。"
+            "value": "アイコンが隠れていても使えます。クリックはPlissが処理します。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "아이콘이 숨겨져 있어도 작동합니다. 클릭은 Pelmet이 처리합니다."
+            "value": "아이콘이 숨겨져 있어도 작동합니다. 클릭은 Pliss가 처리합니다."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Funciona com os ícones ocultos. O Pelmet cuida do clique."
+            "value": "Funciona com os ícones ocultos. O Pliss cuida do clique."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Работает и при скрытых значках. Pelmet берёт щелчок на себя."
+            "value": "Работает и при скрытых значках. Pliss берёт щелчок на себя."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "图标隐藏时也能用。Pelmet 会处理这次点击。"
+            "value": "图标隐藏时也能用。Pliss 会处理这次点击。"
           }
         }
       }
@@ -25115,118 +25115,118 @@
         }
       }
     },
-    "You can always open Pelmet Settings by:\n\n•  Opening Pelmet again from Spotlight or Finder\n•  Right-clicking any Pelmet separator in the menu bar\n•  Right-clicking an empty spot in the menu bar": {
+    "You can always open Pliss Settings by:\n\n•  Opening Pliss again from Spotlight or Finder\n•  Right-clicking any Pliss separator in the menu bar\n•  Right-clicking an empty spot in the menu bar": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Die Pelmet-Einstellungen sind jederzeit erreichbar:\n\n•  Pelmet erneut über Spotlight oder den Finder öffnen\n•  Rechtsklick auf einen Pelmet-Trenner in der Menüleiste\n•  Rechtsklick auf eine freie Stelle der Menüleiste"
+            "value": "Die Pliss-Einstellungen sind jederzeit erreichbar:\n\n•  Pliss erneut über Spotlight oder den Finder öffnen\n•  Rechtsklick auf einen Pliss-Trenner in der Menüleiste\n•  Rechtsklick auf eine freie Stelle der Menüleiste"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Siempre puedes abrir los ajustes de Pelmet:\n\n•  Abriendo Pelmet de nuevo desde Spotlight o el Finder\n•  Haciendo clic derecho en cualquier separador de Pelmet en la barra de menús\n•  Haciendo clic derecho en un espacio vacío de la barra de menús"
+            "value": "Siempre puedes abrir los ajustes de Pliss:\n\n•  Abriendo Pliss de nuevo desde Spotlight o el Finder\n•  Haciendo clic derecho en cualquier separador de Pliss en la barra de menús\n•  Haciendo clic derecho en un espacio vacío de la barra de menús"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vous pouvez toujours ouvrir les réglages de Pelmet :\n\n•  En rouvrant Pelmet depuis Spotlight ou le Finder\n•  Par un clic droit sur un séparateur Pelmet dans la barre des menus\n•  Par un clic droit sur une zone vide de la barre des menus"
+            "value": "Vous pouvez toujours ouvrir les réglages de Pliss :\n\n•  En rouvrant Pliss depuis Spotlight ou le Finder\n•  Par un clic droit sur un séparateur Pliss dans la barre des menus\n•  Par un clic droit sur une zone vide de la barre des menus"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Puoi sempre aprire le impostazioni di Pelmet:\n\n•  Riaprendo Pelmet da Spotlight o dal Finder\n•  Con un clic destro su un separatore Pelmet nella barra dei menu\n•  Con un clic destro su uno spazio vuoto della barra dei menu"
+            "value": "Puoi sempre aprire le impostazioni di Pliss:\n\n•  Riaprendo Pliss da Spotlight o dal Finder\n•  Con un clic destro su un separatore Pliss nella barra dei menu\n•  Con un clic destro su uno spazio vuoto della barra dei menu"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelmet設定は次の方法でいつでも開けます：\n\n•  SpotlightまたはFinderからPelmetを再度開く\n•  メニューバーのPelmet区切りを右クリック\n•  メニューバーの空いている場所を右クリック"
+            "value": "Pliss設定は次の方法でいつでも開けます：\n\n•  SpotlightまたはFinderからPlissを再度開く\n•  メニューバーのPliss区切りを右クリック\n•  メニューバーの空いている場所を右クリック"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelmet 설정은 언제든지 다음 방법으로 열 수 있습니다:\n\n•  Spotlight 또는 Finder에서 Pelmet을 다시 열기\n•  메뉴 막대의 Pelmet 구분선을 오른쪽 클릭\n•  메뉴 막대의 빈 곳을 오른쪽 클릭"
+            "value": "Pliss 설정은 언제든지 다음 방법으로 열 수 있습니다:\n\n•  Spotlight 또는 Finder에서 Pliss를 다시 열기\n•  메뉴 막대의 Pliss 구분선을 오른쪽 클릭\n•  메뉴 막대의 빈 곳을 오른쪽 클릭"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Você sempre pode abrir os ajustes do Pelmet:\n\n•  Abrindo o Pelmet novamente pelo Spotlight ou pelo Finder\n•  Clicando com o botão direito em qualquer separador do Pelmet na barra de menus\n•  Clicando com o botão direito em um espaço vazio da barra de menus"
+            "value": "Você sempre pode abrir os ajustes do Pliss:\n\n•  Abrindo o Pliss novamente pelo Spotlight ou pelo Finder\n•  Clicando com o botão direito em qualquer separador do Pliss na barra de menus\n•  Clicando com o botão direito em um espaço vazio da barra de menus"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Настройки Pelmet всегда можно открыть:\n\n•  Снова открыв Pelmet через Spotlight или Finder\n•  Правым щелчком по любому разделителю Pelmet в строке меню\n•  Правым щелчком по пустому месту строки меню"
+            "value": "Настройки Pliss всегда можно открыть:\n\n•  Снова открыв Pliss через Spotlight или Finder\n•  Правым щелчком по любому разделителю Pliss в строке меню\n•  Правым щелчком по пустому месту строки меню"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "你随时可以通过以下方式打开 Pelmet 设置：\n\n•  在 Spotlight 或访达中再次打开 Pelmet\n•  右键点击菜单栏中的任意 Pelmet 分隔符\n•  右键点击菜单栏的空白处"
+            "value": "你随时可以通过以下方式打开 Pliss 设置：\n\n•  在 Spotlight 或访达中再次打开 Pliss\n•  右键点击菜单栏中的任意 Pliss 分隔符\n•  右键点击菜单栏的空白处"
           }
         }
       }
     },
-    "You can always open Pelmet Settings by:\n\n•  Pressing %@\n•  Opening Pelmet again from Spotlight or Finder\n•  Right-clicking any Pelmet separator in the menu bar\n•  Right-clicking an empty spot in the menu bar": {
+    "You can always open Pliss Settings by:\n\n•  Pressing %@\n•  Opening Pliss again from Spotlight or Finder\n•  Right-clicking any Pliss separator in the menu bar\n•  Right-clicking an empty spot in the menu bar": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Die Pelmet-Einstellungen sind jederzeit erreichbar:\n\n•  %@ drücken\n•  Pelmet erneut über Spotlight oder den Finder öffnen\n•  Rechtsklick auf einen Pelmet-Trenner in der Menüleiste\n•  Rechtsklick auf eine freie Stelle der Menüleiste"
+            "value": "Die Pliss-Einstellungen sind jederzeit erreichbar:\n\n•  %@ drücken\n•  Pliss erneut über Spotlight oder den Finder öffnen\n•  Rechtsklick auf einen Pliss-Trenner in der Menüleiste\n•  Rechtsklick auf eine freie Stelle der Menüleiste"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Siempre puedes abrir los ajustes de Pelmet:\n\n•  Pulsando %@\n•  Abriendo Pelmet de nuevo desde Spotlight o el Finder\n•  Haciendo clic derecho en cualquier separador de Pelmet en la barra de menús\n•  Haciendo clic derecho en un espacio vacío de la barra de menús"
+            "value": "Siempre puedes abrir los ajustes de Pliss:\n\n•  Pulsando %@\n•  Abriendo Pliss de nuevo desde Spotlight o el Finder\n•  Haciendo clic derecho en cualquier separador de Pliss en la barra de menús\n•  Haciendo clic derecho en un espacio vacío de la barra de menús"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vous pouvez toujours ouvrir les réglages de Pelmet :\n\n•  En appuyant sur %@\n•  En rouvrant Pelmet depuis Spotlight ou le Finder\n•  Par un clic droit sur un séparateur Pelmet dans la barre des menus\n•  Par un clic droit sur une zone vide de la barre des menus"
+            "value": "Vous pouvez toujours ouvrir les réglages de Pliss :\n\n•  En appuyant sur %@\n•  En rouvrant Pliss depuis Spotlight ou le Finder\n•  Par un clic droit sur un séparateur Pliss dans la barre des menus\n•  Par un clic droit sur une zone vide de la barre des menus"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Puoi sempre aprire le impostazioni di Pelmet:\n\n•  Premendo %@\n•  Riaprendo Pelmet da Spotlight o dal Finder\n•  Con un clic destro su un separatore Pelmet nella barra dei menu\n•  Con un clic destro su uno spazio vuoto della barra dei menu"
+            "value": "Puoi sempre aprire le impostazioni di Pliss:\n\n•  Premendo %@\n•  Riaprendo Pliss da Spotlight o dal Finder\n•  Con un clic destro su un separatore Pliss nella barra dei menu\n•  Con un clic destro su uno spazio vuoto della barra dei menu"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelmet設定は次の方法でいつでも開けます：\n\n•  %@ を押す\n•  SpotlightまたはFinderからPelmetを再度開く\n•  メニューバーのPelmet区切りを右クリック\n•  メニューバーの空いている場所を右クリック"
+            "value": "Pliss設定は次の方法でいつでも開けます：\n\n•  %@ を押す\n•  SpotlightまたはFinderからPlissを再度開く\n•  メニューバーのPliss区切りを右クリック\n•  メニューバーの空いている場所を右クリック"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelmet 설정은 언제든지 다음 방법으로 열 수 있습니다:\n\n•  %@ 누르기\n•  Spotlight 또는 Finder에서 Pelmet을 다시 열기\n•  메뉴 막대의 Pelmet 구분선을 오른쪽 클릭\n•  메뉴 막대의 빈 곳을 오른쪽 클릭"
+            "value": "Pliss 설정은 언제든지 다음 방법으로 열 수 있습니다:\n\n•  %@ 누르기\n•  Spotlight 또는 Finder에서 Pliss를 다시 열기\n•  메뉴 막대의 Pliss 구분선을 오른쪽 클릭\n•  메뉴 막대의 빈 곳을 오른쪽 클릭"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Você sempre pode abrir os ajustes do Pelmet:\n\n•  Pressionando %@\n•  Abrindo o Pelmet novamente pelo Spotlight ou pelo Finder\n•  Clicando com o botão direito em qualquer separador do Pelmet na barra de menus\n•  Clicando com o botão direito em um espaço vazio da barra de menus"
+            "value": "Você sempre pode abrir os ajustes do Pliss:\n\n•  Pressionando %@\n•  Abrindo o Pliss novamente pelo Spotlight ou pelo Finder\n•  Clicando com o botão direito em qualquer separador do Pliss na barra de menus\n•  Clicando com o botão direito em um espaço vazio da barra de menus"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Настройки Pelmet всегда можно открыть:\n\n•  Нажав %@\n•  Снова открыв Pelmet через Spotlight или Finder\n•  Правым щелчком по любому разделителю Pelmet в строке меню\n•  Правым щелчком по пустому месту строки меню"
+            "value": "Настройки Pliss всегда можно открыть:\n\n•  Нажав %@\n•  Снова открыв Pliss через Spotlight или Finder\n•  Правым щелчком по любому разделителю Pliss в строке меню\n•  Правым щелчком по пустому месту строки меню"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "你随时可以通过以下方式打开 Pelmet 设置：\n\n•  按 %@\n•  在 Spotlight 或访达中再次打开 Pelmet\n•  右键点击菜单栏中的任意 Pelmet 分隔符\n•  右键点击菜单栏的空白处"
+            "value": "你随时可以通过以下方式打开 Pliss 设置：\n\n•  按 %@\n•  在 Spotlight 或访达中再次打开 Pliss\n•  右键点击菜单栏中的任意 Pliss 分隔符\n•  右键点击菜单栏的空白处"
           }
         }
       }
@@ -25347,60 +25347,60 @@
         }
       }
     },
-    "Your menu bar is full: %lld icons sit behind macOS's « until there's room. Pelmet leaves them where they are.": {
+    "Your menu bar is full: %lld icons sit behind macOS's « until there's room. Pliss leaves them where they are.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Deine Menüleiste ist voll: %lld Symbole bleiben hinter dem « von macOS, bis wieder Platz ist. Pelmet lässt sie dort."
+            "value": "Deine Menüleiste ist voll: %lld Symbole bleiben hinter dem « von macOS, bis wieder Platz ist. Pliss lässt sie dort."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tu barra de menús está llena: %lld iconos quedan detrás del « de macOS hasta que haya sitio. Pelmet los deja ahí."
+            "value": "Tu barra de menús está llena: %lld iconos quedan detrás del « de macOS hasta que haya sitio. Pliss los deja ahí."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Votre barre des menus est pleine : %lld icônes restent derrière le « de macOS jusqu’à ce qu’il y ait de la place. Pelmet les laisse là."
+            "value": "Votre barre des menus est pleine : %lld icônes restent derrière le « de macOS jusqu’à ce qu’il y ait de la place. Pliss les laisse là."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "La barra dei menu è piena: %lld icone restano dietro il « di macOS finché non c’è spazio. Pelmet le lascia lì."
+            "value": "La barra dei menu è piena: %lld icone restano dietro il « di macOS finché non c’è spazio. Pliss le lascia lì."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "メニューバーがいっぱいです：%lld 個のアイコンは、空きができるまで macOS の « の後ろにあります。Pelmet はそのままにします。"
+            "value": "メニューバーがいっぱいです：%lld 個のアイコンは、空きができるまで macOS の « の後ろにあります。Pliss はそのままにします。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "메뉴 막대가 가득 찼습니다: 아이콘 %lld개는 공간이 생길 때까지 macOS의 « 뒤에 남습니다. Pelmet은 그대로 둡니다."
+            "value": "메뉴 막대가 가득 찼습니다: 아이콘 %lld개는 공간이 생길 때까지 macOS의 « 뒤에 남습니다. Pliss는 그대로 둡니다."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sua barra de menus está cheia: %lld ícones ficam atrás do « do macOS até haver espaço. O Pelmet os deixa onde estão."
+            "value": "Sua barra de menus está cheia: %lld ícones ficam atrás do « do macOS até haver espaço. O Pliss os deixa onde estão."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Строка меню заполнена: %lld значков остаются за « macOS, пока не появится место. Pelmet их не трогает."
+            "value": "Строка меню заполнена: %lld значков остаются за « macOS, пока не появится место. Pliss их не трогает."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "菜单栏已满：%lld 个图标在有空间之前会留在 macOS 的 « 后面。Pelmet 不会移动它们。"
+            "value": "菜单栏已满：%lld 个图标在有空间之前会留在 macOS 的 « 后面。Pliss 不会移动它们。"
           }
         }
       }
@@ -25695,6 +25695,64 @@
         }
       }
     },
+    "formerly Pelmet": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "früher Pelmet"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "antes Pelmet"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "anciennement Pelmet"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "in precedenza Pelmet"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "旧名 Pelmet"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이전 이름: Pelmet"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "anteriormente Pelmet"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ранее Pelmet"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原名 Pelmet"
+          }
+        }
+      }
+    },
     "macOS already uses %@. Press a different combination.": {
       "localizations": {
         "de": {
@@ -25753,60 +25811,60 @@
         }
       }
     },
-    "macOS dropped Pelmet's accessibility permission, which happens after some updates and reinstalls. Grant it again and everything picks up where it left off.": {
+    "macOS dropped Pliss's accessibility permission, which happens after some updates and reinstalls. Grant it again and everything picks up where it left off.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS hat Pelmets Bedienungshilfen-Berechtigung verworfen, was nach manchen Updates und Neuinstallationen passiert. Erteile sie erneut, und alles macht dort weiter, wo es aufgehört hat."
+            "value": "macOS hat Pliss’ Bedienungshilfen-Berechtigung verworfen, was nach manchen Updates und Neuinstallationen passiert. Erteile sie erneut, und alles macht dort weiter, wo es aufgehört hat."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS retiró el permiso de accesibilidad de Pelmet, algo que ocurre tras algunas actualizaciones y reinstalaciones. Concédelo de nuevo y todo continúa donde se quedó."
+            "value": "macOS retiró el permiso de accesibilidad de Pliss, algo que ocurre tras algunas actualizaciones y reinstalaciones. Concédelo de nuevo y todo continúa donde se quedó."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS a retiré l’autorisation d’accessibilité de Pelmet, ce qui arrive après certaines mises à jour et réinstallations. Accordez-la à nouveau et tout reprend là où ça s’était arrêté."
+            "value": "macOS a retiré l’autorisation d’accessibilité de Pliss, ce qui arrive après certaines mises à jour et réinstallations. Accordez-la à nouveau et tout reprend là où ça s’était arrêté."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS ha rimosso l’autorizzazione Accessibilità di Pelmet, cosa che succede dopo alcuni aggiornamenti e reinstallazioni. Concedila di nuovo e tutto riprende da dove si era fermato."
+            "value": "macOS ha rimosso l’autorizzazione Accessibilità di Pliss, cosa che succede dopo alcuni aggiornamenti e reinstallazioni. Concedila di nuovo e tutto riprende da dove si era fermato."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOSがPelmetのアクセシビリティ権限を解除しました。一部のアップデートや再インストールの後に起こることがあります。もう一度許可すれば、すべて元どおりに再開します。"
+            "value": "macOSがPlissのアクセシビリティ権限を解除しました。一部のアップデートや再インストールの後に起こることがあります。もう一度許可すれば、すべて元どおりに再開します。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS가 Pelmet의 손쉬운 사용 권한을 해제했습니다. 일부 업데이트나 재설치 후에 일어나는 일입니다. 다시 허용하면 모든 것이 이전 상태에서 이어집니다."
+            "value": "macOS가 Pliss의 손쉬운 사용 권한을 해제했습니다. 일부 업데이트나 재설치 후에 일어나는 일입니다. 다시 허용하면 모든 것이 이전 상태에서 이어집니다."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O macOS retirou a permissão de acessibilidade do Pelmet, o que acontece após algumas atualizações e reinstalações. Conceda-a de novo e tudo continua de onde parou."
+            "value": "O macOS retirou a permissão de acessibilidade do Pliss, o que acontece após algumas atualizações e reinstalações. Conceda-a de novo e tudo continua de onde parou."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS сбросила разрешение Pelmet на универсальный доступ — так бывает после некоторых обновлений и переустановок. Предоставьте его снова, и всё продолжится с того же места."
+            "value": "macOS сбросила разрешение Pliss на универсальный доступ — так бывает после некоторых обновлений и переустановок. Предоставьте его снова, и всё продолжится с того же места."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS 移除了 Pelmet 的无障碍权限，这在某些更新和重新安装后会发生。重新授予后，一切会从上次的状态继续。"
+            "value": "macOS 移除了 Pliss 的无障碍权限，这在某些更新和重新安装后会发生。重新授予后，一切会从上次的状态继续。"
           }
         }
       }
@@ -25927,60 +25985,60 @@
         }
       }
     },
-    "macOS kept it in the bar when Pelmet asked to hide it.": {
+    "macOS kept it in the bar when Pliss asked to hide it.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS hat es in der Leiste behalten, als Pelmet es ausblenden wollte."
+            "value": "macOS hat es in der Leiste behalten, als Pliss es ausblenden wollte."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS lo mantuvo en la barra cuando Pelmet pidió ocultarlo."
+            "value": "macOS lo mantuvo en la barra cuando Pliss pidió ocultarlo."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS l’a gardée dans la barre quand Pelmet a demandé à la masquer."
+            "value": "macOS l’a gardée dans la barre quand Pliss a demandé à la masquer."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS l’ha tenuta nella barra quando Pelmet ha chiesto di nasconderla."
+            "value": "macOS l’ha tenuta nella barra quando Pliss ha chiesto di nasconderla."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelmetが隠すよう求めても、macOSがバーに残しました。"
+            "value": "Plissが隠すよう求めても、macOSがバーに残しました。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelmet이 숨기려 했을 때 macOS가 막대에 그대로 두었습니다."
+            "value": "Pliss가 숨기려 했을 때 macOS가 막대에 그대로 두었습니다."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O macOS o manteve na barra quando o Pelmet pediu para ocultá-lo."
+            "value": "O macOS o manteve na barra quando o Pliss pediu para ocultá-lo."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS оставила его в строке, когда Pelmet попросил его скрыть."
+            "value": "macOS оставила его в строке, когда Pliss попросил его скрыть."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelmet 请求隐藏时，macOS 仍将它保留在菜单栏中。"
+            "value": "Pliss 请求隐藏时，macOS 仍将它保留在菜单栏中。"
           }
         }
       }
@@ -26043,60 +26101,60 @@
         }
       }
     },
-    "macOS takes %@ off the bar while anything is hidden, even though Pelmet leaves it visible.": {
+    "macOS takes %@ off the bar while anything is hidden, even though Pliss leaves it visible.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS nimmt %@ aus der Leiste, solange etwas ausgeblendet ist, obwohl Pelmet es sichtbar lässt."
+            "value": "macOS nimmt %@ aus der Leiste, solange etwas ausgeblendet ist, obwohl Pliss es sichtbar lässt."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS quita %@ de la barra mientras haya algo oculto, aunque Pelmet lo deje visible."
+            "value": "macOS quita %@ de la barra mientras haya algo oculto, aunque Pliss lo deje visible."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS retire %@ de la barre tant que quelque chose est masqué, même si Pelmet la laisse visible."
+            "value": "macOS retire %@ de la barre tant que quelque chose est masqué, même si Pliss la laisse visible."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS toglie %@ dalla barra finché qualcosa è nascosto, anche se Pelmet la lascia visibile."
+            "value": "macOS toglie %@ dalla barra finché qualcosa è nascosto, anche se Pliss la lascia visibile."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelmetが表示のままにしていても、何かを隠している間はmacOSが %@ をバーから外します。"
+            "value": "Plissが表示のままにしていても、何かを隠している間はmacOSが %@ をバーから外します。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelmet이 보이게 두어도, 무언가 숨겨져 있는 동안 macOS가 %@을(를) 막대에서 뺍니다."
+            "value": "Pliss가 보이게 두어도, 무언가 숨겨져 있는 동안 macOS가 %@을(를) 막대에서 뺍니다."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O macOS tira %@ da barra enquanto algo estiver oculto, mesmo com o Pelmet deixando-o visível."
+            "value": "O macOS tira %@ da barra enquanto algo estiver oculto, mesmo com o Pliss deixando-o visível."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS убирает %@ из строки, пока что-то скрыто, хотя Pelmet оставляет его видимым."
+            "value": "macOS убирает %@ из строки, пока что-то скрыто, хотя Pliss оставляет его видимым."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "只要有图标被隐藏，macOS 就会把 %@ 移出菜单栏，即使 Pelmet 让它保持可见。"
+            "value": "只要有图标被隐藏，macOS 就会把 %@ 移出菜单栏，即使 Pliss 让它保持可见。"
           }
         }
       }
@@ -26159,60 +26217,60 @@
         }
       }
     },
-    "macOS's own spacing, so it stays after Pelmet. Other apps catch up when they next open.": {
+    "macOS's own spacing, so it stays after Pliss. Other apps catch up when they next open.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Der Abstand ist eine macOS-Einstellung und bleibt auch ohne Pelmet. Andere Apps übernehmen ihn beim nächsten Öffnen."
+            "value": "Der Abstand ist eine macOS-Einstellung und bleibt auch ohne Pliss. Andere Apps übernehmen ihn beim nächsten Öffnen."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Es el espaciado propio de macOS, así que se mantiene sin Pelmet. Las demás apps lo toman al abrirse de nuevo."
+            "value": "Es el espaciado propio de macOS, así que se mantiene sin Pliss. Las demás apps lo toman al abrirse de nuevo."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "C’est le réglage d’espacement de macOS, il reste après Pelmet. Les autres apps suivent à leur prochaine ouverture."
+            "value": "C’est le réglage d’espacement de macOS, il reste après Pliss. Les autres apps suivent à leur prochaine ouverture."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "È la spaziatura di macOS, quindi resta anche senza Pelmet. Le altre app si adeguano alla prossima apertura."
+            "value": "È la spaziatura di macOS, quindi resta anche senza Pliss. Le altre app si adeguano alla prossima apertura."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS自身の設定なので、Pelmetがなくても残ります。他のAppは次に開いたときに反映されます。"
+            "value": "macOS自身の設定なので、Plissがなくても残ります。他のAppは次に開いたときに反映されます。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS 자체 간격 설정이라 Pelmet이 없어도 유지됩니다. 다른 앱은 다음에 열 때 바뀝니다."
+            "value": "macOS 자체 간격 설정이라 Pliss가 없어도 유지됩니다. 다른 앱은 다음에 열 때 바뀝니다."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "É o espaçamento do próprio macOS, então permanece sem o Pelmet. Os outros apps acompanham quando abrirem de novo."
+            "value": "É o espaçamento do próprio macOS, então permanece sem o Pliss. Os outros apps acompanham quando abrirem de novo."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Это собственный интервал macOS, он остаётся и без Pelmet. Другие приложения подхватят его при следующем запуске."
+            "value": "Это собственный интервал macOS, он остаётся и без Pliss. Другие приложения подхватят его при следующем запуске."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "这是 macOS 自身的间距设置，卸载 Pelmet 后依然保留。其他 App 会在下次打开时生效。"
+            "value": "这是 macOS 自身的间距设置，卸载 Pliss 后依然保留。其他 App 会在下次打开时生效。"
           }
         }
       }

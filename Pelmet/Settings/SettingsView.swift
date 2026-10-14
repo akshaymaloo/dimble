@@ -295,7 +295,7 @@ private struct UpdateStrip: View {
             Image(systemName: "arrow.down.circle.fill")
                 .font(.system(size: 15))
                 .foregroundStyle(.green)
-            Text("Pelmet \(version) is available.")
+            Text("Pliss \(version) is available.")
                 .font(.callout)
             Spacer(minLength: 8)
             // Same tinted chip as Apply and "Granted": tint on a low-alpha
@@ -803,7 +803,7 @@ private struct GeneralPane: View {
             )
             .settingAnchor("launchAtLogin")
             SettingToggleRow(
-                title: "Show Pelmet icon in the menu bar",
+                title: "Show Pliss icon in the menu bar",
                 isOn: binding(\.showStatusItem, onSet: { enabled in
                     if !enabled { showIconlessHint() }
                 })
@@ -821,8 +821,8 @@ private struct GeneralPane: View {
                 // switch on the right, same shape as the other rows.
                 title: "Right-click menu",
                 caption: appState.settings.showStatusItem
-                    ? "Pelmet's menu from any empty spot on the bar."
-                    : "Stays on while the Pelmet icon is hidden. It's your way back here.",
+                    ? "Pliss's menu from any empty spot on the bar."
+                    : "Stays on while the Pliss icon is hidden. It's your way back here.",
                 isOn: Binding(
                     get: { appState.settings.barRightClickMenuActive },
                     set: { enabled in
@@ -837,9 +837,9 @@ private struct GeneralPane: View {
             // icon is there — it belongs to the card only once it applies.
             if !appState.settings.showStatusItem {
                 if let settingsShortcut {
-                    SettingNote("Without it: press \(settingsShortcut), reopen Pelmet from Spotlight, or right-click a separator or empty menu bar spot.")
+                    SettingNote("Without it: press \(settingsShortcut), reopen Pliss from Spotlight, or right-click a separator or empty menu bar spot.")
                 } else {
-                    SettingNote("Without it: reopen Pelmet from Spotlight, or right-click a separator or empty menu bar spot.")
+                    SettingNote("Without it: reopen Pliss from Spotlight, or right-click a separator or empty menu bar spot.")
                 }
             }
         }
@@ -865,7 +865,7 @@ private struct GeneralPane: View {
         }
 
         SettingsCard(title: "Language") {
-            SettingRow(title: "Display language", caption: "Relaunches Pelmet to apply.") {
+            SettingRow(title: "Display language", caption: "Relaunches Pliss to apply.") {
                 PelmetMenuPicker(selection: $language, options: languageOptions)
                     .onChange(of: language) { _, newValue in
                         guard newValue != AppLanguage.current else { return }
@@ -929,7 +929,7 @@ private struct GeneralPane: View {
                 // button. Screen Recording only polishes the motion.
                 SettingRow(
                     title: "Accessibility",
-                    caption: "Pelmet can't see or move your icons until it's on."
+                    caption: "Pliss can't see or move your icons until it's on."
                 ) {
                     AccentChipButton(text: "Grant access", symbol: "hand.raised.fill") {
                         AccessibilityAccess.request()
@@ -991,11 +991,11 @@ private struct GeneralPane: View {
     /// One-time orientation when the user goes iconless.
     func showIconlessHint() {
         let alert = NSAlert()
-        alert.messageText = String(localized: "Pelmet stays a click away")
+        alert.messageText = String(localized: "Pliss stays a click away")
         if let settingsShortcut {
-            alert.informativeText = String(localized: "You can always open Pelmet Settings by:\n\n•  Pressing \(settingsShortcut)\n•  Opening Pelmet again from Spotlight or Finder\n•  Right-clicking any Pelmet separator in the menu bar\n•  Right-clicking an empty spot in the menu bar")
+            alert.informativeText = String(localized: "You can always open Pliss Settings by:\n\n•  Pressing \(settingsShortcut)\n•  Opening Pliss again from Spotlight or Finder\n•  Right-clicking any Pliss separator in the menu bar\n•  Right-clicking an empty spot in the menu bar")
         } else {
-            alert.informativeText = String(localized: "You can always open Pelmet Settings by:\n\n•  Opening Pelmet again from Spotlight or Finder\n•  Right-clicking any Pelmet separator in the menu bar\n•  Right-clicking an empty spot in the menu bar")
+            alert.informativeText = String(localized: "You can always open Pliss Settings by:\n\n•  Opening Pliss again from Spotlight or Finder\n•  Right-clicking any Pliss separator in the menu bar\n•  Right-clicking an empty spot in the menu bar")
         }
         alert.alertStyle = .informational
         alert.runModal()
@@ -1067,7 +1067,7 @@ private struct BehaviorPane: View {
             SettingToggleRow(
                 title: "Clicking the clock opens Notification Center",
                 caption: appState.screenRecordingGranted
-                    ? "Works with icons hidden. Pelmet handles the click."
+                    ? "Works with icons hidden. Pliss handles the click."
                     : "Works with icons hidden. Without Screen Recording, they flash by.",
                 isOn: binding(\.clockClickOpensNotificationCenter)
             )
@@ -1193,7 +1193,7 @@ private struct IconSpacingRow: View {
             SettingNote("Still on the old spacing until relaunched: \(ListFormatter.localizedString(byJoining: staleApps))")
         }
         HStack(spacing: 10) {
-            SettingNote("macOS's own spacing, so it stays after Pelmet. Other apps catch up when they next open.")
+            SettingNote("macOS's own spacing, so it stays after Pliss. Other apps catch up when they next open.")
             Spacer(minLength: 0)
             if !atDefault || applied != IconSpacing.macOSDefault {
                 // The shortcut recorder's ↺: tertiary, only while there is
@@ -1219,7 +1219,7 @@ private struct IconSpacingRow: View {
             }
             .disabled(!pending)
             .animation(.easeOut(duration: 0.2), value: pending)
-            .help("Relaunches Pelmet and the system icons with the new spacing")
+            .help("Relaunches Pliss and the system icons with the new spacing")
         }
         .onAppear {
             draft = Double(IconSpacing.index(of: applied))
@@ -1305,11 +1305,11 @@ private struct ThanksPane: View {
     private static let repo = URL(string: "https://github.com/fif7y/pelmet")!
     private static let x = URL(string: "https://x.com/FIF7Y")!
     private static let instagram = URL(string: "https://www.instagram.com/madebyfif7y/")!
-    private static let website = URL(string: "https://pelmet.fif7y.com")!
+    private static let website = URL(string: "https://pliss.fif7y.com")!
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Pelmet is free. It stays that way.")
+            Text("Pliss is free. It stays that way.")
                 .font(.title3.weight(.semibold))
             Text("One person builds it on evenings and weekends. No account, no tracking, no upsell.\nIf it earned a spot in your bar, here's how to help.")
                 .foregroundStyle(.secondary)
@@ -1324,7 +1324,7 @@ private struct ThanksPane: View {
         }
 
         SettingsCard {
-            Text("A star helps more people find Pelmet.")
+            Text("A star helps more people find Pliss.")
             HStack(spacing: 10) {
                 TintChipButton(text: "Star on GitHub", symbol: "star.fill", tint: PelmetAccent.star) { open(Self.repo) }
                 if let stars {
@@ -1438,10 +1438,14 @@ private struct AboutPane: View {
         VStack(spacing: 6) {
             AnimatedAppIcon(size: 96)
                 .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
-            Text("Pelmet")
+            Text("Pliss")
                 .font(.system(size: 30, weight: .semibold))
             Text(version)
                 .font(.callout)
+                .foregroundStyle(.secondary)
+            // The rename stays quiet: a caption under the version, not a banner.
+            Text("formerly Pelmet")
+                .font(.caption)
                 .foregroundStyle(.secondary)
             Text(copyright)
                 .font(.caption)
@@ -1459,7 +1463,7 @@ private struct AboutPane: View {
             .padding(.top, 18)
 
             HStack(spacing: 18) {
-                Link("Website", destination: URL(string: "https://pelmet.fif7y.com")!)
+                Link("Website", destination: URL(string: "https://pliss.fif7y.com")!)
                 Link("GitHub", destination: URL(string: "https://github.com/fif7y/pelmet")!)
                 Link("Report an issue", destination: URL(string: "https://github.com/fif7y/pelmet/issues")!)
             }

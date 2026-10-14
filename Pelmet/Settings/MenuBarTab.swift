@@ -96,7 +96,7 @@ struct OverflowHint: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-                .help("Your menu bar is full: \(count) icons sit behind macOS's « until there's room. Pelmet leaves them where they are.")
+                .help("Your menu bar is full: \(count) icons sit behind macOS's « until there's room. Pliss leaves them where they are.")
                 .transition(.opacity)
             }
         }
@@ -627,7 +627,7 @@ private struct ItemTile: View {
                         .padding(2)
                         .background(Circle().fill(.background))
                         .offset(x: 4, y: -4)
-                        .help("Pinned by macOS — Pelmet can hide it, but not move it")
+                        .help("Pinned by macOS — Pliss can hide it, but not move it")
                 } else if isAppLauncher {
                     Image(systemName: "sparkles")
                         .font(.system(size: 7, weight: .bold))
@@ -635,7 +635,7 @@ private struct ItemTile: View {
                         .padding(2)
                         .background(Circle().fill(.background))
                         .offset(x: 4, y: -4)
-                        .help("Pelmet app launcher — click opens the app; hides like any Pelmet item")
+                        .help("Pliss app launcher — click opens the app; hides like any Pliss item")
                 } else if hasBundleSiblings {
                     Image(systemName: "link")
                         .font(.system(size: 7, weight: .bold))
@@ -661,7 +661,7 @@ private struct ItemTile: View {
                         .padding(2)
                         .background(Circle().fill(.background))
                         .offset(x: 4, y: -4)
-                        .help("System icon. Pelmet places it. Whether it's in the bar is set in System Settings › Menu Bar.")
+                        .help("System icon. Pliss places it. Whether it's in the bar is set in System Settings › Menu Bar.")
                 }
             }
             // The top-right holds the Apple glyph, so a rule's mark takes the
@@ -772,7 +772,7 @@ private struct ItemTile: View {
                         appState.addAppLauncher(bundleID: bundle, name: displayName, in: section)
                     }
                 }
-                Link("Why can't Pelmet hide this?", destination: PelmetLinks.faqAppLaunchers)
+                Link("Why can't Pliss hide this?", destination: PelmetLinks.faqAppLaunchers)
             }
         }
     }
@@ -882,11 +882,11 @@ private struct InactiveIconCard: View {
         }
         switch missingReplacements {
         case [.siri]:
-            replacementButton("Use Pelmet's Siri")
+            replacementButton("Use Pliss's Siri")
         case [.timeMachine]:
-            replacementButton("Use Pelmet's Time Machine")
+            replacementButton("Use Pliss's Time Machine")
         case [.siri, .timeMachine]:
-            replacementButton("Use Pelmet's Siri and Time Machine")
+            replacementButton("Use Pliss's Siri and Time Machine")
         default:
             EmptyView()
         }
@@ -907,24 +907,24 @@ private struct InactiveIconCard: View {
                     .font(.headline)
                 switch missingReplacements {
                 case [.siri]:
-                    Text("Siri is a locked macOS system icon. Turn on Pelmet's Siri below for an icon you can move.")
+                    Text("Siri is a locked macOS system icon. Turn on Pliss's Siri below for an icon you can move.")
                 case [.timeMachine]:
-                    Text("Time Machine is a locked macOS system icon. Turn on Pelmet's Time Machine below for an icon you can move.")
+                    Text("Time Machine is a locked macOS system icon. Turn on Pliss's Time Machine below for an icon you can move.")
                 case [.siri, .timeMachine]:
-                    Text("Siri and Time Machine are locked macOS system icons. Turn on Pelmet's Siri and Time Machine below for separate icons you can move.")
+                    Text("Siri and Time Machine are locked macOS system icons. Turn on Pliss's Siri and Time Machine below for separate icons you can move.")
                 default:
                     if pinnedSystemItem == .clock {
                         Text("The clock always sits at the right edge, so it can't be moved. Drop it in a hidden section to hide it.")
                     } else if pinnedSystemItem == .primaryBentoBox {
                         Text("Control Center always sits next to the clock, so it can't be moved. Drop it in a hidden section to hide it.")
                     } else {
-                        Text("Pelmet can hide \(name), but macOS keeps it in its own spot, so the editor can't move it.")
+                        Text("Pliss can hide \(name), but macOS keeps it in its own spot, so the editor can't move it.")
                     }
                 }
             } else if immovable {
                 Text("Stays where its app put it")
                     .font(.headline)
-                Text("\(name) ignores the moves Pelmet makes in the bar, so it keeps its own spot. Hold ⌘ and drag it yourself, or give it a launcher.")
+                Text("\(name) ignores the moves Pliss makes in the bar, so it keeps its own spot. Hold ⌘ and drag it yourself, or give it a launcher.")
             } else {
                 Text("Incompatible app")
                     .font(.headline)
@@ -934,11 +934,11 @@ private struct InactiveIconCard: View {
                     Text("macOS takes \(name) off the bar while anything is hidden, because it runs from outside Applications. Open it from the Applications folder instead.")
                 } else if destroyed {
                     // Pelmet never asked to hide it (#66): the bar took it.
-                    Text("macOS takes \(name) off the bar while anything is hidden, even though Pelmet leaves it visible.")
+                    Text("macOS takes \(name) off the bar while anything is hidden, even though Pliss leaves it visible.")
                 } else {
-                    Text("macOS kept it in the bar when Pelmet asked to hide it.")
+                    Text("macOS kept it in the bar when Pliss asked to hide it.")
                 }
-                Text("An app launcher fixes that: a Pelmet icon that opens \(name) and works like any other menu bar item.")
+                Text("An app launcher fixes that: a Pliss icon that opens \(name) and works like any other menu bar item.")
             }
             // Fixed-width card: a German or Italian button label pushed
             // "Learn more" — the only route to the FAQ — past the edge.
@@ -1011,7 +1011,7 @@ private struct PelmetItemsStrip: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             CardHeader(
-                symbol: "sparkles", title: "Pelmet items",
+                symbol: "sparkles", title: "Pliss items",
                 caption: "System features as icons you can hide and move"
             ) {
                 Menu {
@@ -1121,7 +1121,7 @@ private struct PelmetItemsStrip: View {
     /// gives way to a line saying so.
     @ViewBuilder private var systemExtras: some View {
         if appState.settings.replacesCollateralExtras {
-            Text("Pelmet's items stand in for Apple's Now Playing, camera controls, AirDrop, Focus and Timer, so Apple's stay hidden.")
+            Text("Pliss's items stand in for Apple's Now Playing, camera controls, AirDrop, Focus and Timer, so Apple's stay hidden.")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)

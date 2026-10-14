@@ -228,9 +228,9 @@ enum CommandBarCorpus {
             animationCommand(.fade, String(localized: "Fade")),
             command(.checkForUpdates, String(localized: "Check for Updates"), "arrow.triangle.2.circlepath",
                     ["update", "upgrade", "new version"]),
-            command(.settings, String(localized: "Pelmet Settings"), "gearshape",
+            command(.settings, String(localized: "Pliss Settings"), "gearshape",
                     ["preferences", "prefs", "options"]),
-            command(.quit, String(localized: "Quit Pelmet"), "power", ["exit", "close"]),
+            command(.quit, String(localized: "Quit Pliss"), "power", ["exit", "close"]),
         ]
     }
 

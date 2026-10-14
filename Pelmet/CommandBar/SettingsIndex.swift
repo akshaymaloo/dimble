@@ -35,7 +35,7 @@ enum SettingsIndex {
         return [
             general("launchAtLogin", String(localized: "Launch at login"),
                     ["startup", "login items", "open at login", "boot"]),
-            general("showStatusItem", String(localized: "Show Pelmet icon in the menu bar"),
+            general("showStatusItem", String(localized: "Show Pliss icon in the menu bar"),
                     ["chevron", "icon", "iconless", "hide icon"]),
             general("hotkey", String(localized: "Show hidden icons"),
                     ["hotkey", "shortcut", "keyboard shortcut", "toggle", "show hide", "key", "always hidden", "notification center"]),
