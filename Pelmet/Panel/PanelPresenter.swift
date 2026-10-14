@@ -160,7 +160,11 @@ final class PanelPresenter: RevealPresenter {
     private var inFrontSinceCheck: Set<String> = []
     /// When a pass last looked for each key `noIcon` left out.
     private var lookedFor: [ItemID: Date] = [:]
-    private static let revisitCooldown: TimeInterval = 10
+    /// How long after a look an app in front is looked at again: a second,
+    /// doubled by every look that finds its icon still off (60s at most),
+    /// a second again once it comes to the front anew. A fixed 10s missed
+    /// a re-tick made right after the tile left (Gab, 2026-10-14).
+    private var revisitAfter: [String: TimeInterval] = [:]
     private var activationObserver: NSObjectProtocol?
     private var iconCheck: Task<Void, Never>?
     /// Keys a pass of this open already asked for: one it got no picture of
@@ -2010,14 +2014,15 @@ final class PanelPresenter: RevealPresenter {
         // An icon switched back on under the assertion parks, in no tree,
         // its app's extras bar included. The app is in front to switch it
         // on (the panel never takes that from it): its section is looked at
-        // again, once per `revisitCooldown` at most, an icon left off for
-        // good costing a pass each time.
+        // again, backing off (`revisitAfter`): an icon left off for good
+        // costs a pass each time.
         let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         inFrontSinceCheck.formIntersection(Set(noIcon.compactMap(\.bundleID)))
+        for bundle in inFrontSinceCheck { revisitAfter[bundle] = nil }
         let now = Date()
         let revisit = noIcon.filter { key in
             guard let bundle = key.bundleID, inFrontSinceCheck.contains(bundle) || bundle == front else { return false }
-            return lookedFor[key].map { now.timeIntervalSince($0) >= Self.revisitCooldown } ?? true
+            return lookedFor[key].map { now.timeIntervalSince($0) >= revisitAfter[bundle] ?? 1 } ?? true
         }
         let pids = keys.keys.reduce(into: [String: [pid_t]]()) { pids, bundle in
             let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundle).map(\.processIdentifier)
@@ -2063,12 +2068,22 @@ final class PanelPresenter: RevealPresenter {
         }
     }
 
-    /// Which of `wanted` a pass's walk found missing (`absent`) or back,
-    /// once per pass: true when a tile comes or goes.
+    /// Which of `wanted` a pass's walk found missing (`absent`) or back:
+    /// true when a tile comes or goes. `counts` once per pass, at the walk.
     @discardableResult
-    private func settleNoIcon(wanted: [ItemID], absent: Set<ItemID>) -> Bool {
+    private func settleNoIcon(wanted: [ItemID], absent: Set<ItemID>, counts: Bool = false) -> Bool {
         let lookedAt = Date()
         for key in wanted where noIcon.contains(key) || absent.contains(key) { lookedFor[key] = lookedAt }
+        if counts {
+            for key in wanted {
+                guard let bundle = key.bundleID else { continue }
+                if absent.contains(key) {
+                    revisitAfter[bundle] = noIcon.contains(key) ? min((revisitAfter[bundle] ?? 1) * 2, 60) : 1
+                } else if noIcon.contains(key) {
+                    revisitAfter[bundle] = nil
+                }
+            }
+        }
         let backNow = noIcon.intersection(wanted).subtracting(absent)
         noIcon.subtract(backNow)
         let newlyMissing = absent.subtracting(noIcon)
@@ -2125,7 +2140,7 @@ final class PanelPresenter: RevealPresenter {
             // The tiles come and go as soon as the reveal's walk is read,
             // the pictures follow when the pass is done.
             let found = await appState.transitions.picturePass(reveal, wanting: Set(wanted)) { [weak self] absent in
-                guard let self, self.settleNoIcon(wanted: wanted, absent: absent), self.isOpen else { return }
+                guard let self, self.settleNoIcon(wanted: wanted, absent: absent, counts: true), self.isOpen else { return }
                 self.refresh()
             }
             guard let self else { return }
