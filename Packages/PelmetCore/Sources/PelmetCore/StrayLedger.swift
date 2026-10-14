@@ -30,12 +30,16 @@ public struct StrayLedger: Equatable, Sendable {
         public let side: Side?
         public let section: Section
         public let pid: Int32?
+        /// Hidden with its section right now: off the bar, and out of reach
+        /// of a hand, however long it stays so.
+        public let concealed: Bool
 
-        public init(id: ItemID, side: Side?, section: Section, pid: Int32? = nil) {
+        public init(id: ItemID, side: Side?, section: Section, pid: Int32? = nil, concealed: Bool = false) {
             self.id = id
             self.side = side
             self.section = section
             self.pid = pid
+            self.concealed = concealed
         }
     }
 
@@ -49,6 +53,7 @@ public struct StrayLedger: Equatable, Sendable {
         /// An actionable icon's first look off the primary bar since it was
         /// explained (or since a look last placed it).
         var unplacedSince: Date?
+        var concealed = false
     }
 
     private var records: [ItemID: Record] = [:]
@@ -104,7 +109,10 @@ public struct StrayLedger: Equatable, Sendable {
         var byHand: [ItemID] = []
         for s in sightings {
             guard let prev = records[s.id] else {
-                next[s.id] = Record(side: s.side, section: s.section, pid: s.pid, standing: strays.contains(s.id) ? .actionable : .settled)
+                next[s.id] = Record(
+                    side: s.side, section: s.section, pid: s.pid, standing: strays.contains(s.id) ? .actionable : .settled,
+                    concealed: s.concealed
+                )
                 continue
             }
             var standing = prev.standing
@@ -119,10 +127,19 @@ public struct StrayLedger: Equatable, Sendable {
             // later, inside the grouper's debounce, read "none to move" with
             // a fresh budget and no hand move (live test, 2026-10-13 21:14:08).
             let ownFlip = sideChanged && ownMoves.contains(s.id)
+            // Off the bar since the last look is no flip either: an editor
+            // drop into a concealed section leaves the look with the drop,
+            // and read as an adoption it was left on the wrong side for Apply
+            // ("nothing explains it", live test, 2026-10-13 21:43:30).
+            // Nor is coming back on it from concealed: a drop out of a
+            // concealed section draws it there, no hand does.
+            let leftTheLook = prev.side != nil && s.side == nil
+            let backFromConcealed = prev.side == nil && prev.concealed
+            let flipped = sideChanged && !leftTheLook && !backFromConcealed && !ownFlip
             if relaunched {
                 standing = .actionable
             } else if sectionChanged {
-                standing = sideChanged && !ownFlip ? .settled : .actionable
+                standing = flipped ? .settled : .actionable
             } else if sideChanged, prev.side != nil, s.side != nil {
                 if ownMoves.contains(s.id) {
                     standing = .settled
@@ -138,11 +155,13 @@ public struct StrayLedger: Equatable, Sendable {
             // framed yet kept no explanation, and framed on the wrong side a
             // look later (nil → side is no flip) it stayed there. Unplaced,
             // the explanation lasts `unplacedWindow`: held for good, a hand
-            // drag hours later read as explained and was moved back.
-            let explained = relaunched || (sectionChanged && (!sideChanged || ownFlip))
+            // drag hours later read as explained and was moved back. A
+            // concealed icon can't be dragged: its window starts over, and
+            // again at the first look after it (a reveal 30s on).
+            let explained = relaunched || (sectionChanged && !flipped)
             var unplacedSince: Date?
             if standing == .actionable {
-                let since = (explained ? nil : prev.unplacedSince) ?? now
+                let since = (explained || s.concealed || prev.concealed ? nil : prev.unplacedSince) ?? now
                 if now.timeIntervalSince(since) > Self.unplacedWindow {
                     standing = .settled
                 } else if s.side == nil {
@@ -152,7 +171,8 @@ public struct StrayLedger: Equatable, Sendable {
                 }
             }
             next[s.id] = Record(
-                side: s.side, section: s.section, pid: s.pid ?? prev.pid, standing: standing, unplacedSince: unplacedSince
+                side: s.side, section: s.section, pid: s.pid ?? prev.pid, standing: standing, unplacedSince: unplacedSince,
+                concealed: s.concealed
             )
         }
         records = next

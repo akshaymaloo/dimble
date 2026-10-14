@@ -227,8 +227,9 @@ enum ApplyPass {
         // dragged it back. Every member of a running app stays known.
         let running = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
         let members = facts.roster.members.keys.filter { $0.bundleID.map(running.contains) ?? false }
+        let concealed = Set(snap.concealed.map(\.sectionKey))
         let known = Set(snap.items.map(\.id.sectionKey))
-            .union(snap.concealed.map(\.sectionKey))
+            .union(concealed)
             .union(facts.bar)
             .union(members.map(\.sectionKey))
         return known.compactMap { id in
@@ -237,7 +238,8 @@ enum ApplyPass {
                 id: id,
                 side: StrayLedger.side(of: id, in: facts.bar, chevron: facts.chevron),
                 section: facts.roster.section(of: id),
-                pid: pids[id]
+                pid: pids[id],
+                concealed: concealed.contains(id)
             )
         }
     }

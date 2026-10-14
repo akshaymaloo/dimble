@@ -128,6 +128,42 @@ import Testing
         #expect(adopted.actionable([a]).isEmpty)
     }
 
+    @Test func aDropIntoAConcealedSectionIsActionable() {
+        // Vorssaint dropped from Visible into a concealed Hidden: the look
+        // after the drop has it off the bar, and 36s later the remembered
+        // frame puts it back on the right, still concealed (live test,
+        // 2026-10-13 21:42:52 → 21:43:30).
+        let t0 = Date(timeIntervalSinceReferenceDate: 0)
+        var ledger = StrayLedger()
+        ledger.observe([look(a, .right, .visible)], now: t0)
+        ledger.observe([.init(id: a, side: nil, section: .hidden, pid: 100, concealed: true)], now: t0 + 2)
+        #expect(ledger.standing(of: a) == .actionable)
+        ledger.observe([.init(id: a, side: .right, section: .hidden, pid: 100, concealed: true)], strays: [a], now: t0 + 38)
+        #expect(ledger.actionable([a]) == [a])
+        // Off the bar but not concealed (another display): the window holds.
+        var away = StrayLedger()
+        away.observe([look(a, .right, .visible)], now: t0)
+        away.observe([look(a, nil, .hidden)], now: t0 + 2)
+        away.observe([look(a, .right, .hidden)], strays: [a], now: t0 + 38)
+        #expect(away.actionable([a]).isEmpty)
+        // No frame while concealed, framed at a reveal minutes later: the
+        // reveal's look starts the window over.
+        var late = StrayLedger()
+        late.observe([look(a, .right, .visible)], now: t0)
+        late.observe([.init(id: a, side: nil, section: .hidden, pid: 100, concealed: true)], now: t0 + 2)
+        late.observe([look(a, .right, .hidden)], strays: [a], now: t0 + 300)
+        #expect(late.actionable([a]) == [a])
+    }
+
+    @Test func aDropOutOfAConcealedSectionIsActionable() {
+        // Never framed while concealed, dropped into Visible: it comes on
+        // the bar left of the chevron with its section changed, no hand.
+        var ledger = StrayLedger()
+        ledger.observe([.init(id: a, side: nil, section: .hidden, pid: 100, concealed: true)])
+        ledger.observe([look(a, .left, .visible)], strays: [a])
+        #expect(ledger.actionable([a]) == [a])
+    }
+
     @Test func whyNotMovedNamesTheReason() {
         var ledger = StrayLedger()
         ledger.observe([look(a, .left, .hidden), look(b, .left, .hidden)])
