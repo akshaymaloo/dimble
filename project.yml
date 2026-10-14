@@ -158,6 +158,8 @@ targets:
       - target: Pelmet
     settings:
       base:
+        # xcodegen derives the host from the target name; the product is Pliss.
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/Pliss.app/Contents/MacOS/Pliss
         GENERATE_INFOPLIST_FILE: "YES"
         SWIFT_VERSION: "6.0"
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor

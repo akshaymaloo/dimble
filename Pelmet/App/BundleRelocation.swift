@@ -30,12 +30,18 @@ enum BundleRelocation {
     /// runs from the final path.
     private static let loginItemMarker = "pelmet.relocatedReregisterLoginItem"
 
+    /// Where a bundle named like a former name belongs: Pliss.app in the same
+    /// folder. Nil when the name is already right or not one of ours.
+    static func relocationTarget(for bundleURL: URL) -> URL? {
+        guard formerNames.contains(bundleURL.lastPathComponent) else { return nil }
+        return bundleURL.deletingLastPathComponent().appendingPathComponent(finalName)
+    }
+
     /// Returns true when the app is relaunching and the caller must not
     /// continue booting.
     static func relocateIfNeeded() -> Bool {
         let url = Bundle.main.bundleURL
-        guard formerNames.contains(url.lastPathComponent) else { return false }
-        let dest = url.deletingLastPathComponent().appendingPathComponent(finalName)
+        guard let dest = relocationTarget(for: url) else { return false }
         // Never replace or merge into something already there (a second
         // copy, a rename done by hand): run from where we are.
         guard !FileManager.default.fileExists(atPath: dest.path) else { return false }

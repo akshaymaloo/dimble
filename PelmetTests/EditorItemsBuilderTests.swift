@@ -218,7 +218,7 @@ struct EditorItemsBuilderTests {
             items: [
                 ObservedItem(id: helperItem, frame: frame(x: 100), appName: "ChatGPT", hostIsBundleless: true),
                 // Live in AX, named after its host — the spec's name wins.
-                ObservedItem(id: ExtrasManager.itemID(for: launcher), frame: frame(x: 140), appName: "Pelmet"),
+                ObservedItem(id: ExtrasManager.itemID(for: launcher), frame: frame(x: 140), appName: "Pliss"),
             ],
             extras: [launcher],
             model: model,
