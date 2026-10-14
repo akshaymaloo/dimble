@@ -270,8 +270,10 @@ final class MenuBarBandMonitor {
             // goes with it when it is not the main one: the walk keeps the
             // main display's copies, and Vorssaint dropped on the LG's bar
             // (x=4920) was matched against the built-in's (live test,
-            // 2026-10-13 19:29:50).
-            let dropPoint = NSEvent.mouseLocation
+            // 2026-10-13 19:29:50). Where the event happened, as at the drag's
+            // start: a flick across a display edge after the drop read the
+            // other display's bar (review, 2026-10-13).
+            let dropPoint = event.locationInWindow
             let dropX = dropPoint.x
             let dropDisplay = NSScreen.containing(dropPoint)?.directDisplayID
                 .flatMap { $0 == CGMainDisplayID() ? nil : CGDisplayBounds($0) }

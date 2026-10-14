@@ -3842,8 +3842,13 @@ final class AppState {
         // 2026-09-02), and the order fold-in keys "leftmost frame wins" — a
         // left-display copy pinned Sconce to the front of Visible no matter
         // where the user dropped it. Other bars' copies read as unmeasured.
+        // Off the main bar only the grabbed app's icon takes the credit: an
+        // unnamed stand-in there left its neighbour credited, and `land`
+        // cleared the neighbour's pending move (review, 2026-10-13).
         let draggedID: ItemID? = dragEndX.flatMap { x in
-            let hit = BarAdoption.droppedItem(at: x, on: items.map { ($0.id, $0.frame) }, grabbed: lastDropBundle)
+            let hit = BarAdoption.droppedItem(
+                at: x, on: items.map { ($0.id, $0.frame) }, grabbed: lastDropBundle, grabbedOnly: offMain
+            )
             if let hit { PelmetLog.log("adopt: dragged=\(hit.rawValue)") }
             return hit
         }
