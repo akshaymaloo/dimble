@@ -68,6 +68,7 @@ enum ItemImageCache {
     private static func systemSymbol(for item: ItemID) -> NSImage? {
         let id = item.rawValue
         if id.hasSuffix("menuextra.bluetooth"), let bluetoothIcon { return bluetoothIcon }
+        if id.hasSuffix("menuextra.siri"), let siriIcon { return siriIcon }
         let symbol: String
         if id.contains("wifi") { symbol = "wifi" }
         else if id.contains("battery") { symbol = "battery.75percent" }
@@ -81,20 +82,43 @@ enum ItemImageCache {
         else if id.hasSuffix("menuextra.user") { symbol = "person.crop.circle" }
         else if id.hasSuffix("menuextra.now-playing") { symbol = "play.fill" }
         else if id.hasSuffix("menuextra.focusmode") { symbol = "moon.fill" }
+        // Four more that fell through to the dashed circle (#26). Where
+        // "timemachine" or "airdrop" is not in this macOS's symbol set (not
+        // on 27.2), the second name stands in. Our own Time Machine replica
+        // is keyed `Pelmet.TimeMachine`.
+        else if id.hasSuffix("menuextra.TimeMachine") || id.hasSuffix("Pelmet.TimeMachine") {
+            symbol = resolving("timemachine", else: "clock.arrow.circlepath")
+        }
+        else if id.hasSuffix("menuextra.vpn") { symbol = resolving("network.badge.shield.half.filled", else: "lock.shield") }
+        else if id.hasSuffix("menuextra.airdrop") { symbol = resolving("airdrop", else: "dot.radiowaves.up.forward") }
+        else if id.hasSuffix("menuextra.siri") { symbol = "waveform.circle" }
         else { symbol = "circle.dashed" }
         return NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
             ?? NSImage(systemSymbolName: "circle.dashed", accessibilityDescription: nil)
     }
 
-    /// No public symbol draws Bluetooth ("bluetooth" was nil, and the panel
-    /// drew a dashed app, #26): System Settings' own Bluetooth icon, read
-    /// from macOS at run time like any app's icon, nothing shipped.
-    private static let bluetoothIcon: NSImage? = {
-        let path = "/System/Library/ExtensionKit/Extensions/Bluetooth.appex"
+    /// `name` when this macOS has that symbol, else `fallback`.
+    private static func resolving(_ name: String, else fallback: String) -> String {
+        NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil ? name : fallback
+    }
+
+    /// An icon macOS ships for the file at `path`, read at run time like any
+    /// app's icon (nothing shipped), copied before sizing so the shared
+    /// image is left alone. Nil when the file is not on this Mac.
+    private static func systemIcon(atPath path: String) -> NSImage? {
         guard FileManager.default.fileExists(atPath: path),
               let sized = NSWorkspace.shared.icon(forFile: path).copy() as? NSImage
         else { return nil }
         sized.size = NSSize(width: 20, height: 20)
         return sized
-    }()
+    }
+
+    /// No public symbol draws Bluetooth ("bluetooth" was nil, and the panel
+    /// drew a dashed app, #26): System Settings' own Bluetooth icon, read
+    /// from macOS at run time like any app's icon, nothing shipped.
+    private static let bluetoothIcon = systemIcon(atPath: "/System/Library/ExtensionKit/Extensions/Bluetooth.appex")
+
+    /// Siri's own icon, the same way; the "waveform.circle" symbol stands in
+    /// where Siri.app is not on the Mac.
+    private static let siriIcon = systemIcon(atPath: "/System/Applications/Siri.app")
 }
