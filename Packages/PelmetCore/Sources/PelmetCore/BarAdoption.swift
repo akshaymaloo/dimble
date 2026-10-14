@@ -100,20 +100,31 @@ public enum BarAdoption {
     /// under the same x: Pelmet's own icon next to the drop took the credit
     /// for One Thing's drag (2026-09-25). `grabbedOnly`: with the grabbed
     /// app known, only its icon counts, as the drop's landing check wants
-    /// (MenuBarAgent's drop animation runs up to 1.6s).
+    /// (MenuBarAgent's drop animation runs up to 1.6s). `soleGrabbedSlack`:
+    /// the grabbed app's only icon on `bar` counts this far off too, for a
+    /// landed drop read where no position baseline backs it up (another
+    /// display's bar): a drop snaps into a slot, and Snib landed 15pt right
+    /// of the pointer on the LG (live test, 2026-10-13 21:54:43). Never for
+    /// the landing check: a short drag's icon still sits that close before
+    /// it moves.
     public static func droppedItem(
         at x: CGFloat,
         on bar: [(id: ItemID, frame: CGRect?)],
         grabbed: String?,
-        grabbedOnly: Bool = false
+        grabbedOnly: Bool = false,
+        soleGrabbedSlack: CGFloat? = nil
     ) -> ItemID? {
-        bar.compactMap { item -> (id: ItemID, distance: CGFloat)? in
+        let hit = bar.compactMap { item -> (id: ItemID, distance: CGFloat)? in
             guard let frame = item.frame, frame.minX - 8 <= x, x <= frame.maxX + 8 else { return nil }
             let isGrabbed = grabbed.map { item.id.bundleID == $0 } ?? false
             if grabbedOnly, grabbed != nil, !isGrabbed { return nil }
             return (item.id, abs(frame.midX - x) - (isGrabbed ? 10_000 : 0))
         }
         .min { $0.distance < $1.distance }?.id
+        guard hit == nil, let slack = soleGrabbedSlack, let grabbed else { return hit }
+        let own = bar.filter { $0.id.bundleID == grabbed && $0.frame != nil }
+        guard own.count == 1, let frame = own[0].frame, frame.minX - slack <= x, x <= frame.maxX + slack else { return nil }
+        return own[0].id
     }
 
     /// The bar's left-to-right order in canonical keys, leftmost copy of

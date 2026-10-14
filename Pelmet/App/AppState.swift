@@ -3293,6 +3293,7 @@ final class AppState {
     /// the item never adopted, 2026-09-08). Replayed when the chain ends.
     private var queuedDragEndX: CGFloat?
     private var queuedDropDisplay: CGRect?
+    private var queuedDraggedBundle: String?
     /// A drop's chain is running: the bar stays revealed until it has read
     /// where the icon landed (the band's `.drag` rehide hold). A conceal
     /// mid-chain took the dropped icon, still in its old section, off the
@@ -3313,17 +3314,21 @@ final class AppState {
         if retry == 0, dragEndX != nil {
             lastUserDragEndedAt = .now
             dropAdoptionInFlight = true
-            lastDropBundle = draggedBundle
         }
         if retry == 0 {
+            // A drop queued behind one still landing keeps its own grabbed
+            // app: set at once, the landing one credited the second drag's
+            // app (review, 2026-10-13).
             guard !adoptionInFlight else {
                 if let dragEndX {
                     queuedDragEndX = dragEndX
                     queuedDropDisplay = dropDisplay
+                    queuedDraggedBundle = draggedBundle
                 }
                 return
             }
             adoptionInFlight = true
+            if dragEndX != nil { lastDropBundle = draggedBundle }
         }
         Task {
             // Mid-transition bars give false frames — defer briefly. (Only
@@ -3337,7 +3342,7 @@ final class AppState {
                     dropAdoptionInFlight = false
                     if let queued = queuedDragEndX {
                         queuedDragEndX = nil
-                        adoptSectionsFromBar(dragEndX: queued, dropDisplay: queuedDropDisplay)
+                        adoptSectionsFromBar(dragEndX: queued, dropDisplay: queuedDropDisplay, draggedBundle: queuedDraggedBundle)
                     }
                     return
                 }
@@ -3381,7 +3386,7 @@ final class AppState {
                 if let queued = queuedDragEndX {
                     queuedDragEndX = nil
                     PelmetLog.log("adopt: replaying queued drop x=\(Int(queued))")
-                    adoptSectionsFromBar(dragEndX: queued, dropDisplay: queuedDropDisplay)
+                    adoptSectionsFromBar(dragEndX: queued, dropDisplay: queuedDropDisplay, draggedBundle: queuedDraggedBundle)
                 }
             }
             updateSnapshot(snap)
@@ -3944,7 +3949,8 @@ final class AppState {
         // cleared the neighbour's pending move (review, 2026-10-13).
         let draggedID: ItemID? = dragEndX.flatMap { x in
             let hit = BarAdoption.droppedItem(
-                at: x, on: items.map { ($0.id, $0.frame) }, grabbed: lastDropBundle, grabbedOnly: offMain
+                at: x, on: items.map { ($0.id, $0.frame) }, grabbed: lastDropBundle, grabbedOnly: offMain,
+                soleGrabbedSlack: offMain ? 24 : nil
             )
             if let hit { PelmetLog.log("adopt: dragged=\(hit.rawValue)") }
             return hit

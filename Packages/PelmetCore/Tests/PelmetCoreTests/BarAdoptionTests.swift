@@ -752,6 +752,19 @@ extension BarAdoptionTests {
         #expect(none.allSatisfy { $0.frame == nil })
     }
 
+    @Test func aDropOnAnotherDisplayCreditsTheGrabbedAppsOnlyIconAFewPointsOff() {
+        // Snib landed 15pt right of the pointer on the LG (live test,
+        // 2026-10-13 21:54:43); Vorssaint, under the pointer, isn't Snib.
+        let (items, copies) = lgDrop
+        let bar = BarAdoption.dropBar(items: items, copies: copies, display: lg, primaryMaxX: builtIn.maxX)
+        #expect(BarAdoption.droppedItem(at: 4945, on: bar, grabbed: "app.fif7y.Snib", grabbedOnly: true) == nil)
+        #expect(BarAdoption.droppedItem(at: 4945, on: bar, grabbed: "app.fif7y.Snib", grabbedOnly: true, soleGrabbedSlack: 24) == snib)
+        // Further off than the slack: nobody.
+        #expect(BarAdoption.droppedItem(at: 4920, on: bar, grabbed: "app.fif7y.Snib", grabbedOnly: true, soleGrabbedSlack: 24) == nil)
+        // An app with two icons there (Apple's host): which one is a guess.
+        #expect(BarAdoption.droppedItem(at: 4975, on: bar, grabbed: "com.apple.MenuBarAgent", grabbedOnly: true, soleGrabbedSlack: 24) == nil)
+    }
+
     @Test func theDropLandsAsTheGrabbedAppsIcon() {
         let bar: [(id: ItemID, frame: CGRect?)] = [(chevron, icon(1500)), (figma, icon(1520))]
         // The chevron sits nearer the drop; the grabbed app wins.
