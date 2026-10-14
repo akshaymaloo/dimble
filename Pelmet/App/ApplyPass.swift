@@ -123,11 +123,17 @@ enum ApplyPass {
         // Paste with the editor open (2026-10-12 23:30).
         let alone = Set(snap.shownAlone.map(\.sectionKey))
         for key in alone { frames.removeValue(forKey: key) }
-        let live = Set(snap.items.map(\.id.sectionKey)).subtracting(alone)
+        let live = Set(snap.items.filter { $0.frame != nil }.map(\.id.sectionKey)).subtracting(alone)
         let chevronNow = appState.pelmetChevronItem(in: snap).flatMap { frames[$0.id.sectionKey]?.midX }
         var rememberedAlwaysHidden = Set<ItemID>()
-        for id in snap.concealed.union(snap.shownAlone) where !live.contains(id.sectionKey) {
+        for id in snap.concealed.union(snap.shownAlone) {
             let key = id.sectionKey
+            // One the swap just concealed stays listed on top of its
+            // neighbour, a phantom `primaryFrames` drops: read as live it had
+            // no place at all, and a drop into a concealed Hidden was left to
+            // Apply (Vorssaint listed and remembered at 1597, 2026-10-13
+            // 22:47:02). Own extras keep their rule above.
+            if live.contains(key), frames[key] != nil || MenuBarPolicy.isPelmetExtraID(key) { continue }
             guard var f = appState.rememberedFrames[key] else { continue }
             // Concealed icons slide with the chevron: re-anchor the frame
             // to where the chevron is now (AppState.rememberedChevronMidX).
