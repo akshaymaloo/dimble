@@ -106,9 +106,16 @@ public enum ItemMover {
 
         // Warp home while the shield still hides the cursor — it reappears
         // where the user left it, never mid-flight.
+        try? await Task.sleep(for: .milliseconds(60))
         if let originalPosition {
-            try? await Task.sleep(for: .milliseconds(60))
             CGWarpMouseCursorPosition(originalPosition)
+        }
+        // The release above clears ⌘ (probed 2026-10-13). Still down = a
+        // real ⌘ key held somewhere (device bit 0x8 is left ⌘ pressed), not
+        // this drag: said here so a stuck ⌘ names its source.
+        let flags = CGEventSource.flagsState(.hidSystemState)
+        if flags.contains(.maskCommand) {
+            PelmetLog.log("mover: ⌘ still down after the drag (flags 0x\(String(flags.rawValue, radix: 16)))")
         }
     }
 
