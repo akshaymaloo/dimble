@@ -145,6 +145,21 @@ final class PanelPresenter: RevealPresenter {
     /// them (CleanShot, #26). Left out of the panel until the bar lists them
     /// again, and asked about again by the next pass that runs anyway.
     private var noIcon: Set<ItemID> = []
+    /// Keys a pass was asked for because their app's extras bar disagreed
+    /// with `noIcon`, and what that bar said (true: an icon listed).
+    private var extrasSaid: [ItemID: Bool] = [:]
+    /// Bundles whose extras bar a pass proved wrong: it says nothing about
+    /// their icon, and is not asked again this launch.
+    private var extrasSayNothing: Set<String> = []
+    /// Bundles whose extras bar listed an icon this launch: only theirs is
+    /// believed when it lists none. Velja's, Pure Paste's and Unclutter's
+    /// list none with their icon on the bar (live, 2026-10-13).
+    private var extrasListed: Set<String> = []
+    /// Apps whose tile `noIcon` left out that came to the front since the
+    /// last check: switching an icon back on is done in the app.
+    private var inFrontSinceCheck: Set<String> = []
+    private var activationObserver: NSObjectProtocol?
+    private var iconCheck: Task<Void, Never>?
     /// Keys a pass of this open already asked for: one it got no picture of
     /// without trying (no cover, a skipped round) is asked for again next
     /// open, not by a pass straight after, which with no cover deferred the
@@ -167,6 +182,15 @@ final class PanelPresenter: RevealPresenter {
 
     init(appState: AppState) {
         self.appState = appState
+        activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+        ) { [weak self] note in
+            let bundle = (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleIdentifier
+            MainActor.assumeIsolated {
+                guard let self, let bundle, self.noIcon.contains(where: { $0.bundleID == bundle }) else { return }
+                self.inFrontSinceCheck.insert(bundle)
+            }
+        }
     }
 
     /// Whether an armed rehide should wait. The panel closes as the bar
@@ -248,6 +272,7 @@ final class PanelPresenter: RevealPresenter {
         DispatchQueue.main.async { [weak self] in self?.appState?.panelDidSettle() }
         if reason == .barDrag { barDragging = true }
         picturePassUnlessBarDrag(shown.missing)
+        if !wasOpen, !barDragging { checkIconsGone() }
     }
 
     func conceal(trace: PerfTrace) {
@@ -1962,6 +1987,83 @@ final class PanelPresenter: RevealPresenter {
         if isOpen { refresh() }
     }
 
+    /// A concealed icon is in no tree the bar walks, so an app that switched
+    /// its icon off while hidden kept its tile until the picture went stale,
+    /// and a click on it opened nothing (Snib, CleanShot #26). The app's own
+    /// extras bar still lists a concealed icon and lists none once it is
+    /// off: where it disagrees with `noIcon`, the icon's section is pictured
+    /// now, and the pass's walk has the last word.
+    private func checkIconsGone() {
+        guard let appState, iconCheck == nil, appState.screenRecordingGranted else { return }
+        let live = Set((appState.snapshot?.items ?? []).filter { $0.frame != nil }.map(\.id.sectionKey))
+        var keys: [String: [ItemID]] = [:]
+        for item in [PelmetCore.Section.hidden, .alwaysHidden].flatMap(appState.editorItems(in:)) {
+            let key = item.id.sectionKey
+            guard let bundle = key.bundleID, !key.isSystemModule, !bundle.hasPrefix("com.apple."),
+                  !PelmetBundle.ownIDs.contains(bundle), !extrasSayNothing.contains(bundle), !live.contains(key)
+            else { continue }
+            keys[bundle, default: []].append(key)
+        }
+        // An icon switched back on under the assertion parks, in no tree,
+        // its app's extras bar included: the app was in front for it, so
+        // its section is looked at again.
+        let revisit = noIcon.filter { $0.bundleID.map(inFrontSinceCheck.contains) ?? false }
+        inFrontSinceCheck = []
+        let pids = keys.keys.reduce(into: [String: [pid_t]]()) { pids, bundle in
+            let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundle).map(\.processIdentifier)
+            if !running.isEmpty { pids[bundle] = running }
+        }
+        guard !pids.isEmpty || !revisit.isEmpty else { return }
+        iconCheck = Task { @MainActor [weak self] in
+            let lists = pids.isEmpty ? [:] : await Self.listStatusItems(pids)
+            guard let self, let appState = self.appState else { return }
+            self.iconCheck = nil
+            var said: [ItemID: Bool] = [:]
+            for (bundle, listed) in lists {
+                if listed {
+                    self.extrasListed.insert(bundle)
+                } else if !self.extrasListed.contains(bundle) {
+                    continue
+                }
+                for key in keys[bundle] ?? [] where self.noIcon.contains(key) == listed { said[key] = listed }
+            }
+            guard !said.isEmpty || !revisit.isEmpty else { return }
+            // The open's own pass first; one still lifting its cover refuses
+            // the next.
+            let started = Date()
+            while self.passTask != nil || appState.transitions.passInFlight, Date().timeIntervalSince(started) < 6 {
+                try? await Task.sleep(for: .milliseconds(50))
+            }
+            guard self.passTask == nil else { return }
+            // The open's pass may have settled some already.
+            said = said.filter { self.noIcon.contains($0.key) == $0.value }
+            let wanted = Set(said.keys).union(revisit)
+            guard !wanted.isEmpty else { return }
+            if !said.isEmpty {
+                PelmetLog.log("panel: extras bars disagree — \(said.map { "\($0.key.rawValue) \($0.value ? "lists an icon" : "lists none")" }.sorted()), pictured to check")
+            }
+            if !revisit.isEmpty {
+                PelmetLog.log("panel: \(revisit.map(\.rawValue).sorted()) left out, their app came to the front, looked for again")
+            }
+            self.extrasSaid.merge(said) { $1 }
+            self.picturePassIfNeeded(Array(wanted))
+        }
+    }
+
+    /// Per bundle, whether any running copy lists a status item; a bundle
+    /// with a copy whose accessibility doesn't answer is left out.
+    @concurrent
+    private static func listStatusItems(_ pids: [String: [pid_t]]) async -> [String: Bool] {
+        pids.reduce(into: [:]) { lists, entry in
+            let answers = entry.value.map(ItemEnumerator.listsStatusItem(pid:))
+            if answers.contains(true) {
+                lists[entry.key] = true
+            } else if answers.allSatisfy({ $0 == false }) {
+                lists[entry.key] = false
+            }
+        }
+    }
+
     /// The pass, once, when the open panel (or the Settings preview) shows
     /// tiles with no picture. `done` runs once pictures were stored.
     func picturePassIfNeeded(_ missing: [ItemID], done: (@MainActor () -> Void)? = nil) {
@@ -2012,10 +2114,20 @@ final class PanelPresenter: RevealPresenter {
             if !newlyMissing.isEmpty || !backNow.isEmpty {
                 PelmetLog.log("panel: no icon in the bar, left out \(newlyMissing.map(\.rawValue).sorted())\(backNow.isEmpty ? "" : ", back \(backNow.map(\.rawValue).sorted())")")
             }
+            // An extras bar the pass proved wrong is not asked again.
+            for key in wanted {
+                guard let listed = self.extrasSaid.removeValue(forKey: key), let bundle = key.bundleID else { continue }
+                let wrong = listed ? found.absent.contains(key) : found.pictures[key] != nil
+                if wrong, self.extrasSayNothing.insert(bundle).inserted {
+                    PelmetLog.log("panel: \(bundle)'s extras bar said \(listed ? "an icon" : "none"), the bar disagrees: not asked again")
+                }
+            }
             let now = Date()
             // Only what the pass tried and missed waits out `maxAge`; a key
             // a skipped round never reached is asked for again next open.
-            for key in found.failed { self.unpicturable[key] = now }
+            // One with no icon on the bar is `noIcon`'s, looked for again
+            // when its app comes to the front.
+            for key in found.failed.subtracting(found.absent) { self.unpicturable[key] = now }
             let lost = wanted.filter { found.pictures[$0] == nil }.map(\.rawValue)
             let again = max(0, lost.count - found.failed.count)
             PelmetLog.log("panel: pass pictured \(found.pictures.count) of \(wanted.count) wanted\(lost.isEmpty ? "" : " — none for \(lost)")\(again > 0 ? ", \(again) asked again next open" : "")")

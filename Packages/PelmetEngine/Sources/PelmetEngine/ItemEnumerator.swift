@@ -414,6 +414,32 @@ public actor ItemEnumerator {
         explicit ?? extrasBarFallback(among: bars.map(shape)).map { bars[$0] }
     }
 
+    /// Whether the app at `pid` lists a status item in its own extras bar,
+    /// nil when its accessibility doesn't answer. A concealed icon leaves
+    /// the bar's tree but stays listed here, and an app that switched its
+    /// icon off lists none (Snib, probed 2026-10-13).
+    public static func listsStatusItem(pid: pid_t) -> Bool? {
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(app, EngineTiming.axAgentTimeout)
+        func value(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
+            var out: CFTypeRef?
+            return AXUIElementCopyAttributeValue(element, name as CFString, &out) == .success ? out : nil
+        }
+        func children(of element: AXUIElement) -> [AXUIElement] {
+            value(element, kAXChildrenAttribute) as? [AXUIElement] ?? []
+        }
+        guard let nodes = value(app, kAXChildrenAttribute) as? [AXUIElement] else { return nil }
+        let bars = nodes.filter { value($0, kAXRoleAttribute) as? String == "AXMenuBar" }
+        let explicit = value(app, kAXExtrasMenuBarAttribute)
+            .flatMap { CFGetTypeID($0) == AXUIElementGetTypeID() ? ($0 as! AXUIElement) : nil }
+        let bar = extrasBar(explicit: explicit, among: bars) { bar in
+            var size = CGSize.zero
+            let width = value(bar, kAXSizeAttribute).flatMap { AXValueGetValue($0 as! AXValue, .cgSize, &size) ? size.width : nil }
+            return (width, children(of: bar).map { value($0, kAXSubroleAttribute) as? String })
+        }
+        return bar.map { !children(of: $0).isEmpty } ?? false
+    }
+
     /// How an app's stand-ins are named, from its extras bar's entry titles
     /// (nil for an untitled entry), nil when there is no bar to read.
     static func standInNaming(titles: [String?]?) -> StandInNaming {
