@@ -109,6 +109,36 @@ import Testing
         #expect(ledger.standing(of: a) == .settled)
     }
 
+    @Test func aDropAfterOurOwnMoveWithNoLookBetweenIsActionable() {
+        // Vorssaint dropped to Hidden on the right, our pass put it on the
+        // left, and it was dropped back to Visible before the next look:
+        // section and side changed together, the side by us (live test,
+        // 2026-10-13 21:14:08).
+        var ledger = StrayLedger()
+        ledger.observe([look(a, .right, .visible)])
+        ledger.observe([look(a, .right, .hidden)], strays: [a])
+        #expect(ledger.actionable([a]) == [a])
+        let byHand = ledger.observe([look(a, .left, .visible)], strays: [a], ownMoves: [a])
+        #expect(byHand.isEmpty)
+        #expect(ledger.actionable([a]) == [a])
+        // Without our move it is an adoption, as before.
+        var adopted = StrayLedger()
+        adopted.observe([look(a, .right, .hidden)], strays: [a])
+        adopted.observe([look(a, .left, .visible)], strays: [a])
+        #expect(adopted.actionable([a]).isEmpty)
+    }
+
+    @Test func whyNotMovedNamesTheReason() {
+        var ledger = StrayLedger()
+        ledger.observe([look(a, .left, .hidden), look(b, .left, .hidden)])
+        // a flips by hand; b changes section and side together (adopted).
+        ledger.observe([look(a, .right, .hidden), look(b, .right, .visible)], strays: [a])
+        #expect(ledger.whyNotMoved(a, exhausted: []) == "by hand")
+        #expect(ledger.whyNotMoved(b, exhausted: []) == "other (nothing explains it)")
+        #expect(ledger.whyNotMoved(b, exhausted: [b]) == "out of attempts")
+        #expect(ledger.whyNotMoved(ItemID.bundleKey("com.c"), exhausted: []) == "other (never seen)")
+    }
+
     @Test func aHandPlacedIconIsActionableAgainWhenItsSectionChanges() {
         var ledger = StrayLedger()
         ledger.observe([look(a, .left, .hidden)])

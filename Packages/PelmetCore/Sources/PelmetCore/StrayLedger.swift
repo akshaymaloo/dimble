@@ -9,8 +9,9 @@
 //
 //   actionable  a stray that is newly seen, relaunched (new pid), or whose
 //               section changed while its side did not (an editor drop:
-//               membership moved, nothing else did). Lasts while it stays
-//               a stray; an icon that is in place is settled.
+//               membership moved, nothing else did; a flip of Pelmet's
+//               own between the two looks is no change). Lasts while it
+//               stays a stray; an icon that is in place is settled.
 //   byHand      its side flipped without being one of Pelmet's own planned
 //               moves. Exempt until its section changes again.
 //   settled     everything else (nothing to explain, nothing to do).
@@ -74,6 +75,21 @@ public struct StrayLedger: Equatable, Sendable {
         strays.filter { records[$0]?.standing == .actionable }
     }
 
+    /// Why a stray is not moved, for the grouper's "none to move" line:
+    /// `exhausted` are the strays `StrayBudget` gave up on. The line said
+    /// "by hand, or out of attempts" for a stray that was neither (settled
+    /// by the look after the grouper's own drag, live test, 2026-10-13
+    /// 21:14:08).
+    public func whyNotMoved(_ id: ItemID, exhausted: Set<ItemID>) -> String {
+        if exhausted.contains(id) { return "out of attempts" }
+        switch records[id]?.standing {
+        case .byHand: return "by hand"
+        case .settled: return "other (nothing explains it)"
+        case .actionable: return "other (actionable)"
+        case nil: return "other (never seen)"
+        }
+    }
+
     /// Takes one look at the bar: every item in the snapshot, concealed or
     /// not. Items missing from it are forgotten (back later = newly seen).
     /// `strays` are the items whose side disagrees with their section right
@@ -95,10 +111,18 @@ public struct StrayLedger: Equatable, Sendable {
             let relaunched = prev.pid != nil && s.pid != nil && prev.pid != s.pid
             let sectionChanged = prev.section != s.section
             let sideChanged = prev.side != s.side
+            // A flip of our own is no side change of the person's, beside a
+            // section change too. A look that comes after both the grouper's
+            // drag and the next editor drop sees section and side change
+            // together, the shape of an adopted ⌘-drag, and settled it:
+            // Vorssaint placed in Hidden and dropped back to Visible 2.9s
+            // later, inside the grouper's debounce, read "none to move" with
+            // a fresh budget and no hand move (live test, 2026-10-13 21:14:08).
+            let ownFlip = sideChanged && ownMoves.contains(s.id)
             if relaunched {
                 standing = .actionable
             } else if sectionChanged {
-                standing = sideChanged ? .settled : .actionable
+                standing = sideChanged && !ownFlip ? .settled : .actionable
             } else if sideChanged, prev.side != nil, s.side != nil {
                 if ownMoves.contains(s.id) {
                     standing = .settled
@@ -115,7 +139,7 @@ public struct StrayLedger: Equatable, Sendable {
             // look later (nil → side is no flip) it stayed there. Unplaced,
             // the explanation lasts `unplacedWindow`: held for good, a hand
             // drag hours later read as explained and was moved back.
-            let explained = relaunched || (sectionChanged && !sideChanged)
+            let explained = relaunched || (sectionChanged && (!sideChanged || ownFlip))
             var unplacedSince: Date?
             if standing == .actionable {
                 let since = (explained ? nil : prev.unplacedSince) ?? now

@@ -215,7 +215,11 @@ final class SectionGrouper {
         let ready = verdict.ready
         guard !ready.isEmpty else {
             lastWaiting = nil
-            note("group: \(strays.count) stray(s) [\(Self.names(strays))] — none to move (by hand, or out of attempts)")
+            // Each stray's own reason: "by hand, or out of attempts" stood
+            // for a Vorssaint that was neither (live test, 2026-10-13 21:14:08).
+            let exhausted = Set(verdict.exhausted)
+            let why = strays.map { "\($0.rawValue) \(ledger.whyNotMoved($0, exhausted: exhausted))" }.joined(separator: "; ")
+            note("group: \(strays.count) stray(s) [\(Self.names(strays))] — none to move: \(why)")
             return
         }
         note("group: \(ready.count) stray(s) [\(Self.names(ready))]")
