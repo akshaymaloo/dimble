@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import PelmetCore
 
@@ -284,5 +285,86 @@ import Testing
         #expect(ApplyCount.count(
             stale, edits: edits, trapped: [], drawn: { _ in true }, concealed: { _ in false }, unread: unread
         ).total == 1)
+    }
+
+    @Test func anExtraShownSinceTheLastWalkAtRestIsUnread() {
+        // Listed live or not, at rest or not: the walk read the bar before
+        // the show, or read it joining the layout (live test, 2026-10-13
+        // 20:24:38).
+        #expect(ApplyCount.isUnread(
+            shortcuts, drawn: { _ in true }, live: [shortcuts], concealedKeys: [], atRest: true, shown: [shortcuts]
+        ))
+        #expect(ApplyCount.isUnread(
+            shortcuts, drawn: { _ in true }, live: [], concealedKeys: [], atRest: true, shown: [shortcuts]
+        ))
+        // Drawn and live, no show pending: read, as before.
+        #expect(!ApplyCount.isUnread(
+            shortcuts, drawn: { _ in true }, live: [shortcuts], concealedKeys: [], atRest: false, shown: []
+        ))
+        // Not drawn: the show says nothing (the section is concealed).
+        #expect(!ApplyCount.isUnread(
+            shortcuts, drawn: { _ in false }, live: [], concealedKeys: [], atRest: true, shown: [shortcuts]
+        ))
+    }
+
+    @Test func aShowIsReadByAWalkAtRestAfterIt() {
+        let shown = Date(timeIntervalSinceReferenceDate: 1000)
+        // The walk behind the swap that showed it: after, but not at rest.
+        #expect(!ApplyCount.hasWalked(since: shown, takenAt: shown.addingTimeInterval(0.085), atRest: false))
+        // A walk at rest from before the show.
+        #expect(!ApplyCount.hasWalked(since: shown, takenAt: shown.addingTimeInterval(-1), atRest: true))
+        // The walk at rest half a second on.
+        #expect(ApplyCount.hasWalked(since: shown, takenAt: shown.addingTimeInterval(0.52), atRest: true))
+    }
+
+    @Test func anExtraMovedOutOfAConcealedSectionReadsOneUntilWalked() {
+        // Shortcuts moved to Visible out of a concealed Hidden: shown at
+        // 20:24:38.110, the walk behind the swap listed it with no slot on
+        // the bar (or one mid-reflow, in place), the plan found nothing and
+        // the button read a plain "Apply" until the walk at rest found the
+        // move (live test, 2026-10-13 20:24:38).
+        let roster = Roster(members: [a: .hidden])
+        let edits = OrderEdits(
+            order: [.visible: [v1, shortcuts]], previousSection: [shortcuts: .hidden],
+            previousOrder: [.visible: [v1], .hidden: [a, shortcuts]], dropped: [shortcuts]
+        )
+        func count(bar: [ItemID], live: Set<ItemID>, shown: Set<ItemID>) -> Int {
+            let plan = MovePlan.compute(bar: bar, edits: edits, roster: roster, chevron: chevron)
+            return ApplyCount.count(
+                plan, edits: edits, trapped: [], drawn: { _ in true }, concealed: { _ in false },
+                unread: {
+                    ApplyCount.isUnread($0, drawn: { _ in true }, live: live, concealedKeys: [], atRest: false, shown: shown)
+                }
+            ).total
+        }
+        let live: Set<ItemID> = [chevron, v1, shortcuts]
+        // Listed with no slot on the bar.
+        #expect(count(bar: [chevron, v1], live: live, shown: []) == 0)
+        #expect(count(bar: [chevron, v1], live: live, shown: [shortcuts]) == 1)
+        // Listed mid-reflow where the drawing wants it.
+        #expect(count(bar: [chevron, v1, shortcuts], live: live, shown: [shortcuts]) == 1)
+        // Walked at rest: in place is no move, out of place the one move.
+        #expect(count(bar: [chevron, v1, shortcuts], live: live, shown: []) == 0)
+        #expect(count(bar: [shortcuts, chevron, v1], live: live, shown: []) == 1)
+    }
+
+    @Test func anExtraDrawnBackInPlaceStaysNoMoveWhenShown() {
+        // The out-and-back stays out of the count and the floor (84f0f56),
+        // shown or not.
+        let roster = Roster(members: [a: .hidden, shortcuts: .hidden])
+        let edits = OrderEdits(
+            order: [.hidden: [a, shortcuts]], previousOrder: [.hidden: [a, shortcuts]], dropped: [shortcuts]
+        )
+        let plan = MovePlan.compute(bar: [a, shortcuts, chevron, v1], edits: edits, roster: roster, chevron: chevron)
+        let count = ApplyCount.count(
+            plan, edits: edits, trapped: [], drawn: { _ in true }, concealed: { _ in false },
+            unread: {
+                ApplyCount.isUnread(
+                    $0, drawn: { _ in true }, live: [a, shortcuts, chevron, v1], concealedKeys: [], atRest: true,
+                    shown: [shortcuts]
+                )
+            }
+        )
+        #expect(count.total == 0)
     }
 }

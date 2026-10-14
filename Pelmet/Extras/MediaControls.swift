@@ -77,6 +77,12 @@ final class ExtrasManager {
     }
     private var specs: [UUID: ExtraItemSpec] = [:]
     private var lastVisible: [UUID: Bool] = [:]
+    /// When each extra that is up was last shown. A show is no swap, so the
+    /// walk can read the bar at rest from before it, and the walk behind a
+    /// swap reads it joining the layout: the Apply count waits for a walk at
+    /// rest after it (`ApplyCount.hasWalked`; Shortcuts moved to Visible
+    /// read "= 0" until then, live test, 2026-10-13 20:24:38).
+    private var shownAt: [UUID: Date] = [:]
     /// Every extra allows the native ⌘-drag off the bar; AppKit reports it
     /// as an `isVisible` flip (see `observeRemoval`).
     private var removalObservations: [UUID: NSKeyValueObservation] = [:]
@@ -143,6 +149,12 @@ final class ExtrasManager {
     /// wait — has to ask rather than infer it from the section.
     func isShowing(_ id: ItemID) -> Bool {
         specs.contains { lastVisible[$0.key] == true && Self.itemID(for: $0.value) == id }
+    }
+
+    /// When the extra under `key` (canonical) was last shown; nil while it
+    /// is down.
+    func shownAt(_ key: ItemID) -> Date? {
+        specID(for: key).flatMap { shownAt[$0] }
     }
 
     /// Whether this extra would be in the bar with its section out: the
@@ -234,6 +246,7 @@ final class ExtrasManager {
             glyphKeys.removeValue(forKey: id)
             specs.removeValue(forKey: id)
             lastVisible.removeValue(forKey: id)
+            shownAt.removeValue(forKey: id)
             lastRunning.removeValue(forKey: id)
             removalObservations.removeValue(forKey: id)
             animators[id]?.tearDown()
@@ -597,6 +610,7 @@ final class ExtrasManager {
         }
         guard lastVisible[id] != visible else { return }
         lastVisible[id] = visible
+        shownAt[id] = visible ? Date() : nil
         let wasPreattached = preattached.remove(id) != nil
         PelmetLog.log("extras: \(specs[id]?.itemTitle ?? "?") → \(visible ? (wasPreattached ? "fade (attached ahead)" : "show") : "hide (ghost)")")
         // Runs as the engine's reflow companion, so timing coincides with the

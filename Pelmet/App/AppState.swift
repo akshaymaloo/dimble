@@ -2508,6 +2508,11 @@ final class AppState {
     /// read as let go and a reorder of only that separator cleared at once
     /// (`OrderEditSettle`).
     @ObservationIgnored private var ownItemsBehindOverflow: Set<ItemID> = []
+    /// When the latest walk at rest handed to `updateSnapshot` was taken,
+    /// including one dropped there as reading the same as the snapshot.
+    /// Observed: that walk is what turns an extra's show read, and the
+    /// Apply count reads it (`unreadNow`).
+    private var lastRestWalkAt: Date?
 
     /// Apply has something to do: a drawing not yet applied, or the bar
     /// disagreeing with the sections.
@@ -3509,12 +3514,22 @@ final class AppState {
     /// converge swaps, and a reveal before its walk lands, so the Apply
     /// count judged Snib's drop into a concealed Hidden from the walk
     /// before it and read "= 0" for 0.55s (live test, 2026-10-13 19:24:25).
+    /// An extra shown since the last walk at rest is unread too: Shortcuts
+    /// moved to Visible out of a concealed Hidden read "= 0" from its show
+    /// until that walk (live test, 2026-10-13 20:24:38).
     func unreadNow(in snap: EngineSnapshot) -> (ItemID) -> Bool {
         let drawn = drawnNow(in: snap)
         let live = Set(snap.items.map(\.id.sectionKey))
         let concealed = Set(snap.concealed.map(\.sectionKey))
         let atRest = snap.itemsAtRest
-        return { ApplyCount.isUnread($0, drawn: drawn, live: live, concealedKeys: concealed, atRest: atRest) }
+        let extras = self.extras
+        let readAt = max(snap.takenAt, lastRestWalkAt ?? snap.takenAt)
+        let shown = Set((extras?.managedItemIDs ?? []).map(\.sectionKey).filter { key in
+            extras?.shownAt(key).map { !ApplyCount.hasWalked(since: $0, takenAt: readAt, atRest: atRest) } ?? false
+        })
+        return {
+            ApplyCount.isUnread($0, drawn: drawn, live: live, concealedKeys: concealed, atRest: atRest, shown: shown)
+        }
     }
 
     private func noteOverflow(in snap: EngineSnapshot) {
@@ -3640,6 +3655,10 @@ final class AppState {
 
     func updateSnapshot(_ snap: EngineSnapshot) {
         let now = Date.now
+        // Kept even when the walk reads as the snapshot in hand and is
+        // dropped below: it read the bar at rest all the same, and an extra
+        // shown before it is read (`unreadNow`).
+        if snap.itemsAtRest, snap.takenAt > (lastRestWalkAt ?? .distantPast) { lastRestWalkAt = snap.takenAt }
         noteOverflow(in: snap)
         let primary = ApplyPass.primaryFrames(snap, appState: self)
         let chevronMidX = pelmetChevronItem(in: snap).flatMap { primary[$0.id.sectionKey]?.midX }

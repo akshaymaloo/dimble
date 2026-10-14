@@ -75,12 +75,29 @@ public enum ApplyCount {
     /// while the walk is inside a reflow (AX lists a revealed strip
     /// progressively). One drawn, missing from a walk at rest that does not
     /// list it concealed, has left the bar: read, nothing to wait for.
+    /// Also unread: one of Pelmet's own extras shown since the last walk at
+    /// rest (`shown`, see `hasWalked`), listed or not. A show is no swap, so
+    /// a walk can read the bar at rest before it, and the walk behind a swap
+    /// reads it joining the layout: Shortcuts moved to Visible out of a
+    /// concealed Hidden read "= 0" from its show until the walk at rest
+    /// 0.5s on, and so did one a reveal showed (live test, 2026-10-13
+    /// 20:24:38 and 20:23:58).
     public static func isUnread(
-        _ id: ItemID, drawn: (ItemID) -> Bool, live: Set<ItemID>, concealedKeys: Set<ItemID>, atRest: Bool
+        _ id: ItemID, drawn: (ItemID) -> Bool, live: Set<ItemID>, concealedKeys: Set<ItemID>, atRest: Bool,
+        shown: Set<ItemID> = []
     ) -> Bool {
         let key = id.sectionKey
         guard drawn(key) else { return live.contains(key) }
+        if shown.contains(key) { return true }
         return !live.contains(key) && (concealedKeys.contains(key) || !atRest)
+    }
+
+    /// Whether a walk has read an own extra shown at `shownAt`: a walk at
+    /// rest (`atRest`), taken (`takenAt`) after the show. A swap's stamp is
+    /// never at rest, and a walk at rest starts half a second past the swap
+    /// whose reflow showed the extra.
+    public static func hasWalked(since shownAt: Date, takenAt: Date, atRest: Bool) -> Bool {
+        atRest && takenAt > shownAt
     }
 
     /// Whether `id`'s concealed section is what keeps it off the bar right
