@@ -21,7 +21,7 @@ struct ReleaseNotesView: View {
                 Text(title)
                     .font(.system(size: 13, weight: .semibold))
                 Spacer()
-                Link("All releases ↗", destination: URL(string: "https://github.com/fif7y/pelmet/releases")!)
+                Link("All releases ↗", destination: URL(string: "https://github.com/fif7y/pliss/releases")!)
                     .font(.caption)
                     .foregroundStyle(PelmetAccent.accent)
             }

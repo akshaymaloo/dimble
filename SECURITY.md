@@ -9,7 +9,7 @@ how to reach me if something looks wrong.
 Please don't open a public issue for anything security related. Use GitHub's
 private reporting instead:
 
-**[Report a vulnerability](https://github.com/fif7y/pelmet/security/advisories/new)**
+**[Report a vulnerability](https://github.com/fif7y/pliss/security/advisories/new)**
 
 It goes straight to me and stays private until there's a fix. Include what you
 found, how to reproduce it, the Pliss version (Settings › About) and your
@@ -22,7 +22,7 @@ unless you'd rather not.
 
 ## Supported versions
 
-Only the [latest release](https://github.com/fif7y/pelmet/releases/latest)
+Only the [latest release](https://github.com/fif7y/pliss/releases/latest)
 gets fixes. Pliss updates itself, so staying current is the whole story.
 Requires macOS 27.
 

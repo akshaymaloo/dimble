@@ -92,8 +92,8 @@ fi
 if [[ -n "$GENERATE_APPCAST" ]]; then
     # Signs with the EdDSA private key from the keychain (generate_keys), or
     # from a file when SPARKLE_KEY_FILE is set (CI).
-    APPCAST_ARGS=(--download-url-prefix "https://github.com/fif7y/pelmet/releases/download/v$VERSION/")
-    APPCAST_ARGS+=(--full-release-notes-url "https://github.com/fif7y/pelmet/releases")
+    APPCAST_ARGS=(--download-url-prefix "https://github.com/fif7y/pliss/releases/download/v$VERSION/")
+    APPCAST_ARGS+=(--full-release-notes-url "https://github.com/fif7y/pliss/releases")
     [[ -n "${SPARKLE_KEY_FILE:-}" ]] && APPCAST_ARGS+=(--ed-key-file "$SPARKLE_KEY_FILE")
     [[ -n "$CHANNEL" ]] && APPCAST_ARGS+=(--channel "$CHANNEL")
     "$GENERATE_APPCAST" "${APPCAST_ARGS[@]}" "$RELEASES_DIR"

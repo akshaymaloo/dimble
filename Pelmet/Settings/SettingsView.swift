@@ -450,7 +450,7 @@ private struct SidebarRow: View {
 /// brand accent — every option visible at once, no menu to open.
 /// Outbound help links. The FAQ is one page with named anchors.
 enum PelmetLinks {
-    static let faqAppLaunchers = URL(string: "https://github.com/fif7y/pelmet/blob/main/docs/FAQ.md#app-launchers")!
+    static let faqAppLaunchers = URL(string: "https://github.com/fif7y/pliss/blob/main/docs/FAQ.md#app-launchers")!
 }
 
 struct PelmetSegments<T: Hashable>: View {
@@ -1302,7 +1302,7 @@ private struct ThanksPane: View {
     @State private var stars = GitHubStars.cached
 
     private static let sponsor = URL(string: "https://github.com/sponsors/fif7y")!
-    private static let repo = URL(string: "https://github.com/fif7y/pelmet")!
+    private static let repo = URL(string: "https://github.com/fif7y/pliss")!
     private static let x = URL(string: "https://x.com/FIF7Y")!
     private static let instagram = URL(string: "https://www.instagram.com/madebyfif7y/")!
     private static let website = URL(string: "https://pliss.fif7y.com")!
@@ -1369,7 +1369,7 @@ enum GitHubStars {
     static var cached: Int? { UserDefaults.standard.object(forKey: key) as? Int }
 
     static func fetch() async -> Int? {
-        var request = URLRequest(url: URL(string: "https://api.github.com/repos/fif7y/pelmet")!)
+        var request = URLRequest(url: URL(string: "https://api.github.com/repos/fif7y/pliss")!)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         guard let (data, _) = try? await URLSession.shared.data(for: request),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -1464,8 +1464,8 @@ private struct AboutPane: View {
 
             HStack(spacing: 18) {
                 Link("Website", destination: URL(string: "https://pliss.fif7y.com")!)
-                Link("GitHub", destination: URL(string: "https://github.com/fif7y/pelmet")!)
-                Link("Report an issue", destination: URL(string: "https://github.com/fif7y/pelmet/issues")!)
+                Link("GitHub", destination: URL(string: "https://github.com/fif7y/pliss")!)
+                Link("Report an issue", destination: URL(string: "https://github.com/fif7y/pliss/issues")!)
             }
             .font(.callout)
             .foregroundStyle(.secondary)

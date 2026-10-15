@@ -4,9 +4,9 @@
 
 <p align="center">
   <a href="https://pelmet.fif7y.com"><img src="https://img.shields.io/badge/website-pelmet.fif7y.com-6841ED" alt="Website: pelmet.fif7y.com"></a>
-  <a href="https://github.com/fif7y/pelmet/releases/latest"><img src="https://img.shields.io/github/v/release/fif7y/pelmet?label=download&color=2ea44f" alt="Download latest release"></a>
+  <a href="https://github.com/fif7y/pliss/releases/latest"><img src="https://img.shields.io/github/v/release/fif7y/pliss?label=download&color=2ea44f" alt="Download latest release"></a>
   <a href="#install"><img src="https://img.shields.io/badge/requirements-macOS_27%2B-E8A33D" alt="Requires macOS 27 or later"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/fif7y/pelmet" alt="License: GPL-3.0"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/fif7y/pliss" alt="License: GPL-3.0"></a>
   <a href="https://alternativeto.net/software/pelmet/about/"><img src="https://img.shields.io/badge/AlternativeTo-Pelmet-1f6feb" alt="Pelmet on AlternativeTo"></a>
   <a href="https://github.com/sponsors/fif7y"><img src="https://img.shields.io/badge/sponsor-%E2%9D%A4-ea4aaa" alt="Sponsor Pelmet"></a>
 </p>
@@ -22,7 +22,7 @@ no account, no analytics.
 > rolls them up every week or two. Turn on "Get beta releases" in
 > Settings › About, or download the latest beta:
 >
-> [![Latest beta](https://img.shields.io/github/v/release/fif7y/pelmet?include_prereleases&filter=*beta*&label=latest%20beta&color=6841ED)](https://github.com/fif7y/pelmet/releases?q=prerelease%3Atrue)
+> [![Latest beta](https://img.shields.io/github/v/release/fif7y/pliss?include_prereleases&filter=*beta*&label=latest%20beta&color=6841ED)](https://github.com/fif7y/pliss/releases?q=prerelease%3Atrue)
 
 <p align="center">
   <img src="https://pelmet.fif7y.com/assets/bar-reveal.svg" alt="The menu bar on a hover. Hidden icons slide out from behind the chevron, then tuck back in" width="575"><br>
@@ -171,7 +171,7 @@ uses public APIs: Accessibility and ScreenCaptureKit.
 
 ## Install
 
-Download the latest DMG from [Releases](https://github.com/fif7y/pelmet/releases),
+Download the latest DMG from [Releases](https://github.com/fif7y/pliss/releases),
 drag Pelmet to Applications, and launch it. Or with Homebrew:
 
 ```sh
@@ -204,7 +204,7 @@ More in the [FAQ](docs/FAQ.md).
 Requires Xcode with the macOS 27 SDK and [xcodegen](https://github.com/yonaskolb/XcodeGen).
 
 ```sh
-git clone https://github.com/fif7y/pelmet.git
+git clone https://github.com/fif7y/pliss.git
 cd pelmet
 xcodegen
 xcodebuild -project Pelmet.xcodeproj -scheme Pelmet -configuration Release build

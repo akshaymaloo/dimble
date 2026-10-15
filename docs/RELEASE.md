@@ -36,46 +36,54 @@ Everything below the one-time setup is: bump version → run script → publish.
    somewhere safe (it is the only thing that can sign updates; losing it
    strands existing installs).
 
-4. **Appcast hosting** — `SUFeedURL` is `https://fif7y.github.io/pelmet/appcast.xml`:
-   enable GitHub Pages on the repo (branch `gh-pages`, root). The appcast file
-   gets pushed there each release; DMGs are attached to GitHub Releases (the
-   appcast’s enclosure URLs point at `github.com/fif7y/pelmet/releases/download/…`).
+4. **Appcast hosting**: `SUFeedURL` is `https://fif7y.github.io/updates/pliss/appcast.xml`,
+   served by GitHub Pages from the public repo `fif7y/updates` (branch `main`, root).
+   Builds up to 0.3.2-beta.6 read `https://fif7y.github.io/pelmet/appcast.xml`. Since
+   fif7y/pelmet became fif7y/pliss (2026-10-15), that path is served by the account
+   Pages site `fif7y/fif7y.github.io` (folder `pelmet/`), because Pages paths don't
+   redirect on a rename. Never create a repo named `pelmet`: it would take the path
+   back and break github.com/fif7y/pelmet's redirect. Never give the account site a
+   custom domain: every project Pages URL would move with it. DMGs are attached to
+   GitHub Releases (the appcast's enclosure URLs point at
+   `github.com/fif7y/pliss/releases/download/…`).
 
 ## Per-release
 
 1. Bump `MARKETING_VERSION` (and `CURRENT_PROJECT_VERSION` — Sparkle compares
    `CFBundleVersion`, so it must strictly increase) in `project.yml`.
 2. `scripts/release.sh` — archives, exports with Developer ID, notarizes +
-   staples app and DMG, writes `build/releases/Pelmet-<v>.dmg` + `appcast.xml`.
+   staples app and DMG, writes `build/releases/Pliss-<v>.dmg` + `appcast.xml`.
 3. Tag and publish: create GitHub release `v<version>` with the DMG and the
    `*.delta` files attached (release.sh points each delta at its build's
    release tag, never at gh-pages).
-4. Push `appcast.xml` to `gh-pages`. Commit it
-   with the repo's own identity — a scratch clone picks up the global git
-   config, and a push authored with the gmail address is rejected by the
-   account's email-privacy setting:
+4. Push `appcast.xml` to BOTH feeds, the new one first:
+   `fif7y/updates` → `pliss/appcast.xml`, then `fif7y/fif7y.github.io` →
+   `pelmet/appcast.xml` (older installs). The `gh-pages` branch of fif7y/pliss is no
+   longer read by anything. Commit with the repo's own identity: a scratch clone
+   picks up the global git config, and a push authored with the gmail address is
+   rejected by the account's email-privacy setting:
 
    ```sh
    git -c user.name="Gab" -c user.email="16541220+fif7y@users.noreply.github.com" \
-       commit -m "Appcast: Pelmet <version>"
+       commit -m "Pliss <version>"
    ```
 
-   Don't trust the push's own output — `git push … | tail` reports the
+   Don't trust the push's own output: `git push … | tail` reports the
    pipeline's status, not the push's, so a rejected push can read as success.
-   Poll the live feed instead (Pages lags 20–60s):
+   Poll both live feeds instead (Pages lags 20–60s):
 
    ```sh
-   curl -s "https://fif7y.github.io/pelmet/appcast.xml?cb=$RANDOM" \
-     | grep -o '<sparkle:shortVersionString>[^<]*' | head -1
+   for u in updates/pliss pelmet; do curl -s "https://fif7y.github.io/$u/appcast.xml?cb=$RANDOM" \
+     | grep -o '<sparkle:shortVersionString>[^<]*' | head -1; done
    ```
 5. **Legacy feed mirror: frozen at 0.3.1, don't push to it.** Nook-era
    installs (≤ 0.1.4) poll `https://fif7y.github.io/nook/appcast.xml`, served
    by the stub repo `fif7y/nook` (GitHub Pages paths don't redirect on repo
    rename). Every build since the 0.1.5 bridge points `SUFeedURL` at the
-   Pelmet feed, so one update from that feed is enough to cross over. It
+   Pelmet feed (now the account site's `pelmet/` copy), so one update from that feed is enough to cross over. It
    carries 0.3.1 for that, and nothing newer is needed.
-6. Bump the Homebrew cask: `fif7y/homebrew-tap` → `Casks/pelmet.rb`, set
-   `version` and the DMG's `sha256` (`shasum -a 256 build/releases/Pelmet-<v>.dmg`),
+6. Bump the Homebrew cask: `fif7y/homebrew-tap` → `Casks/pliss.rb` (`Casks/pelmet.rb` up to 0.3.1, renamed with the 0.3.2 stable), set
+   `version` and the DMG's `sha256` (`shasum -a 256 build/releases/Pliss-<v>.dmg`),
    push with the same identity rule as step 4, then confirm the published DMG
    hashes to what the cask declares.
 7. Sanity: install the previous DMG, let Sparkle offer the new version, update.
