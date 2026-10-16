@@ -1,15 +1,15 @@
 import SwiftUI
 
-/// The app icon's P mark, drawn natively and animated: the two ghost dots tuck
-/// into the P and return, on the same 5.7s cycle as the hero SVG and the
-/// onboarding bar loop. Geometry mirrors `Pelmet-icon.svg` (1024 viewBox).
+/// The app icon's D mark, drawn natively and animated: the two ghost dots tuck
+/// into the D and return, on the same 5.7s cycle as the hero SVG and the
+/// onboarding bar loop. Geometry mirrors `AppIcon.icon` (1024 viewBox).
 struct AnimatedAppIcon: View {
     var size: CGFloat = 96
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private struct DotPhases {
-        var d1: CGFloat = 0  // 0 = home, 1 = tucked into the P
+        var d1: CGFloat = 0  // 0 = home, 1 = tucked into the D
         var d2: CGFloat = 0
     }
 
@@ -50,10 +50,10 @@ struct AnimatedAppIcon: View {
                 .fill(Color(red: 0x68 / 255, green: 0x41 / 255, blue: 0xED / 255))
             Canvas { ctx, canvasSize in
                 ctx.scaleBy(x: canvasSize.width / 1024, y: canvasSize.height / 1024)
-                ctx.fill(Self.pPath, with: .color(.white))
+                ctx.fill(Self.dPath, with: .color(.white))
                 ctx.fill(Self.solidDot, with: .color(.white))
-                drawGhost(Self.ghost1, into: &ctx, phase: phases.d1, travel: 77.5, restOpacity: 0.5)
-                drawGhost(Self.ghost2, into: &ctx, phase: phases.d2, travel: 157, restOpacity: 0.15)
+                drawGhost(Self.ghost1, into: &ctx, phase: phases.d1, travel: 96.574, restOpacity: 0.65)
+                drawGhost(Self.ghost2, into: &ctx, phase: phases.d2, travel: 193.148, restOpacity: 0.3)
             }
         }
     }
@@ -67,40 +67,38 @@ struct AnimatedAppIcon: View {
 
     // MARK: - Geometry (icon SVG's 1024 space)
 
-    private static let pPath: Path = {
+    private static let dPath: Path = {
         var p = Path()
-        p.move(to: CGPoint(x: 547.735, y: 309))
-        p.addCurve(to: CGPoint(x: 711.751, y: 462.612),
-                   control1: CGPoint(x: 657.283, y: 309),
-                   control2: CGPoint(x: 711.751, y: 379.992))
-        p.addCurve(to: CGPoint(x: 547.735, y: 616.224),
-                   control1: CGPoint(x: 711.751, y: 548.292),
-                   control2: CGPoint(x: 656.671, y: 615))
-        p.addLine(to: CGPoint(x: 441.247, y: 616.224))
-        p.addLine(to: CGPoint(x: 441.247, y: 697.4))
-        p.addLine(to: CGPoint(x: 345.775, y: 697.4))
-        p.addLine(to: CGPoint(x: 345.775, y: 528.708))
-        p.addLine(to: CGPoint(x: 547.735, y: 528.708))
-        p.addCurve(to: CGPoint(x: 616.279, y: 464.448),
-                   control1: CGPoint(x: 593.635, y: 528.708),
-                   control2: CGPoint(x: 616.279, y: 498.72))
-        p.addCurve(to: CGPoint(x: 547.735, y: 399.576),
-                   control1: CGPoint(x: 616.279, y: 430.176),
-                   control2: CGPoint(x: 593.023, y: 399.576))
-        p.addLine(to: CGPoint(x: 345.775, y: 399.576))
-        p.addLine(to: CGPoint(x: 345.775, y: 309))
+        p.move(to: CGPoint(x: 294.4, y: 324.35))
+        p.addLine(to: CGPoint(x: 533.541, y: 324.35))
+        p.addCurve(to: CGPoint(x: 733.6, y: 512),
+                   control1: CGPoint(x: 667.163, y: 324.35),
+                   control2: CGPoint(x: 733.6, y: 411.073))
+        p.addCurve(to: CGPoint(x: 533.541, y: 699.65),
+                   control1: CGPoint(x: 733.6, y: 612.927),
+                   control2: CGPoint(x: 667.163, y: 699.65))
+        p.addLine(to: CGPoint(x: 294.4, y: 699.65))
+        p.addLine(to: CGPoint(x: 294.4, y: 591.2))
+        p.addLine(to: CGPoint(x: 533.541, y: 591.2))
+        p.addCurve(to: CGPoint(x: 617.148, y: 512),
+                   control1: CGPoint(x: 588.781, y: 591.2),
+                   control2: CGPoint(x: 617.148, y: 553.841))
+        p.addCurve(to: CGPoint(x: 533.541, y: 432.8),
+                   control1: CGPoint(x: 617.148, y: 470.159),
+                   control2: CGPoint(x: 588.781, y: 432.8))
+        p.addLine(to: CGPoint(x: 294.4, y: 432.8))
         p.closeSubpath()
         return p
     }()
 
-    private static let solidDot = Path(ellipseIn: CGRect(x: 551.502 - 41.5, y: 463.492 - 41.5, width: 83, height: 83))
+    private static let solidDot = Path(ellipseIn: CGRect(x: 537.948 - 50.4, y: 512 - 50.4, width: 100.8, height: 100.8))
 
     /// Ghost dots are circles carved so they never overlap their neighbor
     /// (matches the moon shapes in the source SVG).
-    private static let ghost1 = carvedDot(center: CGPoint(x: 474.007, y: 463.391), radius: 41.58,
-                                          neighbor: CGPoint(x: 551.502, y: 463.492), clearance: 48.1)
-    private static let ghost2 = carvedDot(center: CGPoint(x: 394.582, y: 463.391), radius: 41.58,
-                                          neighbor: CGPoint(x: 474.007, y: 463.391), clearance: 49.3)
+    private static let ghost1 = carvedDot(center: CGPoint(x: 441.374, y: 512), radius: 50.4,
+                                          neighbor: CGPoint(x: 537.948, y: 512), clearance: 73.8)
+    private static let ghost2 = carvedDot(center: CGPoint(x: 344.8, y: 512), radius: 50.4,
+                                          neighbor: CGPoint(x: 441.374, y: 512), clearance: 73.8)
 
     private static func carvedDot(center: CGPoint, radius: CGFloat, neighbor: CGPoint, clearance: CGFloat) -> Path {
         let dot = CGPath(ellipseIn: CGRect(x: center.x - radius, y: center.y - radius,
