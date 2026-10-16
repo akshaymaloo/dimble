@@ -1908,12 +1908,23 @@ final class PanelPresenter: RevealPresenter {
     }
 
     /// The layout picked from the panel's menu is the setting from then on.
+    /// Panel ↔ Row re-lays an open panel. A pick that moves the icons
+    /// between the bar and a panel while they're out hides them instead:
+    /// whatever showed them takes them down, and the next open uses the new
+    /// place (#26). Refreshing would draw Menu bar as a grid, and a bar
+    /// reveal would stay out with nothing to close it.
     func setTarget(_ target: RevealTarget) {
         guard let appState else { return }
+        let crossesBar = (appState.revealTarget.panelLayout == nil) != (target.panelLayout == nil)
         appState.settings.hiddenIconsIn = target
         appState.settingsChanged()
         PelmetLog.log("panel: layout \(target.rawValue)")
-        if isOpen { refresh() }
+        if crossesBar, isOpen || appState.sectionsRevealed {
+            PelmetLog.log("panel: layout moved the open icons, concealing")
+            appState.concealNow()
+        } else if isOpen {
+            refresh()
+        }
     }
 
     /// Always Hidden's fold flipped on a panel that shows it (`shown`) or
