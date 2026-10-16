@@ -175,7 +175,7 @@ Download the latest DMG from [Releases](https://github.com/fif7y/dimble/releases
 drag Dimble to Applications, and launch it. Or with Homebrew:
 
 ```sh
-brew install fif7y/tap/dimble
+brew install --cask fif7y/tap/dimble
 ```
 
 Requires **macOS 27 (Golden Gate)**. Earlier versions of macOS use a
