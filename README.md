@@ -1,17 +1,17 @@
 <p align="center">
-  <img src="docs/assets/hero.svg" alt="Pelmet, a calm menu bar for macOS" width="800">
+  <img src="docs/assets/hero.svg" alt="Dimble, a calm menu bar for macOS" width="800">
 </p>
 
 <p align="center">
-  <a href="https://pelmet.fif7y.com"><img src="https://img.shields.io/badge/website-pelmet.fif7y.com-6841ED" alt="Website: pelmet.fif7y.com"></a>
+  <a href="https://dimble.fif7y.com"><img src="https://img.shields.io/badge/website-dimble.fif7y.com-6841ED" alt="Website: dimble.fif7y.com"></a>
   <a href="https://github.com/fif7y/dimble/releases/latest"><img src="https://img.shields.io/github/v/release/fif7y/dimble?label=download&color=2ea44f" alt="Download latest release"></a>
   <a href="#install"><img src="https://img.shields.io/badge/requirements-macOS_27%2B-E8A33D" alt="Requires macOS 27 or later"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/fif7y/dimble" alt="License: GPL-3.0"></a>
   <a href="https://alternativeto.net/software/pelmet/about/"><img src="https://img.shields.io/badge/AlternativeTo-Pelmet-1f6feb" alt="Pelmet on AlternativeTo"></a>
-  <a href="https://github.com/sponsors/fif7y"><img src="https://img.shields.io/badge/sponsor-%E2%9D%A4-ea4aaa" alt="Sponsor Pelmet"></a>
+  <a href="https://github.com/sponsors/fif7y"><img src="https://img.shields.io/badge/sponsor-%E2%9D%A4-ea4aaa" alt="Sponsor Dimble"></a>
 </p>
 
-Pelmet hides the icons you don't need until you do. Hover, click or press a
+Dimble hides the icons you don't need until you do. Hover, click or press a
 shortcut and they slide back in, or open in a panel. Small on purpose (three
 sections, an editor, ⌘-drag in the bar) and native all the way down. macOS does
 the hiding. Built for the menu bar Apple rebuilt in macOS 27. Free, open source,
@@ -25,7 +25,7 @@ no account, no analytics.
 > [![Latest beta](https://img.shields.io/github/v/release/fif7y/dimble?include_prereleases&filter=*beta*&label=latest%20beta&color=6841ED)](https://github.com/fif7y/dimble/releases?q=prerelease%3Atrue)
 
 <p align="center">
-  <img src="https://pelmet.fif7y.com/assets/bar-reveal.svg" alt="The menu bar on a hover. Hidden icons slide out from behind the chevron, then tuck back in" width="575"><br>
+  <img src="https://dimble.fif7y.com/assets/bar-reveal.svg" alt="The menu bar on a hover. Hidden icons slide out from behind the chevron, then tuck back in" width="575"><br>
   <sub>Collapsed, and a hover later.</sub>
 </p>
 
@@ -37,18 +37,18 @@ on a hover or a click, and **Always Hidden** only appears when you ask for it
 (real app-icon previews, drag-and-drop ordering): the editor is a drawing,
 and **Apply** lays the bar out to match it in one pass, or **Discard** puts
 the drawing back. Or skip the window entirely and ⌘-drag icons across the
-chevron right in the menu bar. Pelmet records the move and never moves an
+chevron right in the menu bar. Dimble records the move and never moves an
 icon on its own.
 
 <p align="center">
-  <img src="https://pelmet.fif7y.com/assets/apply-loop.gif" alt="The layout editor under the menu bar: Spotify is dragged from Hidden to Visible, nothing moves in the bar, Apply lights up, one press and Spotify appears in the bar" width="640"><br>
+  <img src="https://dimble.fif7y.com/assets/apply-loop.gif" alt="The layout editor under the menu bar: Spotify is dragged from Hidden to Visible, nothing moves in the bar, Apply lights up, one press and Spotify appears in the bar" width="640"><br>
   <sub>The layout editor is a drawing. Drag icons between Visible, Hidden and Always&nbsp;Hidden; nothing moves in the bar until you press Apply.</sub>
 </p>
 
 Apply reveals what it needs, lays the whole bar out in one pass with the
 pointer hidden for a moment, and reports what it did next to the button. On a
 full bar it opens macOS's own « for an icon drawn behind it, moves it, and
-closes the « again. A "New items" tile shows where icons Pelmet has never seen
+closes the « again. A "New items" tile shows where icons Dimble has never seen
 will land. Upgrading from 0.2.x keeps your bar as it is: if the stored order
 differs from the screen, it shows up once as a pending edit. And a pending
 update shows as a banner on every Settings pane, with a daily reminder until
@@ -58,7 +58,7 @@ System icons hide too. Sound, Battery and friends behave like any
 other icon. The few macOS protects (Clock, Control Center) are shown
 locked in the editor rather than pretended away, and anything macOS groups together
 gets an honest badge instead of a fake handle. Siri and Time Machine, which
-macOS only hides as a pair, come as Pelmet's own items so each can go
+macOS only hides as a pair, come as Dimble's own items so each can go
 wherever you like.
 
 ## Reveal on your terms
@@ -89,14 +89,14 @@ Hidden icons don't have to slide back into the bar. Turn on Panel and they open 
 - **⌘-drag from the bar.** Drop an icon on the panel and it's filed in the section under the pointer.
 
 <p align="center">
-  <img src="https://pelmet.fif7y.com/assets/panel.gif" alt="The hidden icons in a panel: a hover opens the panel under the menu bar, a click on the +3 fold opens Always Hidden, typing ta narrows it to Tailscale, Return closes the panel and Tailscale's menu drops from its own icon" width="640"><br>
+  <img src="https://dimble.fif7y.com/assets/panel.gif" alt="The hidden icons in a panel: a hover opens the panel under the menu bar, a click on the +3 fold opens Always Hidden, typing ta narrows it to Tailscale, Return closes the panel and Tailscale's menu drops from its own icon" width="640"><br>
   <sub>Hover, open the fold, type "ta", Return. Tailscale's menu drops from its own icon.</sub>
 </p>
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: light)" srcset="https://pelmet.fif7y.com/assets/settings-panel-light.png">
-    <img src="https://pelmet.fif7y.com/assets/settings-panel-dark.png" alt="Panel pane: the Menu bar, Panel and Row choice for where hidden icons open, a live preview of the panel, and the columns, fold style, Always Hidden, show names, closed apps and separator options" width="640">
+    <source media="(prefers-color-scheme: light)" srcset="https://dimble.fif7y.com/assets/settings-panel-light.png">
+    <img src="https://dimble.fif7y.com/assets/settings-panel-dark.png" alt="Panel pane: the Menu bar, Panel and Row choice for where hidden icons open, a live preview of the panel, and the columns, fold style, Always Hidden, show names, closed apps and separator options" width="640">
   </picture><br>
   <sub>Where hidden icons open, and how the panel looks.</sub>
 </p>
@@ -106,12 +106,12 @@ Hidden icons don't have to slide back into the bar. Turn on Panel and they open 
 Press ⌥⌘K, type a few letters, press Return, and that icon's menu opens right
 from its real icon, hidden or not. The arrow keys work in the menu like they
 normally do. Search knows the short names people type (bt, wifi) and puts the
-icons you open most first. It finds Pelmet's settings too, and ⌘K on a result
+icons you open most first. It finds Dimble's settings too, and ⌘K on a result
 moves it to another section or gives it its own shortcut. What it learns
 stays on your Mac. New in 0.3.1.
 
 <p align="center">
-  <img src="https://pelmet.fif7y.com/assets/search.gif" alt="Pelmet Search: ⌥⌘K opens a search panel under the menu bar, typing bt finds Bluetooth, Return opens Bluetooth's menu from its own icon and the arrow keys move down it" width="640"><br>
+  <img src="https://dimble.fif7y.com/assets/search.gif" alt="Dimble Search: ⌥⌘K opens a search panel under the menu bar, typing bt finds Bluetooth, Return opens Bluetooth's menu from its own icon and the arrow keys move down it" width="640"><br>
   <sub>⌥⌘K, "bt", Return. Bluetooth's menu drops from its own icon.</sub>
 </p>
 
@@ -123,26 +123,26 @@ stays on your Mac. New in 0.3.1.
   a timer, Focus, fast user switching and Shortcuts items that survive hiding, since macOS temporarily removes
   its own extras while hiding is active. Media controls, Time Machine and Focus
   show when active or always, and a ⌘-drag off the bar turns any of them off.
-- **App launchers.** A Pelmet icon for any app: click opens it, and it hides
+- **App launchers.** A Dimble icon for any app: click opens it, and it hides
   like everything else. The fix for apps whose own icon can't be hidden (see
   the [FAQ](docs/FAQ.md#app-launchers)), and a handy launcher for the rest.
 - **Separators.** Visual dividers that behave like icons, with adjustable
   opacity, edited on their tiles. A new one is part of the drawing until Apply
   places it. ⌘-drag them anywhere in the bar.
 - **Nothing to phone home about.** No account, no analytics, no server.
-  The only connection Pelmet ever makes is checking for its own updates.
+  The only connection Dimble ever makes is checking for its own updates.
 - **Signed updates.** Sparkle with EdDSA signatures, checked against a
   signed appcast.
 - **Your icon, or none.** Seven menu bar icon styles (chevron, arrow, eye,
   dots, grid, panel, dot), or turn the icon off entirely and reach Settings by
   shortcut or right-click.
 - **Tighter icons.** One slider for the gap macOS leaves between menu bar
-  icons, down to 1 point. Pelmet relaunches itself and the system icons so the
+  icons, down to 1 point. Dimble relaunches itself and the system icons so the
   clock and Control Center follow at once, other apps pick it up the next time
   they open.
 - **Speaks your language.** English, German, French, Spanish, Italian,
   Portuguese (Brazil), Japanese, Simplified Chinese, Korean and Russian.
-  Pelmet follows your system language, or pick one in Settings › General ›
+  Dimble follows your system language, or pick one in Settings › General ›
   Language. Translations are machine-drafted for now, corrections are welcome
   in `scripts/gen-xcstrings.py`.
 
@@ -151,49 +151,49 @@ stays on your Mac. New in 0.3.1.
     <source media="(prefers-color-scheme: light)" srcset="docs/assets/screenshot-general-light.png">
     <img src="docs/assets/screenshot-general.png" alt="General settings: launch at login, the menu bar icon toggle with seven icon styles, the right-click menu, a Shortcuts card (show hidden icons, show Always Hidden too, search the menu bar, open Notification Center, open Settings), the display language picker and the Accessibility and Screen Recording permission status" width="640">
   </picture><br>
-  <sub>General. Pick the icon Pelmet wears, or your language.</sub>
+  <sub>General. Pick the icon Dimble wears, or your language.</sub>
 </p>
 
 ## How it works
 
 macOS 27's menu bar can hide items natively. It's the mechanism behind the
-system's assessment (exam lockdown) mode. Pelmet drives that mechanism directly.
+system's assessment (exam lockdown) mode. Dimble drives that mechanism directly.
 It asserts a configuration listing what should stay visible, and macOS itself
 hides the rest and reflows the bar. That's why hiding feels like part of the
 system. It *is* the system.
 
 The catch: this API lives in a **private Apple framework**
 (`MenuBarClientCore`). It isn't documented or guaranteed, so a macOS update
-could change or remove it. Pelmet resolves it at runtime and fails soft. If the
-API ever disappears, Pelmet simply reports hiding as unavailable rather than
+could change or remove it. Dimble resolves it at runtime and fails soft. If the
+API ever disappears, Dimble simply reports hiding as unavailable rather than
 breaking your menu bar. Everything else (item positions, clicks, previews)
 uses public APIs: Accessibility and ScreenCaptureKit.
 
 ## Install
 
 Download the latest DMG from [Releases](https://github.com/fif7y/dimble/releases),
-drag Pelmet to Applications, and launch it. Or with Homebrew:
+drag Dimble to Applications, and launch it. Or with Homebrew:
 
 ```sh
-brew install fif7y/tap/pelmet
+brew install fif7y/tap/dimble
 ```
 
 Requires **macOS 27 (Golden Gate)**. Earlier versions of macOS use a
-different menu bar architecture that Pelmet doesn't target.
+different menu bar architecture that Dimble doesn't target.
 
-On first launch Pelmet asks for one permission:
+On first launch Dimble asks for one permission:
 
-- **Accessibility** (required). How Pelmet sees the menu bar's items and
+- **Accessibility** (required). How Dimble sees the menu bar's items and
   positions, and how clicking a hidden item works without revealing
   everything.
 
 Screen Recording is optional, offered next to Accessibility in onboarding
 and skippable. The animation styles use it: macOS shows and hides icons
-with an animation of its own, and Pelmet's Instant, Smooth and Fade play
+with an animation of its own, and Dimble's Instant, Smooth and Fade play
 over it using two stills of the menu bar. Nothing is recorded or kept.
 Without it, icons show and hide the way macOS does it.
 
-Pelmet is notarized by Apple and ships with the hardened runtime. It isn't
+Dimble is notarized by Apple and ships with the hardened runtime. It isn't
 sandboxed, managing the menu bar requires APIs the App Store sandbox
 forbids.
 
@@ -205,7 +205,7 @@ Requires Xcode with the macOS 27 SDK and [xcodegen](https://github.com/yonaskolb
 
 ```sh
 git clone https://github.com/fif7y/dimble.git
-cd pelmet
+cd dimble
 xcodegen
 xcodebuild -project Pelmet.xcodeproj -scheme Pelmet -configuration Release build
 ```
@@ -223,20 +223,20 @@ UI strings live in `Pelmet/Resources/Localizable.xcstrings`, generated from
 the translation table in `scripts/gen-xcstrings.py`. Edit the script, re-run
 it, commit both. English keys must match the code literals exactly.
 
-## Why "Pelmet"
+## Why "Dimble"
 
-*pelmet* (n.), a narrow border of cloth or wood, fitted across the top of a
-window to conceal the curtain fittings. Now also the same thing, for your menu bar.
+*dimble* (n.), a secluded hollow, a hiding place. Now also the same thing, for
+your menu bar's icons. It was called Pelmet up to 0.3.1, and Pliss for one beta.
 
 ## Licenses & acknowledgements
 
-Pelmet's macOS 27 approach is based on the work of [Thaw](https://github.com/thaw-app/Thaw),
+Dimble's macOS 27 approach is based on the work of [Thaw](https://github.com/thaw-app/Thaw),
 whose maintainers worked out how the rebuilt menu bar can be managed, in public, during
 the macOS 27 betas ([thaw-app/Thaw#687](https://github.com/thaw-app/Thaw/issues/687)).
 Thaw is a fork of [Ice](https://github.com/jordanbaird/Ice), the open-source menu bar
-manager for earlier versions of macOS, which is what got Pelmet started in the first place.
+manager for earlier versions of macOS, which is what got Dimble started in the first place.
 
-Pelmet's only third-party dependency is
+Dimble's only third-party dependency is
 [Sparkle](https://github.com/sparkle-project/Sparkle) (in-app updates), used
 under the [MIT-style Sparkle license](https://github.com/sparkle-project/Sparkle/blob/2.x/LICENSE).
 Everything else is custom code on top of Apple's system frameworks.
@@ -247,5 +247,5 @@ Everything else is custom code on top of Apple's system frameworks.
 [GNU General Public License v3.0](LICENSE). Use it, fork it.
 Distributed derivatives must remain open under the same license.
 
-Pelmet is an independent project, not affiliated with or endorsed by Apple Inc.
+Dimble is an independent project, not affiliated with or endorsed by Apple Inc.
 Apple, macOS, and the Mac are trademarks of Apple Inc.
