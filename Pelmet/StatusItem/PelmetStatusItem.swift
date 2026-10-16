@@ -131,7 +131,7 @@ final class PelmetStatusItem {
         appliedImage = key
         let symbol = NSImage(
             systemSymbolName: style.symbol(revealed: revealedFace),
-            accessibilityDescription: "Pliss"
+            accessibilityDescription: "Dimble"
         )
         // One configuration, applied once: a second withSymbolConfiguration
         // replaces the first, so the warning palette would drop the size.
@@ -235,7 +235,7 @@ final class PelmetStatusItem {
         )
         Self.showShortcut(appState.settings.searchHotkey, on: search)
         let settings = NSMenuItem(
-            title: String(localized: "Pliss Settings…"),
+            title: String(localized: "Dimble Settings…"),
             // Never ⌘, here: it only fired while this menu was open and read
             // as a global shortcut that never worked (2026-09-15). The global
             // one Settings › Shortcuts sets is real, so that one is drawn.
@@ -243,7 +243,7 @@ final class PelmetStatusItem {
         )
         Self.showShortcut(appState.settings.settingsHotkey, on: settings)
         let quit = NSMenuItem(
-            title: String(localized: "Quit Pliss"),
+            title: String(localized: "Quit Dimble"),
             action: #selector(AppMenuTarget.quit), keyEquivalent: "q"
         )
         let target = AppMenuTarget.shared

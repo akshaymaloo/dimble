@@ -14,7 +14,7 @@ import html
 import re
 import sys
 
-ISSUES = "https://github.com/fif7y/pliss/issues/"
+ISSUES = "https://github.com/fif7y/dimble/issues/"
 
 # Light and dark both come from color-scheme, so the snippet follows the
 # window it lands in. Accent = Pelmet's brand purple (SettingsView.accent).

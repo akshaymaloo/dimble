@@ -65,7 +65,7 @@ enum EditorItemsBuilder {
         }
         // Pelmet's extras are section-manageable (visibility-based hiding); when
         // hidden they're absent from AX, so ensure they're represented. Live
-        // ones arrive named after their host ("Pliss") — the spec's own name
+        // ones arrive named after their host ("Dimble") — the spec's own name
         // (the shortcut, the app stood in for) is what the tile should say.
         for spec in extraItems {
             let id = ExtrasManager.itemID(for: spec)

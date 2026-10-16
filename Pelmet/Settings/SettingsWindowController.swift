@@ -26,7 +26,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             rootView: SettingsView().environment(appState)
         )
         let window = NSWindow(contentViewController: hosting)
-        window.title = String(localized: "Pliss Settings")
+        window.title = String(localized: "Dimble Settings")
         // Sidebar shell: the sidebar runs under a transparent titlebar, so the
         // window chrome disappears and only the traffic lights remain.
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]

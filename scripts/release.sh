@@ -1,5 +1,5 @@
 #!/bin/bash
-# Pliss release pipeline: archive → Developer ID export → notarize → staple →
+# Dimble release pipeline: archive → Developer ID export → notarize → staple →
 # DMG → notarize DMG → staple → Sparkle appcast.
 #
 # One-time setup lives in docs/RELEASE.md (Developer ID cert, notarytool
@@ -25,7 +25,7 @@ VERSION=$VERSIONS
 # Empty = stable. "beta" tags the new appcast items with that channel; only
 # clients that opted in (Settings › About) see them. docs/RELEASE.md § Beta.
 CHANNEL="${CHANNEL:-}"
-echo "==> Releasing Pliss $VERSION${CHANNEL:+ ($CHANNEL channel)}"
+echo "==> Releasing Dimble $VERSION${CHANNEL:+ ($CHANNEL channel)}"
 
 echo "==> Generating project"
 xcodegen generate
@@ -33,29 +33,29 @@ xcodegen generate
 echo "==> Archiving (Release)"
 rm -rf "$BUILD_DIR"
 xcodebuild -project Pelmet.xcodeproj -scheme Pelmet -configuration Release \
-    -archivePath "$BUILD_DIR/Pliss.xcarchive" \
+    -archivePath "$BUILD_DIR/Dimble.xcarchive" \
     -destination 'generic/platform=macOS' \
     archive | tail -20
 
 echo "==> Exporting with Developer ID signing"
 xcodebuild -exportArchive \
-    -archivePath "$BUILD_DIR/Pliss.xcarchive" \
+    -archivePath "$BUILD_DIR/Dimble.xcarchive" \
     -exportOptionsPlist scripts/ExportOptions.plist \
     -exportPath "$BUILD_DIR/export" | tail -10
 
-APP="$BUILD_DIR/export/Pliss.app"
+APP="$BUILD_DIR/export/Dimble.app"
 codesign --verify --deep --strict "$APP"
 echo "==> Signature OK: $(codesign -dvv "$APP" 2>&1 | grep '^Authority' | head -1)"
 
 if [[ -z "${SKIP_NOTARIZE:-}" ]]; then
     echo "==> Notarizing app"
-    ditto -c -k --keepParent "$APP" "$BUILD_DIR/Pliss.zip"
-    xcrun notarytool submit "$BUILD_DIR/Pliss.zip" --keychain-profile "$NOTARY_PROFILE" --wait
+    ditto -c -k --keepParent "$APP" "$BUILD_DIR/Dimble.zip"
+    xcrun notarytool submit "$BUILD_DIR/Dimble.zip" --keychain-profile "$NOTARY_PROFILE" --wait
     xcrun stapler staple "$APP"
 fi
 
 echo "==> Building DMG"
-DMG="$RELEASES_DIR/Pliss-$VERSION.dmg"
+DMG="$RELEASES_DIR/Dimble-$VERSION.dmg"
 mkdir -p "$RELEASES_DIR"
 scripts/make-dmg.sh "$APP" "$DMG"
 
@@ -72,7 +72,7 @@ echo "==> Release notes for the update window"
 # About's "What's new" reads for a waiting update).
 NOTES_MD="docs/release-notes/v$VERSION.md"
 if [[ -f "$NOTES_MD" ]]; then
-    python3 scripts/release-notes-html.py "$NOTES_MD" "$RELEASES_DIR/Pliss-$VERSION.html"
+    python3 scripts/release-notes-html.py "$NOTES_MD" "$RELEASES_DIR/Dimble-$VERSION.html"
 else
     echo "warning: no $NOTES_MD, the update window shows no notes" >&2
 fi
@@ -92,21 +92,21 @@ fi
 if [[ -n "$GENERATE_APPCAST" ]]; then
     # Signs with the EdDSA private key from the keychain (generate_keys), or
     # from a file when SPARKLE_KEY_FILE is set (CI).
-    APPCAST_ARGS=(--download-url-prefix "https://github.com/fif7y/pliss/releases/download/v$VERSION/")
-    APPCAST_ARGS+=(--full-release-notes-url "https://github.com/fif7y/pliss/releases")
+    APPCAST_ARGS=(--download-url-prefix "https://github.com/fif7y/dimble/releases/download/v$VERSION/")
+    APPCAST_ARGS+=(--full-release-notes-url "https://github.com/fif7y/dimble/releases")
     [[ -n "${SPARKLE_KEY_FILE:-}" ]] && APPCAST_ARGS+=(--ed-key-file "$SPARKLE_KEY_FILE")
     [[ -n "$CHANNEL" ]] && APPCAST_ARGS+=(--channel "$CHANNEL")
     "$GENERATE_APPCAST" "${APPCAST_ARGS[@]}" "$RELEASES_DIR"
     # generate_appcast stamps EVERY entry with the current release's
     # download-url-prefix, pointing prior versions' DMGs at a tag that
     # doesn't host them (404 for anyone updating from further back).
-    # Re-point each Pliss-X.Y.Z.dmg at its own vX.Y.Z tag.
-    # (all three names: nook-era Nook-*.dmg and Pelmet-*.dmg builds still live
+    # Re-point each Dimble-X.Y.Z.dmg at its own vX.Y.Z tag.
+    # (every old name: Nook-*.dmg, Pelmet-*.dmg and Pliss-*.dmg builds still live
     # in the releases dir and the appcast, and keep their old file names; only
-    # new releases are named Pliss-*)
-    perl -pi -e 's#(releases/download/)v[\w.-]+/((?:Nook|Pelmet|Pliss)-([\w.-]+)\.dmg)#$1v$3/$2#g' \
+    # new releases are named Dimble-*)
+    perl -pi -e 's#(releases/download/)v[\w.-]+/((?:Nook|Pelmet|Pliss|Dimble)-([\w.-]+)\.dmg)#$1v$3/$2#g' \
         "$RELEASES_DIR/appcast.xml"
-    # Same for deltas: PlissNN-MM.delta (PelmetNN-MM.delta, NookNN-MM.delta for
+    # Same for deltas: DimbleNN-MM.delta (PlissNN-MM, PelmetNN-MM, NookNN-MM.delta for
     # earlier releases) lives on the release of build NN,
     # whose tag comes from the item carrying <sparkle:version>NN.
     perl -0777 -pi -e '
@@ -117,7 +117,7 @@ if [[ -n "$GENERATE_APPCAST" ]]; then
             my ($short) = $item =~ m#<sparkle:shortVersionString>([^<]+)<#;
             $tag{$build} = "v$short" if defined $build && defined $short;
         }
-        s#(releases/download/)v[\w.-]+/((?:Nook|Pelmet|Pliss)(\d+)-\d+\.delta)#exists $tag{$3} ? "$1$tag{$3}/$2" : $&#ge;
+        s#(releases/download/)v[\w.-]+/((?:Nook|Pelmet|Pliss|Dimble)(\d+)-\d+\.delta)#exists $tag{$3} ? "$1$tag{$3}/$2" : $&#ge;
     ' "$RELEASES_DIR/appcast.xml"
     echo "==> Appcast written to $RELEASES_DIR/appcast.xml (prior-version URLs re-pointed)"
 else

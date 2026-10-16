@@ -121,7 +121,7 @@ struct OnboardingFlow: View {
                 .buttonStyle(GhostButtonStyle())
             }
 
-            Button(mode == .accessRecovery ? "Done" : step == stepCount - 1 ? "Start using Pliss" : "Continue") {
+            Button(mode == .accessRecovery ? "Done" : step == stepCount - 1 ? "Start using Dimble" : "Continue") {
                 if isLastStep {
                     appState.settings.onboardingCompleted = true
                     appState.settingsChanged()
@@ -166,7 +166,7 @@ private struct WelcomeStep: View {
 
             Spacer().frame(height: 16)
 
-            Text("Pliss keeps every icon a hover away — and the ones you never need, out of sight.")
+            Text("Dimble keeps every icon a hover away — and the ones you never need, out of sight.")
                 .font(.system(size: 13))
                 .foregroundStyle(Ink.textDim)
                 .frame(maxWidth: 380, alignment: .leading)
@@ -204,8 +204,8 @@ private struct AccessStep: View {
             Spacer().frame(height: 16)
 
             Text(recovery
-                 ? LocalizedStringKey("macOS dropped Pliss's accessibility permission, which happens after some updates and reinstalls. Grant it again and everything picks up where it left off.")
-                 : "Accessibility is how Pliss sees the icons and moves them, nothing leaves your Mac. Screen Recording is optional: it lets Pliss's animation styles play over the way macOS shows and hides icons. Nothing is recorded or kept.")
+                 ? LocalizedStringKey("macOS dropped Dimble's accessibility permission, which happens after some updates and reinstalls. Grant it again and everything picks up where it left off.")
+                 : "Accessibility is how Dimble sees the icons and moves them, nothing leaves your Mac. Screen Recording is optional: it lets Dimble's animation styles play over the way macOS shows and hides icons. Nothing is recorded or kept.")
                 .font(.system(size: 13))
                 .foregroundStyle(Ink.textDim)
                 .frame(maxWidth: 420, alignment: .leading)
@@ -316,7 +316,7 @@ private struct TryItStep: View {
             Spacer().frame(height: 16)
 
             Text(tucked
-                 ? "Left of the chevron hides, right stays. In your real bar, hold ⌘ while dragging — or arrange everything in Pliss's settings."
+                 ? "Left of the chevron hides, right stays. In your real bar, hold ⌘ while dragging — or arrange everything in Dimble's settings."
                  : "The chevron is the boundary: everything left of it tucks away.")
                 .font(.system(size: 13))
                 .foregroundStyle(Ink.textDim)
@@ -352,7 +352,7 @@ private struct ReadyStep: View {
 
             Spacer().frame(height: 16)
 
-            Text("Hover the bar to peek, click the chevron to toggle (⌥⌘, does it from anywhere), right-click it for settings. Everything else is arrangeable in Pliss Settings › Menu Bar.")
+            Text("Hover the bar to peek, click the chevron to toggle (⌥⌘, does it from anywhere), right-click it for settings. Everything else is arrangeable in Dimble Settings › Menu Bar.")
                 .font(.system(size: 13))
                 .foregroundStyle(Ink.textDim)
                 .frame(maxWidth: 420, alignment: .leading)
@@ -371,7 +371,7 @@ private struct ReadyStep: View {
                     appState.settingsChanged()
                 }
             )) {
-                Text("Open Pliss at login")
+                Text("Open Dimble at login")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Ink.text)
             }

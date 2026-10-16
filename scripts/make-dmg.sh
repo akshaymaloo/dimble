@@ -2,11 +2,11 @@
 # Build a styled DMG: background picture, the app on the left, an Applications
 # alias on the right, icon positions and window size baked into the volume's
 # .DS_Store through Finder. No external tool needed (create-dmg does the same
-# dance). Usage: scripts/make-dmg.sh <Pliss.app> <out.dmg>
+# dance). Usage: scripts/make-dmg.sh <Dimble.app> <out.dmg>
 set -euo pipefail
 
 APP="$1"; OUT="$2"
-VOLNAME="Pliss"
+VOLNAME="Dimble"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 BG="$HERE/dmg/background.tiff"   # 1x + 2x, see scripts/dmg/README.md
 

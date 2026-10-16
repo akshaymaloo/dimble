@@ -56,8 +56,8 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     /// Relaunch on the user's say-so; the new instance lands back in Settings.
     static func offerRelaunch() {
         let alert = NSAlert()
-        alert.messageText = String(localized: "Relaunch Pliss to change its language?")
-        alert.informativeText = String(localized: "The new language applies the next time Pliss opens. Your menu bar layout is kept.")
+        alert.messageText = String(localized: "Relaunch Dimble to change its language?")
+        alert.informativeText = String(localized: "The new language applies the next time Dimble opens. Your menu bar layout is kept.")
         alert.addButton(withTitle: String(localized: "Relaunch Now"))
         alert.addButton(withTitle: String(localized: "Later"))
         guard alert.runModal() == .alertFirstButtonReturn else { return }

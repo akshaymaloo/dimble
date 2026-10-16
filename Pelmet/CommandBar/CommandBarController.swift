@@ -1013,7 +1013,7 @@ final class CommandBarController {
     static func message(for refusal: AppState.ItemHotkeyRefusal, spec: HotkeySpec) -> String {
         switch refusal {
         case .pelmet(let what):
-            String(localized: "\(spec.display) is already Pliss's shortcut for “\(what)”. Press a different combination.")
+            String(localized: "\(spec.display) is already Dimble's shortcut for “\(what)”. Press a different combination.")
         case .item(let other):
             String(localized: "\(spec.display) already opens \(ItemNaming.displayName(for: other)). Press a different combination.")
         case .system:
