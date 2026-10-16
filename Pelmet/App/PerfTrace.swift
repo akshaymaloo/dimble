@@ -1,7 +1,7 @@
 // PerfTrace.swift
 // One `perf` log line per reveal/conceal: where the time went between the
 // trigger (hover timer, click, hotkey) and the cover lifting. Diagnostics
-// only — read it with `grep 'perf ' ~/Library/Logs/Pliss/pliss.log`.
+// only — read it with `grep 'perf ' ~/Library/Logs/Dimble/dimble.log`.
 //
 //   perf reveal(hover): trigger→dispatch 3ms, cover 4ms (precaptured),
 //     engine 141ms [walk 96ms plan 1ms activate 41ms walk2 88ms],

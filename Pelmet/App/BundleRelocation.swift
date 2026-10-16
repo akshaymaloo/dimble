@@ -1,10 +1,10 @@
 // BundleRelocation.swift
 // Sparkle installs updates under the pre-update filename, so users who update
 // from an older name end up with the new app inside the old bundle: Nook.app
-// (the nook era) or Pelmet.app (before the app became Pliss in 0.3.2). The
-// very first thing a mis-named bundle does — before migration, before any TCC
-// interaction — is rename itself to Pliss.app in the same folder and relaunch
-// from the final path.
+// (the nook era), Pelmet.app (up to 0.3.1) or Pliss.app (the 0.3.2 betas,
+// before the app became Dimble). The very first thing a mis-named bundle does
+// — before migration, before any TCC interaction — is rename itself to
+// Dimble.app in the same folder and relaunch from the final path.
 //
 // The rename keeps permissions: TCC keys a grant on the bundle ID and code
 // signature, not the filename. A Finder rename of Pelmet.app to Pliss.app with
@@ -23,14 +23,14 @@ import ServiceManagement
 
 enum BundleRelocation {
     /// What the bundle is called once relocated.
-    static let finalName = "Pliss.app"
+    static let finalName = "Dimble.app"
     /// Filenames the app has shipped under that Sparkle can leave behind.
-    static let formerNames: Set<String> = ["Nook.app", "Pelmet.app"]
+    static let formerNames: Set<String> = ["Nook.app", "Pelmet.app", "Pliss.app"]
     /// Set by the instance that renamed the bundle, taken by the one that
     /// runs from the final path.
     private static let loginItemMarker = "pelmet.relocatedReregisterLoginItem"
 
-    /// Where a bundle named like a former name belongs: Pliss.app in the same
+    /// Where a bundle named like a former name belongs: Dimble.app in the same
     /// folder. Nil when the name is already right or not one of ours.
     static func relocationTarget(for bundleURL: URL) -> URL? {
         guard formerNames.contains(bundleURL.lastPathComponent) else { return nil }

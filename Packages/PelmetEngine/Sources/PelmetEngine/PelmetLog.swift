@@ -1,12 +1,13 @@
 // PelmetLog.swift
-// Dead-simple file logger: ~/Library/Logs/Pliss/pliss.log. Exists because
+// Dead-simple file logger: ~/Library/Logs/Dimble/dimble.log. Exists because
 // os.Logger output from this app never reaches the unified log store on the
 // current macOS 27 beta — debugging blind is worse than a plain file.
 //
-// The app was called Pelmet until 0.3.2 and logged to ~/Library/Logs/Pelmet.
-// At the first use in a process, before any file is opened, that folder moves
-// to Pliss and a symlink Pelmet → Pliss takes its place, so old instructions
-// and tools that tail the old path still land on the live log.
+// The app was called Pelmet until 0.3.1 (~/Library/Logs/Pelmet) and Pliss in
+// the 0.3.2 betas (~/Library/Logs/Pliss, with Pelmet a symlink to it). At the
+// first use in a process, before any file is opened, the newest real old
+// folder moves to Dimble and a symlink takes its place, so old instructions
+// and tools that tail an old path still land on the live log.
 
 import Foundation
 
@@ -14,8 +15,10 @@ public enum PelmetLog {
     private static let queue = DispatchQueue(label: "pelmet.log", qos: .utility)
     private static let logsRoot = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Logs")
-    static let folderName = "Pliss"
-    static let oldFolderName = "Pelmet"
+    static let folderName = "Dimble"
+    /// Newest first: a beta install has a real Pliss folder and Pelmet as a
+    /// symlink to it, a 0.3.1 install only a real Pelmet folder.
+    static let oldFolderNames = ["Pliss", "Pelmet"]
 
     /// Runs once, ahead of everything that touches the folder. What it did,
     /// as a line for the log (nil when there was nothing to move).
@@ -27,22 +30,24 @@ public enum PelmetLog {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }()
-    private static let url = dir.appendingPathComponent("pliss.log")
+    private static let url = dir.appendingPathComponent("dimble.log")
 
-    /// Moves `logs/Pelmet` to `logs/Pliss` and leaves `Pelmet` as a symlink
-    /// to it. Only a real old folder moves, and only into an empty spot: if
-    /// Pliss already exists (a second copy ran first, a hand-made folder)
-    /// nothing is touched. Never throws, never blocks a launch; the return
-    /// value is the one log line saying what happened.
+    /// Moves the first real folder among `oldFolderNames` to `logs/Dimble`
+    /// and leaves a symlink to it at the old path (an older symlink, Pelmet →
+    /// Pliss, then resolves through it). Only a real old folder moves, and
+    /// only into an empty spot: if Dimble already exists (a second copy ran
+    /// first, a hand-made folder) nothing is touched. Never throws, never
+    /// blocks a launch; the return value is the one log line saying what
+    /// happened.
     static func migrateOldFolder(in logs: URL) -> String? {
         let fm = FileManager.default
-        let old = logs.appendingPathComponent(oldFolderName)
         let new = logs.appendingPathComponent(folderName)
+        guard (try? fm.attributesOfItem(atPath: new.path)) == nil else { return nil }
         // attributesOfItem does not follow symlinks: a symlink already at
-        // the old path reads as a link, not a folder.
-        guard (try? fm.attributesOfItem(atPath: old.path))?[.type] as? FileAttributeType == .typeDirectory,
-              (try? fm.attributesOfItem(atPath: new.path)) == nil
-        else { return nil }
+        // an old path reads as a link, not a folder.
+        guard let old = oldFolderNames.map({ logs.appendingPathComponent($0) }).first(where: {
+            (try? fm.attributesOfItem(atPath: $0.path))?[.type] as? FileAttributeType == .typeDirectory
+        }) else { return nil }
         do {
             try fm.moveItem(at: old, to: new)
         } catch {
@@ -53,7 +58,7 @@ public enum PelmetLog {
         } catch {
             return "log: moved \(old.path) to \(new.path), no symlink left at the old path — \(error.localizedDescription)"
         }
-        return "log: moved \(old.path) to \(new.path), symlink left at the old path (older logs keep their pelmet.log names)"
+        return "log: moved \(old.path) to \(new.path), symlink left at the old path (older logs keep their old names)"
     }
 
     /// Rotate at 5 MB into one `.old` generation — a 24/7 agent otherwise
@@ -94,7 +99,7 @@ public enum PelmetLog {
     private static func rotateIfNeeded() {
         let size = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? Int ?? 0
         guard size > rotateBytes else { return }
-        let old = dir.appendingPathComponent("pliss.log.old")
+        let old = dir.appendingPathComponent("dimble.log.old")
         try? FileManager.default.removeItem(at: old)
         try? FileManager.default.moveItem(at: url, to: old)
     }

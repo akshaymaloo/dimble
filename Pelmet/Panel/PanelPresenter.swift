@@ -1900,7 +1900,7 @@ final class PanelPresenter: RevealPresenter {
             },
             .check(String(localized: "Always Hidden"), alwaysShown, enabled: hasAlways, toggleFold),
             .divider,
-            .action(String(localized: "Pliss Settings…")) { [weak appState] in
+            .action(String(localized: "Dimble Settings…")) { [weak appState] in
                 appState?.concealNow()
                 appState?.openSettings(tab: .panel)
             },
@@ -1964,7 +1964,7 @@ final class PanelPresenter: RevealPresenter {
     // MARK: - Dev
 
     /// The open panel as it is on screen, glass, desktop and all, written to
-    /// ~/Library/Logs/Pliss/pass/panel.png: for checking it with no one at
+    /// ~/Library/Logs/Dimble/pass/panel.png: for checking it with no one at
     /// the Mac (`app.fif7y.Pelmet.debug.panelShot`).
     func debugShot() async {
         guard isOpen, let window, let primary = NSScreen.screens.first else {
@@ -1984,7 +1984,7 @@ final class PanelPresenter: RevealPresenter {
             return
         }
         let rep = NSBitmapImageRep(cgImage: image)
-        let dir = URL(fileURLWithPath: NSString(string: "~/Library/Logs/Pliss/pass").expandingTildeInPath)
+        let dir = URL(fileURLWithPath: NSString(string: "~/Library/Logs/Dimble/pass").expandingTildeInPath)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let wrote = (try? rep.representation(using: .png, properties: [:])?.write(to: dir.appendingPathComponent("panel.png"))) != nil
         PelmetLog.log("panel: shot \(wrote ? "written" : "not written") (\(image.width)×\(image.height))")

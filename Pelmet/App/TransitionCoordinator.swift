@@ -1047,13 +1047,13 @@ final class TransitionCoordinator {
     }
 
     /// Debug: `defaults write app.fif7y.Pelmet pelmet.debug.dumpPictures -bool YES`
-    /// writes every entrance picture to ~/Library/Logs/Pliss/pictures/ with
+    /// writes every entrance picture to ~/Library/Logs/Dimble/pictures/ with
     /// its span, keep and punch in the log, so what slides can be compared
     /// with what the bar shows (2026-10-02: Sound missing from the slide on
     /// the external display).
     private static func dumpPictures(_ picture: [ConcealGhostOverlay.BarSnapshot], label: String, keep: ClosedRange<CGFloat>?, punch: [ClosedRange<CGFloat>]) {
         guard UserDefaults.standard.bool(forKey: "pelmet.debug.dumpPictures") else { return }
-        let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Pliss/pictures")
+        let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Dimble/pictures")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let stamp = Int(Date().timeIntervalSince1970 * 1000)
         let spans = picture.map { "\(Int($0.windowFrame.minX))..\(Int($0.windowFrame.maxX))" }.joined(separator: " ")
@@ -1430,7 +1430,7 @@ extension TransitionCoordinator {
     /// `failed`: the `wanting` keys the pass tried and got no picture of,
     /// empty without an empty-bar picture to cut against; a key whose round
     /// was skipped (a waiter, another press's icon) is not one.
-    /// `dump` writes them to ~/Library/Logs/Pliss/pass/.
+    /// `dump` writes them to ~/Library/Logs/Dimble/pass/.
     ///
     /// A section wider than the room right of the notch draws only some of
     /// its icons; the rest get no frame or a phantom one. Of the `wanting`
@@ -1905,7 +1905,7 @@ extension TransitionCoordinator {
     @discardableResult
     private static func dumpPass(_ snaps: [ConcealGhostOverlay.BarSnapshot], name: String) -> Bool {
         guard let image = snaps.first?.image else { return false }
-        let dir = URL(fileURLWithPath: NSString(string: "~/Library/Logs/Pliss/pass").expandingTildeInPath)
+        let dir = URL(fileURLWithPath: NSString(string: "~/Library/Logs/Dimble/pass").expandingTildeInPath)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         // Re-rendered: a stream-backed image does not serialize.
         guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: image.width, pixelsHigh: image.height, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0),
