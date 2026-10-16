@@ -1,5 +1,5 @@
 name: Bug report
-description: Something in Pliss misbehaves
+description: Something in Dimble misbehaves
 labels: [bug]
 body:
   - type: textarea
@@ -12,8 +12,8 @@ body:
   - type: input
     id: versions
     attributes:
-      label: Pliss and macOS versions
-      placeholder: "Pliss 0.3.2 · macOS 27.0 (25A000)"
+      label: Dimble and macOS versions
+      placeholder: "Dimble 0.3.2 · macOS 27.0 (25A000)"
     validations:
       required: true
   - type: dropdown
@@ -30,7 +30,7 @@ body:
     id: log
     attributes:
       label: Log (optional)
-      description: "Pliss writes a log you can attach: `~/Library/Logs/Pliss/pliss.log` (`~/Library/Logs/Pelmet/pelmet.log` before 0.3.2). Paste the relevant part or drop the file here."
+      description: "Dimble writes a log you can attach: `~/Library/Logs/Dimble/dimble.log` (`~/Library/Logs/Pelmet/pelmet.log` before 0.3.2). Paste the relevant part or drop the file here."
   - type: textarea
     id: screenshot
     attributes:

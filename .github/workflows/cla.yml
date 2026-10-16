@@ -23,7 +23,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           path-to-signatures: '.github/cla-signatures.json'
-          path-to-document: 'https://github.com/fif7y/pliss/blob/main/CLA.md'
+          path-to-document: 'https://github.com/fif7y/dimble/blob/main/CLA.md'
           branch: 'cla-signatures'
           allowlist: 'fif7y,dependabot[bot]'
-          custom-notsigned-prcomment: 'Thanks for the pull request! Pliss asks contributors to sign a short Contributor License Agreement (you keep your copyright, see [CLA.md](https://github.com/fif7y/pliss/blob/main/CLA.md)). Please post the sentence below as a comment to sign it.'
+          custom-notsigned-prcomment: 'Thanks for the pull request! Dimble asks contributors to sign a short Contributor License Agreement (you keep your copyright, see [CLA.md](https://github.com/fif7y/dimble/blob/main/CLA.md)). Please post the sentence below as a comment to sign it.'

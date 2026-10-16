@@ -39,33 +39,33 @@ Everything below the one-time setup is: bump version → run script → publish.
 4. **Appcast hosting**: `SUFeedURL` is `https://fif7y.github.io/updates/pliss/appcast.xml`,
    served by GitHub Pages from the public repo `fif7y/updates` (branch `main`, root).
    Builds up to 0.3.2-beta.6 read `https://fif7y.github.io/pelmet/appcast.xml`. Since
-   fif7y/pelmet became fif7y/pliss (2026-10-15), that path is served by the account
+   fif7y/pelmet became fif7y/pliss (2026-10-15), then fif7y/dimble, that path is served by the account
    Pages site `fif7y/fif7y.github.io` (folder `pelmet/`), because Pages paths don't
    redirect on a rename. Never create a repo named `pelmet`: it would take the path
    back and break github.com/fif7y/pelmet's redirect. Never give the account site a
    custom domain: every project Pages URL would move with it. DMGs are attached to
    GitHub Releases (the appcast's enclosure URLs point at
-   `github.com/fif7y/pliss/releases/download/…`).
+   `github.com/fif7y/dimble/releases/download/…`).
 
 ## Per-release
 
 1. Bump `MARKETING_VERSION` (and `CURRENT_PROJECT_VERSION` — Sparkle compares
    `CFBundleVersion`, so it must strictly increase) in `project.yml`.
 2. `scripts/release.sh` — archives, exports with Developer ID, notarizes +
-   staples app and DMG, writes `build/releases/Pliss-<v>.dmg` + `appcast.xml`.
+   staples app and DMG, writes `build/releases/Dimble-<v>.dmg` + `appcast.xml`.
 3. Tag and publish: create GitHub release `v<version>` with the DMG and the
    `*.delta` files attached (release.sh points each delta at its build's
    release tag, never at gh-pages).
 4. Push `appcast.xml` to BOTH feeds, the new one first:
    `fif7y/updates` → `pliss/appcast.xml`, then `fif7y/fif7y.github.io` →
-   `pelmet/appcast.xml` (older installs). The `gh-pages` branch of fif7y/pliss is no
+   `pelmet/appcast.xml` (older installs). The `gh-pages` branch of fif7y/dimble is no
    longer read by anything. Commit with the repo's own identity: a scratch clone
    picks up the global git config, and a push authored with the gmail address is
    rejected by the account's email-privacy setting:
 
    ```sh
    git -c user.name="Gab" -c user.email="16541220+fif7y@users.noreply.github.com" \
-       commit -m "Pliss <version>"
+       commit -m "Dimble <version>"
    ```
 
    Don't trust the push's own output: `git push … | tail` reports the
@@ -82,8 +82,8 @@ Everything below the one-time setup is: bump version → run script → publish.
    rename). Every build since the 0.1.5 bridge points `SUFeedURL` at the
    Pelmet feed (now the account site's `pelmet/` copy), so one update from that feed is enough to cross over. It
    carries 0.3.1 for that, and nothing newer is needed.
-6. Bump the Homebrew cask: `fif7y/homebrew-tap` → `Casks/pliss.rb` (`Casks/pelmet.rb` up to 0.3.1, renamed with the 0.3.2 stable), set
-   `version` and the DMG's `sha256` (`shasum -a 256 build/releases/Pliss-<v>.dmg`),
+6. Bump the Homebrew cask: `fif7y/homebrew-tap` → `Casks/dimble.rb` (`Casks/pelmet.rb` up to 0.3.1, renamed with the 0.3.2 stable), set
+   `version` and the DMG's `sha256` (`shasum -a 256 build/releases/Dimble-<v>.dmg`),
    push with the same identity rule as step 4, then confirm the published DMG
    hashes to what the cask declares.
 7. Sanity: install the previous DMG, let Sparkle offer the new version, update.

@@ -1,1 +1,10 @@
-<svg fill="none" height="220" viewBox="0 0 700 220" width="700" xmlns="http://www.w3.org/2000/svg"><g fill="#fff"><g transform="matrix(.51493 0 0 .51493 -168.05 -149.11)"><path d="m547.735 309c109.548 0 164.016 70.992 164.016 153.612 0 85.68-55.08 152.388-164.016 153.612h-106.488v81.176h-95.472v-168.692h95.472 106.488c45.9 0 68.544-29.988 68.544-64.26s-23.256-64.872-68.544-64.872h-106.488-95.472v-90.576z"/><path d="m394.582 504.973c-22.965-.001-41.582-18.617-41.582-41.582 0-22.966 18.617-41.582 41.582-41.582 11.877 0 22.591 4.979 30.168 12.964-7.074 7.455-11.416 17.529-11.416 28.618 0 11.088 4.341 21.163 11.416 28.618-7.577 7.985-18.291 12.964-30.168 12.964z" fill-opacity=".15"/><path d="m474.007 504.973c-22.965 0-41.582-18.617-41.582-41.582 0-22.966 18.617-41.582 41.582-41.582 11.457 0 21.831 4.634 29.352 12.129-7.554 7.529-12.23 17.945-12.23 29.453s4.676 21.924 12.23 29.453c-7.521 7.495-17.895 12.129-29.352 12.129z" fill-opacity=".5"/><ellipse cx="551.502" cy="463.492" rx="41.5" ry="41.5" transform="matrix(-1 -0 0 -1 1103.004 926.984)"/></g><text font-family="-apple-system, 'SF Pro Display', 'SF Pro Text', 'Segoe UI', system-ui, sans-serif" font-size="134" font-weight="700" letter-spacing="-1.7" x="243" y="156.3">Pelmet</text></g></svg>
+<svg width="750" height="220" viewBox="0 0 750 220" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Dimble">
+  <!-- mark from Pelmet/AppIcon.icon, 200 tall; lockup ratios match docs/assets/hero.svg -->
+  <g transform="translate(-119.496 -135.564) scale(0.47962)">
+    <path d="M270 303.5L535.712 303.5C684.181 303.5 758 399.859 758 512C758 624.141 684.181 720.5 535.712 720.5L270 720.5L270 600L535.712 600C597.09 600 628.609 558.49 628.609 512C628.609 465.51 597.09 424 535.712 424L270 424Z" fill="#fff"/>
+<path d="M362.933 469.906A56 56 0 1 0 362.933 554.094A82 82 0 0 1 362.933 469.906Z" fill="#fff" fill-opacity="0.3"/>
+<path d="M470.238 469.906A56 56 0 1 0 470.238 554.094A82 82 0 0 1 470.238 469.906Z" fill="#fff" fill-opacity="0.65"/>
+<path d="M596.609 512A56 56 0 1 1 484.609 512A56 56 0 1 1 596.609 512Z" fill="#fff"/>
+  </g>
+  <text x="288.553" y="156.3" font-family="-apple-system, 'SF Pro Display', 'SF Pro Text', 'Segoe UI', system-ui, sans-serif" font-size="134" font-weight="700" letter-spacing="-1.7" fill="#fff">Dimble</text>
+</svg>

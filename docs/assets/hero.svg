@@ -1,4 +1,4 @@
-<svg width="1280" height="400" viewBox="0 0 1280 400" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Pelmet — a calm menu bar for macOS">
+<svg width="1280" height="400" viewBox="0 0 1280 400" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Dimble — a calm menu bar for macOS">
   <defs>
     <linearGradient id="bar" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#232833"/>
@@ -19,22 +19,22 @@
     .d1,.d2{transform-box:fill-box;transform-origin:50% 50%}
     .d1{animation:dk1 5.7s cubic-bezier(.4,0,.2,1) 1.25s infinite both}
     .d2{animation:dk2 5.7s cubic-bezier(.4,0,.2,1) 1.30s infinite both}
-    @keyframes dk1{0%{transform:none;opacity:.5}8%{transform:translateX(77px);opacity:0}46.5%{transform:translateX(77px);opacity:0}54.5%{transform:none;opacity:.5}100%{transform:none;opacity:.5}}
-    @keyframes dk2{0%{transform:none;opacity:.15}8%{transform:translateX(157px);opacity:0}46.5%{transform:translateX(157px);opacity:0}54.5%{transform:none;opacity:.15}100%{transform:none;opacity:.15}}
+    @keyframes dk1{0%{transform:none;opacity:0.65}8%{transform:translateX(107.305px);opacity:0}46.5%{transform:translateX(107.305px);opacity:0}54.5%{transform:none;opacity:0.65}100%{transform:none;opacity:0.65}}
+    @keyframes dk2{0%{transform:none;opacity:0.3}8%{transform:translateX(214.609px);opacity:0}46.5%{transform:translateX(214.609px);opacity:0}54.5%{transform:none;opacity:0.3}100%{transform:none;opacity:0.3}}
     @media (prefers-reduced-motion: reduce){.h0,.h1,.h2,.d1,.d2{animation:none}}
 </style>
 
   <rect width="1280" height="400" rx="24" fill="#6841ED"/>
 
-  <!-- mark + wordmark lockup (mark from Pelmet-icon.svg; ghost dots tuck in sync with the bar) -->
-  <g transform="translate(347.8 -30.9) scale(0.30)">
-    <path d="M547.735 309C657.283 309 711.751 379.992 711.751 462.612C711.751 548.292 656.671 615 547.735 616.224H441.247V697.4H345.775V528.708H441.247H547.735C593.635 528.708 616.279 498.72 616.279 464.448C616.279 430.176 593.023 399.576 547.735 399.576H441.247H345.775V309C414.319 309 479.803 309 547.735 309Z" fill="white"/>
-    <g class="d2"><path d="M394.582 504.973C371.617 504.972 353 486.356 353 463.391C353 440.425 371.617 421.809 394.582 421.809C406.459 421.809 417.173 426.788 424.75 434.773C417.676 442.228 413.334 452.302 413.334 463.391C413.334 474.479 417.675 484.554 424.75 492.009C417.173 499.994 406.459 504.973 394.582 504.973Z" fill="white"/></g>
-    <g class="d1"><path d="M474.007 504.973C451.042 504.973 432.425 486.356 432.425 463.391C432.425 440.425 451.042 421.809 474.007 421.809C485.464 421.809 495.838 426.443 503.359 433.938C495.805 441.467 491.129 451.883 491.129 463.391C491.129 474.899 495.805 485.315 503.359 492.844C495.838 500.339 485.464 504.973 474.007 504.973Z" fill="white"/></g>
-    <ellipse cx="551.502" cy="463.492" rx="41.5" ry="41.5" transform="rotate(-180 551.502 463.492)" fill="white"/>
+  <!-- mark + wordmark lockup (mark from Pelmet/AppIcon.icon; ghost dots tuck in sync with the bar) -->
+  <g transform="translate(361.8 -22.991) scale(0.2794)">
+    <path d="M270 303.5L535.712 303.5C684.181 303.5 758 399.859 758 512C758 624.141 684.181 720.5 535.712 720.5L270 720.5L270 600L535.712 600C597.09 600 628.609 558.49 628.609 512C628.609 465.51 597.09 424 535.712 424L270 424Z" fill="white"/>
+    <g class="d2" opacity="0.3"><path d="M362.933 469.906A56 56 0 1 0 362.933 554.094A82 82 0 0 1 362.933 469.906Z" fill="white"/></g>
+    <g class="d1" opacity="0.65"><path d="M470.238 469.906A56 56 0 1 0 470.238 554.094A82 82 0 0 1 470.238 469.906Z" fill="white"/></g>
+    <path d="M596.609 512A56 56 0 1 1 484.609 512A56 56 0 1 1 596.609 512Z" fill="white"/>
   </g>
-  <text x="587.3" y="147" font-family="-apple-system, 'SF Pro Display', 'SF Pro Text', 'Segoe UI', system-ui, sans-serif"
-        font-size="78" font-weight="700" letter-spacing="-1" fill="white">Pelmet</text>
+  <text x="599.568" y="147" font-family="-apple-system, 'SF Pro Display', 'SF Pro Text', 'Segoe UI', system-ui, sans-serif"
+        font-size="78" font-weight="700" letter-spacing="-1" fill="white">Dimble</text>
 
   <text x="640" y="235.2" text-anchor="middle"
         font-family="-apple-system, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif"
