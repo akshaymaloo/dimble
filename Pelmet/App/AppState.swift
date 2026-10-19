@@ -1588,6 +1588,8 @@ final class AppState {
                 }
             }
             var blinked = await engine.beginClockBlink()
+            // When the press, not a replayed click, brought the panel up.
+            var pressOpenedAt: Date?
             if option {
                 // ⌥-click toggles Do Not Disturb (#92), refused while the
                 // assertion is held like the plain click. The click goes
@@ -1679,6 +1681,7 @@ final class AppState {
                     if cleanMisses > 0 { ClockClickRelay.notePressNeverOpensPanel() }
                     replayClick(false); panelStarting()
                 }
+                if opened { pressOpenedAt = pressedAt }
             } else {
                 PelmetLog.log("clock: no clock element under the target, replaying the click")
                 replayClick(false)
@@ -1688,6 +1691,26 @@ final class AppState {
             try? await Task.sleep(for: AppTiming.clockBlinkReacquire)
             await engine.endClockBlink()
             if let cover { transitions.endBarCover(cover) }
+            // A panel the press opened must outlive the re-acquire too. On
+            // 27.2 macOS can close it once the assertion is back, and a
+            // build marked as holding never looked again, so every click
+            // flashed the panel (#94). Gone with no input since counts like
+            // a panel that left during the hold, and the second one turns
+            // the build to replayed clicks. Its own task, so a click right
+            // after isn't taken for one in flight.
+            if let pressOpenedAt {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(AppTiming.clockPressHold))
+                    if ClockClickRelay.notificationCenterIsOpen() {
+                        PelmetLog.log("clock: panel still up after the re-acquire")
+                    } else if ClockClickRelay.userInput(since: pressOpenedAt) {
+                        PelmetLog.log("clock: panel closed by the user after the re-acquire — not counted")
+                    } else {
+                        PelmetLog.log("clock: the panel left on its own after the re-acquire")
+                        ClockClickRelay.notePanelLeftAfterPress()
+                    }
+                }
+            }
         }
     }
 
