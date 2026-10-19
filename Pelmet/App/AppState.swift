@@ -423,8 +423,8 @@ final class AppState {
         bandMonitor.start()
         self.bandMonitor = bandMonitor
 
-        let clockRelay = ClockClickRelay { [weak self] point, pointer in
-            self?.clockClicked(at: point, pointer: pointer)
+        let clockRelay = ClockClickRelay { [weak self] point, pointer, option in
+            self?.clockClicked(at: point, pointer: pointer, option: option)
         }
         // The tap always runs (it is also the active-display observer);
         // the setting only decides whether a clock click is relayed.
@@ -1492,7 +1492,7 @@ final class AppState {
     /// panel (#52, #53: covers stacked six deep under a held shortcut).
     private var clockBlinkInFlight = false
 
-    private func clockClicked(at point: CGPoint, pointer: CGPoint, viaShortcut: Bool = false) {
+    private func clockClicked(at point: CGPoint, pointer: CGPoint, option: Bool = false, viaShortcut: Bool = false) {
         Task { @MainActor in
             // Press the clock through AX so the pointer never moves; the
             // click is the fallback. Dot-zone clicks pressed since
@@ -1507,21 +1507,37 @@ final class AppState {
             // where it clicked (a hand that had left was pulled back to the
             // clock). A close may land in the dot zone too, an open needs
             // the clock itself.
+            // A ⌥-click goes out with its ⌥ (#92).
+            let flags: CGEventFlags = option ? .maskAlternate : []
             let replayClick = { [clockRelay] (closing: Bool) in
                 let live = CGEvent(source: nil)?.location
                 if let live, clockRelay?.isOnClock(live, dotZoneIncluded: closing) == true {
-                    ClockClickRelay.postClick(at: live, pointer: live)
+                    ClockClickRelay.postClick(at: live, pointer: live, flags: flags)
                 } else {
-                    ClockClickRelay.postClick(at: point, pointer: live ?? pointer)
+                    ClockClickRelay.postClick(at: point, pointer: live ?? pointer, flags: flags)
                 }
+            }
+            // No clock under the target and another bar item under the
+            // click: the zone outlived the clock's spot and took a
+            // neighbour's click, Control Center reflowed into a hidden
+            // clock's place (#93). Its click goes back as it was, with no
+            // blink: a drop with no clock to press and no cover flashed
+            // every hidden icon by.
+            if clockElement == nil, !viaShortcut, let other = ClockClickRelay.otherBarItem(at: pointer) {
+                await ClockClickRelay.waitForButtonRelease()
+                let live = CGEvent(source: nil)?.location ?? pointer
+                ClockClickRelay.postClick(at: pointer, pointer: live, flags: flags)
+                PelmetLog.log("clock: click landed on \(other), not the clock — replayed as is, no blink")
+                return
             }
             // Closing needs no blink: the panel dismisses itself on a click
             // outside it, and the assertion only refuses the clock's OWN
             // action. A plain replay of the click, no cover, no picture,
             // nothing for the panel's shade to disagree with (#51; live
             // 2026-09-22 15:33, 3/3). Opening stays a blink: with the
-            // assertion held the clock's click is refused (probed 0/2).
-            if panelWasOpen {
+            // assertion held the clock's click is refused (probed 0/2). So
+            // does a ⌥-click, the clock's own action whatever the panel does.
+            if panelWasOpen, !option {
                 await ClockClickRelay.waitForButtonRelease()
                 replayClick(true)
                 panelOpenedAt = .distantPast
@@ -1558,7 +1574,7 @@ final class AppState {
                 PelmetLog.log("clock: waits for the picture pass")
                 await transitions.awaitPicturePass()
             }
-            panelOpenedAt = Date()
+            if !option { panelOpenedAt = Date() }
             let cover = await transitions.beginBarCover()
             // The physical click is swallowed, so the panel starts sliding
             // at Pelmet's own press and is in ~100ms later; from then on
@@ -1572,7 +1588,16 @@ final class AppState {
                 }
             }
             var blinked = await engine.beginClockBlink()
-            if ClockClickRelay.pressNeverOpensPanel {
+            if option {
+                // ⌥-click toggles Do Not Disturb (#92), refused while the
+                // assertion is held like the plain click. The click goes
+                // out with its ⌥ once the drop is in: no AX press (it
+                // carries no modifiers) and no panel to wait for.
+                await ClockClickRelay.waitForButtonRelease()
+                try? await Task.sleep(for: AppTiming.clockPressSettle)
+                replayClick(false)
+                PelmetLog.log("clock: ⌥-click replayed\(blinked ? " with the assertion down" : "")")
+            } else if ClockClickRelay.pressNeverOpensPanel {
                 // This macOS never keeps the panel open on a press: replay
                 // the click, once the button is up (the cover is often up
                 // before the finger is, since the idle picture). The
@@ -3873,9 +3898,12 @@ final class AppState {
             pruneSettledOrderEdits()
             if settings.orderEdits != before { settings.save() }
         }
-        clockRelay?.updateClockFrame(
-            snap.items.first { $0.id.rawValue.hasSuffix("::com.apple.menuextra.clock") }?.frame
-        )
+        let isClock = { (id: ItemID) in id.rawValue.hasSuffix("::com.apple.menuextra.clock") }
+        if let frame = snap.items.first(where: { isClock($0.id) })?.frame {
+            clockRelay?.updateClockFrame(frame)
+        } else if snap.concealed.contains(where: isClock) {
+            clockRelay?.clockConcealed()
+        }
         bundleCounts = snap.items.reduce(into: [:]) { counts, item in
             guard let bundle = item.id.bundleID else { return }
             counts[bundle, default: 0] += 1

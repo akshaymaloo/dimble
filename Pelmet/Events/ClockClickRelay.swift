@@ -10,7 +10,7 @@
 // its reveal animation before the re-acquire applies, whatever the delay.
 //
 // The tap callback is pure geometry (no AX, no actor hops): it swallows a
-// plain left-click on the clock and hands the point to the main thread,
+// plain or ⌥ left-click on the clock and hands the point to the main thread,
 // which runs the blink and replays the click tagged as synthetic so the
 // tap lets it through. The physical mouse-up that follows is swallowed too;
 // the replay carries its own up.
@@ -45,8 +45,8 @@ nonisolated final class ClockClickRelay: @unchecked Sendable {
     private var swallowUpUntil: Date?
     private static let swallowUpWindow: TimeInterval = 1
     private var _lastMouseDownDisplay: CGDirectDisplayID?
-    /// (replay target on the clock, where the physical click landed)
-    private let onClick: @MainActor (CGPoint, CGPoint) -> Void
+    /// (replay target on the clock, where the physical click landed, ⌥ held)
+    private let onClick: @MainActor (CGPoint, CGPoint, Bool) -> Void
 
     /// The display the last physical click landed on. macOS draws the bar
     /// at full intensity on the display it considers active — where the
@@ -58,7 +58,7 @@ nonisolated final class ClockClickRelay: @unchecked Sendable {
     /// a global NSEvent monitor never sees clicks on Pelmet's own items.
     var lastMouseDownDisplay: CGDirectDisplayID? { lock.withLock { _lastMouseDownDisplay } }
 
-    init(onClick: @escaping @MainActor (CGPoint, CGPoint) -> Void) {
+    init(onClick: @escaping @MainActor (CGPoint, CGPoint, Bool) -> Void) {
         self.onClick = onClick
     }
 
@@ -86,6 +86,20 @@ nonisolated final class ClockClickRelay: @unchecked Sendable {
             width = frame.width
             bandHeight = max(frame.maxY - bounds.minY, main.frame.maxY - main.visibleFrame.maxY)
         }
+    }
+
+    /// The clock is hidden: its spot now belongs to whatever the bar
+    /// reflowed into it. The zone kept from its last frame swallowed
+    /// Control Center's clicks there, and each ran a blink with no clock to
+    /// press and no cover, every hidden icon flashing by (#93). The zone
+    /// goes and clicks there stay native. A nil frame alone keeps it: a
+    /// locked screen's empty walk says nothing about where the clock is.
+    @MainActor func clockConcealed() {
+        let hadZone = lock.withLock {
+            defer { insetFromRight = nil; width = 0 }
+            return insetFromRight != nil
+        }
+        if hadZone { PelmetLog.log("clock: hidden — click zone cleared, clicks there stay native") }
     }
 
     func stop() {
@@ -151,6 +165,7 @@ nonisolated final class ClockClickRelay: @unchecked Sendable {
             return Unmanaged.passUnretained(event)
         }
         let location = event.location
+        var option = false
         let decision: Bool = lock.withLock {
             if type == .leftMouseUp {
                 defer { swallowUpUntil = nil }
@@ -160,17 +175,19 @@ nonisolated final class ClockClickRelay: @unchecked Sendable {
             if let display = Self.display(under: location) { _lastMouseDownDisplay = display }
             // Only a plain left click is the clock's; a right-click passes.
             guard type == .leftMouseDown, enabled, isOnClock(location) else { return false }
-            // Modifier clicks keep their native meaning (⌘-drag reorders).
-            guard event.flags.intersection([.maskCommand, .maskAlternate, .maskControl, .maskShift]).isEmpty else {
-                return false
-            }
+            // Modifier clicks keep their native meaning (⌘-drag reorders),
+            // all but ⌥ alone: ⌥-click is the clock's Do Not Disturb toggle,
+            // refused like its plain click while the assertion is held (#92).
+            let modifiers = event.flags.intersection([.maskCommand, .maskAlternate, .maskControl, .maskShift])
+            guard modifiers.isEmpty || modifiers == .maskAlternate else { return false }
+            option = modifiers == .maskAlternate
             swallowUpUntil = Date().addingTimeInterval(Self.swallowUpWindow)
             return true
         }
         guard decision else { return Unmanaged.passUnretained(event) }
         if type == .leftMouseDown {
             let target = lock.withLock { clockCenter(near: location) ?? location }
-            Task { @MainActor [onClick] in onClick(target, location) }
+            Task { @MainActor [onClick, option] in onClick(target, location, option) }
         }
         return nil
     }
@@ -360,6 +377,25 @@ nonisolated final class ClockClickRelay: @unchecked Sendable {
         return identifier as? String == "com.apple.menuextra.clock" ? element : nil
     }
 
+    /// Another menu bar item under `point`, by its identifier (its role when
+    /// it has none): a click the zone took for the clock's that was meant
+    /// for a neighbour, Control Center in a hidden clock's spot (#93). nil
+    /// for the clock, or for anything that isn't a bar item (the agent's
+    /// backdrop mid-reflow).
+    @MainActor static func otherBarItem(at point: CGPoint) -> String? {
+        var element: AXUIElement?
+        guard AXUIElementCopyElementAtPosition(AXUIElementCreateSystemWide(), Float(point.x), Float(point.y), &element) == .success,
+              let element else { return nil }
+        var role: CFTypeRef?
+        AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &role)
+        guard role as? String == kAXMenuBarItemRole else { return nil }
+        var identifier: CFTypeRef?
+        AXUIElementCopyAttributeValue(element, "AXIdentifier" as CFString, &identifier)
+        let id = identifier as? String ?? ""
+        guard id != "com.apple.menuextra.clock" else { return nil }
+        return id.isEmpty ? kAXMenuBarItemRole : id
+    }
+
     @MainActor static func press(_ element: AXUIElement) -> Bool {
         AXUIElementPerformAction(element, kAXPressAction as CFString) == .success
     }
@@ -429,7 +465,7 @@ nonisolated final class ClockClickRelay: @unchecked Sendable {
     /// drags the cursor to its own location, so a dot-zone click replayed
     /// at the clock's centre left the pointer on the clock (Gab,
     /// 2026-09-19) — a move back restores it once the click is in.
-    @MainActor static func postClick(at point: CGPoint, pointer: CGPoint) {
+    @MainActor static func postClick(at point: CGPoint, pointer: CGPoint, flags: CGEventFlags = []) {
         let source = CGEventSource(stateID: .hidSystemState)
         source?.userData = SyntheticInput.tag
         guard
@@ -440,12 +476,12 @@ nonisolated final class ClockClickRelay: @unchecked Sendable {
         else { return }
         down.setIntegerValueField(.mouseEventClickState, value: 1)
         up.setIntegerValueField(.mouseEventClickState, value: 1)
-        // Only plain clicks are relayed, and the shortcut fires with ⌥⌘
-        // still down (held through a run of ⌥⌘N, Gab 2026-10-07): a ⌘ mouse
-        // down on the bar drags the item. Cleared, the clock opens the panel
-        // with the keys physically held.
-        down.flags = []
-        up.flags = []
+        // The shortcut fires with ⌥⌘ still down (held through a run of ⌥⌘N,
+        // Gab 2026-10-07): a ⌘ mouse down on the bar drags the item. Cleared,
+        // the clock opens the panel with the keys physically held. Only a
+        // relayed ⌥-click passes its ⌥ on (#92).
+        down.flags = flags
+        up.flags = flags
         down.post(tap: .cghidEventTap)
         usleep(useconds_t(AppTiming.clockReplayHold * 1_000_000))
         up.post(tap: .cghidEventTap)

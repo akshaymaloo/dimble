@@ -168,6 +168,16 @@ struct ShowWhenRule {
         write(on: true, condition: condition)
     }
 
+    /// The `.inVisible` way out: the icon moves to Hidden, where the rule
+    /// can bring it back, and the rule goes on. A Focus item added to
+    /// Visible greyed the switch out with no way forward but the editor
+    /// (#92).
+    func moveToHidden() {
+        guard let id = subject.appleItem ?? specIndex.map({ ExtrasManager.itemID(for: appState.settings.extraItems[$0]) }) else { return }
+        appState.moveItemNow(id, to: .hidden)
+        write(on: true, condition: nil)
+    }
+
     private func write(on: Bool?, condition: ShowWhenCondition?) {
         switch subject {
         case .battery:
@@ -225,7 +235,7 @@ private struct ShowWhenRow: View {
         let applies = availability == .applies
         ItemRowShell(symbol: rule.subject.symbol, title: rule.subject.title) {
             if !applies {
-                ShowWhenUnavailable(subject: rule.subject, availability: availability)
+                ShowWhenUnavailable(subject: rule.subject, availability: availability, moveToHidden: rule.moveToHidden)
             }
         } trailing: {
             condition
@@ -269,6 +279,7 @@ private struct ShowWhenRow: View {
 struct ShowWhenUnavailable: View {
     let subject: ShowWhenSubject
     let availability: ShowRuleAvailability
+    var moveToHidden: (() -> Void)?
 
     var body: some View {
         switch availability {
@@ -282,7 +293,14 @@ struct ShowWhenUnavailable: View {
                     .foregroundStyle(PelmetAccent.accent)
             }
         case .inVisible:
-            Text("\(subject.name) is in Visible, so it's always on the bar.")
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(subject.name) is in Visible, so it's always on the bar.")
+                if let moveToHidden {
+                    Button("Move to Hidden", action: moveToHidden)
+                        .buttonStyle(.plain)
+                        .foregroundStyle(PelmetAccent.accent)
+                }
+            }
         }
     }
 
@@ -348,7 +366,7 @@ struct TilePopover: View {
         }
         .disabled(!applies)
         if !applies {
-            ShowWhenUnavailable(subject: rule.subject, availability: availability)
+            ShowWhenUnavailable(subject: rule.subject, availability: availability, moveToHidden: rule.moveToHidden)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
