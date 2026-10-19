@@ -63,8 +63,9 @@ nonisolated final class ClockClickRelay: @unchecked Sendable {
     }
 
     /// The tap runs either way — it is also the active-display observer
-    /// (`lastMouseDownDisplay`); `on` only decides whether clock clicks are
-    /// swallowed and relayed (the `clockClickOpensNotificationCenter` setting).
+    /// (`lastMouseDownDisplay`); `on` only decides whether plain clock clicks
+    /// are swallowed and relayed (the `clockClickOpensNotificationCenter`
+    /// setting). ⌥-clicks are relayed either way.
     func setEnabled(_ on: Bool) {
         lock.withLock { enabled = on }
         if tap == nil { startTap() }
@@ -174,13 +175,17 @@ nonisolated final class ClockClickRelay: @unchecked Sendable {
             swallowUpUntil = nil
             if let display = Self.display(under: location) { _lastMouseDownDisplay = display }
             // Only a plain left click is the clock's; a right-click passes.
-            guard type == .leftMouseDown, enabled, isOnClock(location) else { return false }
+            guard type == .leftMouseDown, isOnClock(location) else { return false }
             // Modifier clicks keep their native meaning (⌘-drag reorders),
             // all but ⌥ alone: ⌥-click is the clock's Do Not Disturb toggle,
             // refused like its plain click while the assertion is held (#92).
             let modifiers = event.flags.intersection([.maskCommand, .maskAlternate, .maskControl, .maskShift])
             guard modifiers.isEmpty || modifiers == .maskAlternate else { return false }
             option = modifiers == .maskAlternate
+            // The setting is about a plain click. A ⌥-click left native is
+            // refused all the same, so it is relayed with the setting off
+            // too (#92, on 0.3.3-beta.2).
+            guard enabled || option else { return false }
             swallowUpUntil = Date().addingTimeInterval(Self.swallowUpWindow)
             return true
         }
