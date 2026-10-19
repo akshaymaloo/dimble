@@ -232,6 +232,7 @@ final class TransitionCoordinator {
     private func endBarHold() {
         pressEnded()
         barHold = nil
+        refreshHeld("the bar is free")
     }
 
     /// The bar is back as it was: take the idle picture a press kept from
@@ -1283,7 +1284,11 @@ final class TransitionCoordinator {
     /// the displays settled: held pictures that no longer serve are retaken
     /// and swapped in place, and a missing one goes back up.
     func refreshHeld(_ why: String) {
-        guard let appState else { return }
+        // A pass has the bar: its rounds take Hidden in, which reads as no
+        // run and would lift every held picture (2026-10-19 17:45, the
+        // hidden icons showed as the pass cover lifted). The pass re-holds
+        // before its cover lifts, and its end refreshes.
+        guard let appState, !passInFlight else { return }
         let want = appState.barsKeptConcealed
         guard !want.isEmpty || !held.isEmpty else { return }
         let stale = heldRunNow.map { !heldPicturesServe($0) } ?? true
@@ -2125,6 +2130,16 @@ extension TransitionCoordinator {
         }
         appState.updateSnapshot(await engine.snapshot())
         PelmetLog.log("pass: \(anchoredPass ? "back to the anchor" : "concealed") at \(ms())ms")
+        if anchoredPass, let cover {
+            // The held pictures fit the bar as it settles, before the pass
+            // cover lifts off it: frames read right after the reveal sit
+            // right of where it rests.
+            cover.keepUp(for: AppTiming.transitionCoverSafety)
+            await appState.waitUntilQuiesced(interval: 0.15, deadline: 2, poll: .milliseconds(30))
+            appState.updateSnapshot(await engine.snapshot())
+            await hold(appState.barsKeptConcealed)
+            PelmetLog.log("pass: held bars back at \(ms())ms")
+        }
         if let cover {
             endBarCover(cover, label: "pass") { [weak self] in
                 self?.endBarHold()
