@@ -462,6 +462,10 @@ public struct SettingsStore: Codable, Equatable, Sendable {
     /// the template is the fallback `behavior(forDisplayUUID:)` returns.
     public var displayTemplate: DisplayBehavior = .collapse
     public var displayOverrides: [String: DisplayBehavior] = [:]
+    /// "Show hidden icons in" per display (#88), keyed like
+    /// `displayOverrides`. A display with no entry follows `hiddenIconsIn`
+    /// (Settings › Displays calls it "Same as Panel tab").
+    public var displayRevealTargets: [String: RevealTarget] = [:]
 
     public var rehidePolicy: RehidePolicy {
         RehidePolicy(
@@ -483,6 +487,26 @@ public struct SettingsStore: Codable, Equatable, Sendable {
         return displayOverrides[uuid] ?? displayTemplate
     }
 
+    /// Where a reveal decided on this display shows the hidden icons: its own
+    /// choice while it hides icons, else the Panel tab's. A display that
+    /// shows all icons keeps its entry for when it hides them again.
+    public func revealTarget(forDisplayUUID uuid: String?) -> RevealTarget {
+        ownRevealTarget(forDisplayUUID: uuid) ?? hiddenIconsIn
+    }
+
+    /// A panel or a row shows the hidden icons somewhere: the Panel tab's
+    /// choice, or a display's own.
+    public var usesPanel: Bool {
+        hiddenIconsIn.panelLayout != nil
+            || displayRevealTargets.keys.contains { ownRevealTarget(forDisplayUUID: $0)?.panelLayout != nil }
+    }
+
+    /// The display's own "Show hidden icons in", when it has one that applies.
+    public func ownRevealTarget(forDisplayUUID uuid: String?) -> RevealTarget? {
+        guard let uuid, behavior(forDisplayUUID: uuid) == .collapse else { return nil }
+        return displayRevealTargets[uuid]
+    }
+
     // MARK: - Codable (resilient: new fields fall back to defaults instead of
     // failing the whole decode and silently resetting the user's settings)
 
@@ -491,7 +515,7 @@ public struct SettingsStore: Codable, Equatable, Sendable {
         case itemHotkeys, itemAliases
         case revealTriggers, autoRehide, rehideDelay, rehideOnClickElsewhere, revealAnimation
         case hideSystemExtras, showMediaControls, extraItems, sectionModel, separators
-        case displayTemplate, displayOverrides
+        case displayTemplate, displayOverrides, displayRevealTargets
         case notifyOnUpdates, barRightClickMenu, betaUpdates
         case statusIconStyle
         case clockClickOpensNotificationCenter, notificationCenterHotkey
@@ -526,6 +550,7 @@ public struct SettingsStore: Codable, Equatable, Sendable {
         separators = c.field([SeparatorSpec].self, .separators, defaults.separators)
         displayTemplate = c.field(DisplayBehavior.self, .displayTemplate, defaults.displayTemplate)
         displayOverrides = c.field([String: DisplayBehavior].self, .displayOverrides, defaults.displayOverrides)
+        displayRevealTargets = c.eachValue(RevealTarget.init(rawValue:), .displayRevealTargets)
         notifyOnUpdates = c.field(Bool.self, .notifyOnUpdates, defaults.notifyOnUpdates)
         betaUpdates = c.field(Bool.self, .betaUpdates, defaults.betaUpdates)
         barRightClickMenu = c.field(Bool.self, .barRightClickMenu, defaults.barRightClickMenu)
@@ -567,4 +592,26 @@ extension KeyedDecodingContainer {
     func field<T: Decodable>(_ type: T.Type, _ key: Key, _ fallback: T) -> T {
         ((try? decodeIfPresent(type, forKey: key)) ?? nil) ?? fallback
     }
+
+    /// A string-keyed map read value by value: a value that isn't a string
+    /// `make` knows drops that entry alone, where `field` would drop the
+    /// whole map over one of them.
+    func eachValue<T>(_ make: (String) -> T?, _ key: Key) -> [String: T] {
+        guard let map = try? nestedContainer(keyedBy: MapKey.self, forKey: key) else { return [:] }
+        var values: [String: T] = [:]
+        for entry in map.allKeys {
+            if let raw = try? map.decode(String.self, forKey: entry), let value = make(raw) {
+                values[entry.stringValue] = value
+            }
+        }
+        return values
+    }
+}
+
+/// Any key of a string-keyed map (`eachValue`).
+private struct MapKey: CodingKey {
+    let stringValue: String
+    init(stringValue: String) { self.stringValue = stringValue }
+    var intValue: Int? { nil }
+    init?(intValue: Int) { nil }
 }

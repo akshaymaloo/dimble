@@ -612,6 +612,8 @@ struct SettingRow<Control: View>: View {
     /// An orange dot before the title: "this needs you" (the sidebar's dot,
     /// carried down to the row it points at).
     private var attention = false
+    /// A control of the row's own under its title, where the caption goes.
+    private var detail: AnyView?
 
     /// Literal titles localize through the string catalog.
     init(title: LocalizedStringKey, caption: LocalizedStringKey? = nil, @ViewBuilder control: () -> Control) {
@@ -633,6 +635,12 @@ struct SettingRow<Control: View>: View {
         return row
     }
 
+    func detail<Detail: View>(@ViewBuilder _ content: () -> Detail) -> Self {
+        var row = self
+        row.detail = AnyView(content())
+        return row
+    }
+
     private var label: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 6) {
@@ -646,6 +654,7 @@ struct SettingRow<Control: View>: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            detail
         }
         .fixedSize(horizontal: false, vertical: true)
     }
@@ -1261,6 +1270,16 @@ private struct DisplayRow: View {
 
     private var behavior: DisplayBehavior { appState.settings.behavior(forDisplayUUID: uuid) }
 
+    /// The display's own "Show hidden icons in"; nil follows the Panel tab.
+    private var revealIn: Binding<RevealTarget?> {
+        Binding(
+            get: { uuid.flatMap { appState.settings.displayRevealTargets[$0] } },
+            set: { target in
+                guard let uuid else { return }
+                appState.panelPresenter.setTarget(target, forDisplayUUID: uuid)
+            })
+    }
+
     var body: some View {
         SettingRow(
             verbatim: screen.localizedName,
@@ -1288,6 +1307,21 @@ private struct DisplayRow: View {
                     (DisplayBehavior.collapse, LocalizedStringKey("Hides icons")),
                     (DisplayBehavior.alwaysShowAll, LocalizedStringKey("Shows all icons")),
                 ])
+            }
+        }
+        .detail {
+            // Hiding's own option, under the display while it hides (#88):
+            // a display that shows all icons has nothing to reveal.
+            if behavior == .collapse, uuid != nil {
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text("Reveal in")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    PelmetMenuPicker(selection: revealIn, options: [
+                        (nil, "Same as Panel tab"), (.menuBar, "Menu bar"), (.panel, "Panel"), (.row, "Row"),
+                    ], borderless: true, accent: true)
+                    .fixedSize()
+                }
             }
         }
     }

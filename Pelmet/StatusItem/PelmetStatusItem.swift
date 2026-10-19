@@ -264,7 +264,9 @@ final class PelmetStatusItem {
             styles.addItem(option)
         }
         animation.submenu = styles
-        // Where the hidden icons show, as Settings › Panel picks it.
+        // Where the hidden icons show from this display's bar: its own
+        // choice (Settings › Displays) or the Panel tab's.
+        let display = NSScreen.underPointer?.directDisplayID
         let shownIn = NSMenuItem(title: String(localized: "Show hidden icons in"), action: nil, keyEquivalent: "")
         let targets = NSMenu()
         for (option, title) in [
@@ -274,7 +276,7 @@ final class PelmetStatusItem {
         ] {
             let item = NSMenuItem(title: title, action: #selector(AppMenuTarget.setRevealTarget(_:)), keyEquivalent: "")
             item.representedObject = option.rawValue
-            item.state = appState.revealTarget == option ? .on : .off
+            item.state = appState.revealTarget(onDisplay: display) == option ? .on : .off
             item.target = target
             targets.addItem(item)
         }
@@ -357,7 +359,7 @@ final class AppMenuTarget: NSObject {
     @objc func setRevealTarget(_ sender: NSMenuItem) {
         guard let raw = sender.representedObject as? String,
               let option = RevealTarget(rawValue: raw) else { return }
-        appState?.panelPresenter.setTarget(option)
+        appState?.panelPresenter.pick(option, onDisplay: NSScreen.underPointer?.directDisplayID)
     }
     @objc func grantAccessibility() { AccessibilityAccess.request() }
     /// The About pane is the update hub (chip, notes, toggles) — land there

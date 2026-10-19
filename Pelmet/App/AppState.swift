@@ -7,6 +7,17 @@ import PelmetCore
 import PelmetEngine
 import SwiftUI
 
+/// Where a reveal was decided (`AppState.revealDecision(for:)`): the display
+/// and what it shows the hidden icons in.
+struct RevealDecision: Equatable {
+    var display: CGDirectDisplayID?
+    var uuid: String?
+    var target: RevealTarget
+    /// Went where the display's choice said: false for the reasons that
+    /// need the bar whatever it says (`RevealRouting.needsBar`).
+    var followsChoice = true
+}
+
 @Observable
 final class AppState {
     let engine = AgentBarEngine()
@@ -88,6 +99,11 @@ final class AppState {
     /// The panel is drawing the reveal: the machine says revealed, the bar
     /// itself stays concealed.
     var panelShowsReveal: Bool { revealPresenter === panelPresenter }
+    /// The display the reveal that is up was decided on, and where it shows
+    /// the hidden icons there (`.menuBar` when the bar drew it). Kept until
+    /// it conceals: the pointer moving to another display doesn't re-route
+    /// it. nil at rest.
+    @ObservationIgnored private(set) var revealDecision: RevealDecision?
     /// Per revealed section, its items left to right as the last reveal
     /// settle read them off the bar. Memory only: the panel's tile order
     /// (`PanelModel.build(drawnOrder:)`), since the bar's order is read and
@@ -984,7 +1000,7 @@ final class AppState {
         // Apply): the panel closes first and the reveal queues behind it. A
         // request for the panel's own sections would otherwise change
         // nothing, and the bar would never come out.
-        if panelShowsReveal, case .revealed = rehide.state, presenter(for: reason) !== panelPresenter {
+        if panelShowsReveal, case .revealed = rehide.state, RevealRouting.needsBar(reason) {
             dispatch(rehide.handle(.concealRequested))
         }
         dispatch(rehide.handle(.revealRequested(sections, reason)))
@@ -3337,15 +3353,28 @@ final class AppState {
                 if case .transitioning(target: .reveal(_, let r), _) = rehide.state { reason = r }
                 if reason == .hover { hoverRevealStartedAt = .now }
                 let trace = PerfTrace(kind: "reveal", reason: reason)
-                var presenter = presenter(for: reason)
+                let decision = revealDecision(for: reason)
+                var presenter = reason.map { RevealRouting.destination(for: $0, target: decision.target) } == .panel
+                    ? panelPresenter as any RevealPresenter : barPresenter
                 if revealPresenter === barPresenter {
                     // The bar is out already: a wider reveal widens it there.
                     presenter = barPresenter
-                } else if panelShowsReveal, presenter !== panelPresenter {
+                } else if panelShowsReveal, !RevealRouting.needsBar(reason) {
+                    // The panel is up: it takes the wider reveal, wherever
+                    // the pointer has gone since.
+                    presenter = panelPresenter
+                } else if panelShowsReveal {
                     // Something that needs the real bar (⌘↩ in Search, an
                     // Apply) while the panel is up: the panel goes, the
                     // bar takes the reveal.
                     panelPresenter.dismiss()
+                }
+                if presenter !== revealPresenter {
+                    revealDecision = RevealDecision(
+                        display: decision.display, uuid: decision.uuid,
+                        target: presenter === barPresenter ? .menuBar : decision.target,
+                        followsChoice: !RevealRouting.needsBar(reason))
+                    PelmetLog.log("reveal: \(presenter === barPresenter ? "bar" : decision.target.rawValue) from display \(decision.display.map(String.init) ?? "?") (\(reason.map { "\($0)" } ?? "no reason"))")
                 }
                 revealPresenter = presenter
                 presenter.reveal(sections, reason: reason, trace: trace)
@@ -3366,6 +3395,7 @@ final class AppState {
                 // is where the engine's conceal lands.
                 let shown = revealPresenter
                 revealPresenter = nil
+                revealDecision = nil
                 if shown == nil, !items.isEmpty {
                     transitions.performItemsConceal(items, settles: true, trace: trace)
                 } else if let shown, shown !== barPresenter {
@@ -3386,22 +3416,43 @@ final class AppState {
         }
     }
 
-    /// Where a reveal gets drawn. No reason found for the transition goes to
-    /// the bar, as every reveal did before the setting existed.
-    private func presenter(for reason: RevealReason?) -> any RevealPresenter {
-        guard let reason else { return barPresenter }
-        switch RevealRouting.destination(for: reason, target: revealTarget) {
-        case .bar:
-            return barPresenter
-        case .panel:
-            return panelPresenter
-        }
+    /// Which display a reveal for `reason` follows and what that display
+    /// picked (#88). The rule (`RevealRouting.decidingDisplay`) is the
+    /// panel's too, so it opens where this was decided.
+    func revealDecision(for reason: RevealReason?) -> RevealDecision {
+        let screen = decidingScreen(atBar: reason.map(RevealRouting.startsAtBar) ?? false)
+        let uuid = screen?.displayUUIDString
+        return RevealDecision(display: screen?.directDisplayID, uuid: uuid, target: settings.revealTarget(forDisplayUUID: uuid))
     }
 
-    /// "Show hidden icons in". The build-time override
+    /// The display under the pointer; off a bar's reveal, only while a bar
+    /// is drawn there (the Window Server's, as `GlassPanel` reads it), then
+    /// the active display's, then the primary (the first screen, never
+    /// NSScreen.main: that is the key window's).
+    func decidingScreen(atBar: Bool) -> NSScreen? {
+        let screens = NSScreen.screens
+        guard screens.count > 1 else { return screens.first }
+        let active = lastMouseDownDisplay.flatMap { id in screens.first { $0.directDisplayID == id } }
+        return RevealRouting.decidingDisplay(
+            atBar: atBar, pointer: NSScreen.underPointer, active: active, primary: screens.first
+        ) { GlassPanel.drawnBarHeight(of: $0, fresh: true) != nil }
+    }
+
+    /// "Show hidden icons in" on the Panel tab: every display without a
+    /// choice of its own follows it. The build-time override
     /// (`pelmet.debug.panel`) is gone: left set, it beat the setting
     /// (review SIMP-7).
     var revealTarget: RevealTarget { settings.hiddenIconsIn }
+
+    /// The display's choice changed Panel ↔ Row under the panel it opened.
+    func revealRetargeted(_ target: RevealTarget) {
+        revealDecision?.target = target
+    }
+
+    /// What a reveal on `display` shows the hidden icons in.
+    func revealTarget(onDisplay display: CGDirectDisplayID?) -> RevealTarget {
+        settings.revealTarget(forDisplayUUID: display.flatMap(NSScreen.uuid(ofDisplay:)))
+    }
 
     /// The panel finished opening or closing: the machine's transition is
     /// over, as when the bar's reveal or conceal settles.

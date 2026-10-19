@@ -39,6 +39,87 @@ import Testing
         #expect(RevealTarget.row.panelLayout == .row)
     }
 
+    // #88: each display can pick its own "Show hidden icons in"; the rest
+    // follow the Panel tab. A display that shows all icons never reveals, so
+    // its entry waits for it to hide them again.
+    @Test func eachDisplayFollowsItsOwnChoiceOrThePanelTab() {
+        var settings = SettingsStore()
+        settings.hiddenIconsIn = .panel
+        settings.displayRevealTargets = ["LG": .menuBar, "BenQ": .row]
+        #expect(settings.revealTarget(forDisplayUUID: "LG") == .menuBar)
+        #expect(settings.revealTarget(forDisplayUUID: "BenQ") == .row)
+        #expect(settings.revealTarget(forDisplayUUID: "Built-in") == .panel)
+        #expect(settings.revealTarget(forDisplayUUID: nil) == .panel)
+        #expect(settings.ownRevealTarget(forDisplayUUID: "Built-in") == nil)
+        #expect(RevealRouting.destination(for: .hover, target: settings.revealTarget(forDisplayUUID: "LG")) == .bar)
+        #expect(RevealRouting.destination(for: .hover, target: settings.revealTarget(forDisplayUUID: "Built-in")) == .panel)
+        settings.displayOverrides["LG"] = .alwaysShowAll
+        #expect(settings.revealTarget(forDisplayUUID: "LG") == .panel)
+        #expect(settings.ownRevealTarget(forDisplayUUID: "LG") == nil)
+        settings.displayOverrides["LG"] = .collapse
+        #expect(settings.revealTarget(forDisplayUUID: "LG") == .menuBar)
+    }
+
+    private func deciding(
+        _ reason: RevealReason, pointer: String?, active: String?, bars: Set<String>
+    ) -> String? {
+        RevealRouting.decidingDisplay(
+            atBar: RevealRouting.startsAtBar(reason), pointer: pointer, active: active, primary: "Built-in",
+            hasBar: bars.contains)
+    }
+
+    // The bar under the pointer decides, bright or dimmed: a hover on the
+    // external while the built-in is active is the external's reveal.
+    @Test func theBarUnderThePointerDecidesWhateverIsActive() {
+        let bars: Set = ["Built-in", "LG"]
+        for reason in [RevealReason.hover, .click, .doubleClick, .statusItem, .barDrag, .displayPolicy] {
+            #expect(deciding(reason, pointer: "LG", active: "Built-in", bars: bars) == "LG")
+            #expect(deciding(reason, pointer: "Built-in", active: "LG", bars: bars) == "Built-in")
+        }
+        // Started on a bar, its display counts even when the read missed it.
+        #expect(deciding(.hover, pointer: "LG", active: "Built-in", bars: ["Built-in"]) == "LG")
+    }
+
+    // A shortcut follows the pointer's display while a bar is drawn there;
+    // over a full-screen app (no bar) the active display's, then the primary.
+    @Test func aShortcutFallsBackToTheActiveDisplayThenThePrimary() {
+        for reason in [RevealReason.hotkey, .itemInBar, .settingsPreview] {
+            #expect(deciding(reason, pointer: "LG", active: "Built-in", bars: ["Built-in", "LG"]) == "LG")
+            #expect(deciding(reason, pointer: "LG", active: "BenQ", bars: ["Built-in", "BenQ"]) == "BenQ")
+            #expect(deciding(reason, pointer: "LG", active: "LG", bars: ["Built-in"]) == "Built-in")
+            #expect(deciding(reason, pointer: "LG", active: nil, bars: ["Built-in"]) == "Built-in")
+            #expect(deciding(reason, pointer: nil, active: "BenQ", bars: ["BenQ"]) == "BenQ")
+            #expect(deciding(reason, pointer: nil, active: nil, bars: []) == "Built-in")
+        }
+    }
+
+    // The external reveals in its bar, the built-in in the panel, the
+    // shortcut over a full-screen app on the external lands on the built-in
+    // it fell back to.
+    @Test func routingPerDisplayEndToEnd() {
+        var settings = SettingsStore()
+        settings.hiddenIconsIn = .panel
+        settings.displayRevealTargets = ["LG": .menuBar]
+        func destination(_ reason: RevealReason, pointer: String, active: String, bars: Set<String>) -> RevealRouting.Destination {
+            let display = deciding(reason, pointer: pointer, active: active, bars: bars)
+            return RevealRouting.destination(for: reason, target: settings.revealTarget(forDisplayUUID: display))
+        }
+        let both: Set = ["Built-in", "LG"]
+        #expect(destination(.hover, pointer: "LG", active: "Built-in", bars: both) == .bar)
+        #expect(destination(.hover, pointer: "Built-in", active: "LG", bars: both) == .panel)
+        #expect(destination(.hotkey, pointer: "LG", active: "Built-in", bars: both) == .bar)
+        #expect(destination(.hotkey, pointer: "LG", active: "LG", bars: ["Built-in"]) == .panel)
+        #expect(destination(.itemInBar, pointer: "Built-in", active: "Built-in", bars: both) == .bar)
+    }
+
+    @Test func needsBarIsTheReasonsThatIgnoreTheSetting() {
+        #expect(RevealRouting.needsBar(nil))
+        for reason in [RevealReason.settingsPreview, .displayPolicy, .itemInBar] { #expect(RevealRouting.needsBar(reason)) }
+        for reason in [RevealReason.hover, .click, .doubleClick, .hotkey, .statusItem, .barDrag] {
+            #expect(!RevealRouting.needsBar(reason))
+        }
+    }
+
     // A downgrade, or a hand-edited blob, lands on the menu bar.
     @Test func unknownTargetDecodesAsTheMenuBar() throws {
         func decode(_ raw: String) throws -> RevealTarget {

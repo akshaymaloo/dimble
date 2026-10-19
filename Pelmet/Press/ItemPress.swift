@@ -305,7 +305,7 @@ final class ItemPress {
             // Not after a click on another display's bar: that bar is the
             // bright one now, and a picture of the dimmed main bar is dim.
             if revealed, toggle == nil, atRest, !run.yielded, !clickedElsewhere,
-               let frame = target?.frame, appState.revealTarget.panelLayout != nil {
+               let frame = target?.frame, appState.settings.usesPanel {
                 await appState.panelPresenter.repicture(key, frame: frame)
             }
             if let toggle { await OverflowToggle.collapseAfterPass(toggle) }

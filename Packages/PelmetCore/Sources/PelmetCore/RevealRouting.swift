@@ -51,4 +51,36 @@ public enum RevealRouting {
             .bar
         }
     }
+
+    /// The bar whatever "Show hidden icons in" says, a reveal with no reason
+    /// too (every reveal was the bar's before the setting existed).
+    public static func needsBar(_ reason: RevealReason?) -> Bool {
+        guard let reason else { return true }
+        return destination(for: reason, target: .panel) == .bar
+    }
+
+    /// Started by the pointer on a bar: that bar's display is the one, a bar
+    /// read or not. The rest can come with the pointer anywhere.
+    public static func startsAtBar(_ reason: RevealReason) -> Bool {
+        switch reason {
+        case .hover, .displayPolicy, .click, .doubleClick, .statusItem, .barDrag:
+            true
+        case .hotkey, .settingsPreview, .itemInBar:
+            false
+        }
+    }
+
+    /// The display whose "Show hidden icons in" a reveal follows (#88), and
+    /// where a panel for it opens: the one under the pointer, never macOS's
+    /// active one (the bright bar, the last click's). A dimmed bar is still
+    /// the bar the pointer is on. A reveal that didn't start on a bar (a
+    /// shortcut, Search) takes the pointer's display only when a bar is drawn
+    /// there, then the active display's, then the primary.
+    public static func decidingDisplay<Display: Equatable>(
+        atBar: Bool, pointer: Display?, active: Display?, primary: Display?, hasBar: (Display) -> Bool
+    ) -> Display? {
+        if let pointer, atBar || hasBar(pointer) { return pointer }
+        if let active, active != pointer, hasBar(active) { return active }
+        return primary
+    }
 }
