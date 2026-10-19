@@ -804,6 +804,17 @@ final class AppState {
                 self?.scheduleAnchorCheck("screen unlocked")
             }
         })
+        // The chevron's window loses `.visible` the moment macOS puts it
+        // behind the «, and gets it back when there's room (#81).
+        chevronHostObservers.append(NotificationCenter.default.addObserver(
+            forName: NSWindow.didChangeOcclusionStateNotification, object: nil, queue: .main
+        ) { [weak self] note in
+            let window = (note.object as AnyObject?).map(ObjectIdentifier.init)
+            MainActor.assumeIsolated {
+                guard let self, let window, window == self.statusItem?.buttonWindow.map(ObjectIdentifier.init) else { return }
+                self.checkChevronTrap()
+            }
+        })
     }
 
     /// Displays come and go in a burst: once they have settled, the bar is
@@ -3967,6 +3978,69 @@ final class AppState {
         }
     }
 
+    // MARK: The chevron behind Apple's « (#81)
+
+    /// macOS has put the chevron behind its « (`ChevronTrap`): the bar is
+    /// full, and the chevron, the leftmost item drawn, went first. Counted
+    /// in the « notice and "Didn't fit", named by the editor's hint.
+    private(set) var chevronTrapped = false
+    /// The « while the chevron is behind it: the reveal triggers stop at its
+    /// left edge (`MenuBarBandMonitor.revealTriggerMaxX`).
+    @ObservationIgnored private(set) var chevronTrapToggle: CGRect?
+    @ObservationIgnored private var chevronTrapCheck: Task<Void, Never>?
+    @ObservationIgnored private var chevronTrapRetry: Task<Void, Never>?
+
+    /// Reads the chevron against the «, on each walk and each time the
+    /// chevron's window changes occlusion. A trap holds 1s before it
+    /// counts: a reflow parks the chevron on the « for a moment, as at every
+    /// launch on a full bar.
+    func checkChevronTrap() {
+        guard barAttached, picturePassSections == nil, overflowReadHold == nil else {
+            // A full bar sitting still has no walk or occlusion change to
+            // come back on: at launch every walk fell inside the attach lead
+            // and the trap was never read (live test, 2026-10-19).
+            guard chevronTrapRetry == nil else { return }
+            chevronTrapRetry = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(1))
+                self?.chevronTrapRetry = nil
+                self?.checkChevronTrap()
+            }
+            return
+        }
+        guard settings.showStatusItem, statusItem?.windowOcclusionVisible == false else {
+            chevronTrapCheck?.cancel()
+            chevronTrapCheck = nil
+            setChevronTrapped(false, toggle: nil)
+            return
+        }
+        guard chevronTrapCheck == nil else { return }
+        chevronTrapCheck = Task { [weak self] in
+            var toggle = await Task.detached { OverflowToggle.find()?.frame }.value
+            if self?.chevronTrapped == false, self?.chevronParked(on: toggle) == true {
+                try? await Task.sleep(for: .seconds(1))
+                toggle = await Task.detached { OverflowToggle.find()?.frame }.value
+            }
+            guard let self, !Task.isCancelled else { return }
+            self.chevronTrapCheck = nil
+            self.setChevronTrapped(self.chevronParked(on: toggle), toggle: toggle)
+        }
+    }
+
+    private func chevronParked(on toggle: CGRect?) -> Bool {
+        ChevronTrap.isTrapped(iconShown: settings.showStatusItem, occlusionVisible: statusItem?.windowOcclusionVisible,
+                              window: chevronWindowFrame, toggle: toggle)
+    }
+
+    private func setChevronTrapped(_ trapped: Bool, toggle: CGRect?) {
+        chevronTrapToggle = trapped ? toggle : nil
+        guard trapped != chevronTrapped else { return }
+        chevronTrapped = trapped
+        PelmetLog.log(trapped
+            ? "overflow: chevron behind the « (at x=\(Int(toggle?.minX ?? 0)))"
+            : "overflow: chevron back on the bar")
+        if let snapshot { noteOverflow(in: snapshot) }
+    }
+
     private func noteOverflow(in snap: EngineSnapshot) {
         // A pass's bar is under its cover, a whole bar out at once: what it
         // pushes behind the « is not the bar anyone sees, and "Didn't fit"
@@ -4011,12 +4085,17 @@ final class AppState {
             guard let f = item.frame, drawn(item.id) else { return false }
             return PlacementGeometry.isPrimary(f, screenMaxX: primaryMaxX)
         }
-        let trappedItems = PlacementGeometry.overflowTrapped(framed.map { $0.frame! }).map { framed[$0].id }
+        var trappedItems = PlacementGeometry.overflowTrapped(framed.map { $0.frame! }).map { framed[$0].id }
+        // A lone chevron behind the « overlaps nothing, its frame parked on
+        // the « (#81): `chevronTrapped` reads it, already held for 1s.
+        if chevronTrapped, let chevron = pelmetChevronItem(in: snap)?.id, !trappedItems.contains(chevron) {
+            trappedItems.append(chevron)
+        }
         let trapped = trappedItems.count
         // Two consecutive reads to enter (a mid-attach walk at boot read two
         // items at one x for 200ms), one to leave.
         defer { lastOverflowRead = trapped }
-        if trapped > 0, overflowTrappedCount == 0, lastOverflowRead == 0 { return }
+        if trapped > 0, overflowTrappedCount == 0, lastOverflowRead == 0, !chevronTrapped { return }
         // Same count, other icons (Velja behind the « where Snib was): the
         // list follows every read the count takes, or "Didn't fit" kept
         // naming the icon that had left.
@@ -4105,6 +4184,7 @@ final class AppState {
         // dropped below: it read the bar at rest all the same, and an extra
         // shown before it is read (`unreadNow`).
         if snap.itemsAtRest, snap.takenAt > (lastRestWalkAt ?? .distantPast) { lastRestWalkAt = snap.takenAt }
+        checkChevronTrap()
         noteOverflow(in: snap)
         let primary = ApplyPass.primaryFrames(snap, appState: self)
         let chevronMidX = pelmetChevronItem(in: snap).flatMap { primary[$0.id.sectionKey]?.midX }

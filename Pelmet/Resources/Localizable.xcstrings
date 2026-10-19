@@ -21983,6 +21983,64 @@
         }
       }
     },
+    "The chevron doesn't fit": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Pfeil passt nicht"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El chevrón no cabe"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le chevron ne tient pas"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La freccia non ci sta"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "シェブロンが収まりません"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "화살표가 들어가지 않습니다"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A seta não cabe"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Стрелка не помещается"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "箭头放不下"
+          }
+        }
+      }
+    },
     "The chevron is the boundary: everything left of it tucks away.": {
       "localizations": {
         "de": {
@@ -25633,6 +25691,64 @@
           "stringUnit": {
             "state": "translated",
             "value": "菜单栏已满：%lld 个图标在有空间之前会留在 macOS 的 « 后面。Dimble 不会移动它们。"
+          }
+        }
+      }
+    },
+    "Your menu bar is full: the chevron sits behind macOS's « until there's room. Move an icon to Hidden to bring it back.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deine Menüleiste ist voll: Der Pfeil bleibt hinter dem « von macOS, bis wieder Platz ist. Verschiebe ein Symbol nach „Ausgeblendet“, um ihn zurückzuholen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu barra de menús está llena: el chevrón queda detrás del « de macOS hasta que haya sitio. Mueve un icono a Ocultos para recuperarlo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre barre des menus est pleine : le chevron reste derrière le « de macOS jusqu’à ce qu’il y ait de la place. Déplacez une icône dans Masqués pour le faire revenir."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La barra dei menu è piena: la freccia resta dietro il « di macOS finché non c’è spazio. Sposta un’icona in Nascosti per riportarla."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "メニューバーがいっぱいです：空きができるまで、シェブロンは macOS の « の後ろにあります。アイコンを1つ「非表示」に移すと戻ります。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "메뉴 막대가 가득 찼습니다: 공간이 생길 때까지 화살표는 macOS의 « 뒤에 남습니다. 아이콘 하나를 숨김으로 옮기면 돌아옵니다."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sua barra de menus está cheia: a seta fica atrás do « do macOS até haver espaço. Mova um ícone para Ocultos para trazê-la de volta."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Строка меню заполнена: стрелка остаётся за « macOS, пока не появится место. Переместите один значок в «Скрытые», чтобы вернуть её."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "菜单栏已满：在有空间之前，箭头会留在 macOS 的 « 后面。将一个图标移到“隐藏”即可让它回来。"
           }
         }
       }

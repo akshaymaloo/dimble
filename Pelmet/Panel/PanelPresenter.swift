@@ -757,9 +757,10 @@ final class PanelPresenter: RevealPresenter {
     }
 
     /// The chevron and its display, nil when it isn't in a bar's band (icon
-    /// off, behind Apple's «, not placed yet): a parked frame would place
-    /// the panel by nothing on screen. The band is the bar's own height
-    /// (`GlassPanel.barBand`), 30pt on an external display.
+    /// off, not placed yet): a parked frame would place the panel by nothing
+    /// on screen. Behind Apple's « the frame stays in the band, parked on
+    /// the «, and the panel opens under the « (#81). The band is the bar's
+    /// own height (`GlassPanel.barBand`), 30pt on an external display.
     private func drawnChevron() -> (frame: NSRect, screen: NSScreen)? {
         guard let frame = appState?.chevronWindowFrame else { return nil }
         let mid = NSPoint(x: frame.midX, y: frame.midY)

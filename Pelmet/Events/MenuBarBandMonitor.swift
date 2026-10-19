@@ -829,6 +829,12 @@ final class MenuBarBandMonitor {
     /// section's leftmost live icon, and with nothing in Visible either it
     /// falls back to the pinned pair.
     private func isPastRevealTriggerZone(_ point: NSPoint, on screen: NSScreen) -> Bool {
+        // The chevron behind Apple's « on a display that reveals in the bar:
+        // the bar has no room for the hidden icons either, and a hover by the
+        // notch only flickered them behind the « (#81, live test). A panel
+        // or a row still opens from the zone.
+        if let appState, appState.chevronTrapToggle != nil,
+           appState.settings.revealTarget(forDisplayUUID: screen.displayUUIDString) == .menuBar { return true }
         guard let bound = revealTriggerMaxX() ?? pinnedZoneMinX() else { return false }
         return isAtOrRight(of: bound, point, on: screen)
     }
@@ -836,6 +842,11 @@ final class MenuBarBandMonitor {
     /// Main-display x past which the reveal triggers stop: the chevron's
     /// right edge, else the leftmost live icon assigned to Visible.
     private func revealTriggerMaxX() -> CGFloat? {
+        // Behind Apple's « the chevron's window stays parked on the «, which
+        // put the « inside the zone: a hover there revealed every hidden icon
+        // straight behind it (#81). The triggers stop short of it, a pointer
+        // resting 1pt left of its frame on the way in still revealed.
+        if let toggle = appState?.chevronTrapToggle { return toggle.minX - 8 }
         guard let appState, let items = appState.snapshot?.items,
               let primaryMaxX = NSScreen.screens.first?.frame.maxX else { return nil }
         let live = items.compactMap { item -> (id: ItemID, frame: CGRect)? in
@@ -857,7 +868,8 @@ final class MenuBarBandMonitor {
 
     /// The drawn chevron's right edge as a main-display x (the bar repeats
     /// on every screen at the same right inset), nil when it isn't in a
-    /// screen's band (icon off, behind Apple's «, not placed yet).
+    /// screen's band (icon off, not placed yet). Behind Apple's « it stays
+    /// in the band, parked on the « (#81).
     /// On the per-move path: the screens come from the cache, the main
     /// display first as in `NSScreen.screens`.
     private func liveChevronMaxX() -> CGFloat? {

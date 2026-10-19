@@ -86,17 +86,23 @@ struct OverflowHint: View {
 
     var body: some View {
         let count = appState.overflowNoticeCount
+        // The chevron is the one that matters: without it the hidden icons
+        // are out of reach (#81).
+        let chevron = appState.chevronTrapped
         Group {
             if count > 0 {
                 Label {
-                    count == 1 ? Text("1 icon doesn't fit") : Text("\(count) icons don't fit")
+                    chevron ? Text("The chevron doesn't fit")
+                        : count == 1 ? Text("1 icon doesn't fit") : Text("\(count) icons don't fit")
                 } icon: {
                     Image(systemName: "rectangle.compress.vertical")
                 }
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-                .help("Your menu bar is full: \(count) icons sit behind macOS's « until there's room. Dimble leaves them where they are.")
+                .help(chevron
+                    ? Text("Your menu bar is full: the chevron sits behind macOS's « until there's room. Move an icon to Hidden to bring it back.")
+                    : Text("Your menu bar is full: \(count) icons sit behind macOS's « until there's room. Dimble leaves them where they are."))
                 .transition(.opacity)
             }
         }
