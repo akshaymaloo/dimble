@@ -122,6 +122,10 @@ enum AppTiming {
     /// Minimum time the empty-bar cover stays over a conceal: the agent's
     /// own fade of the concealed items runs ~300ms past the swap.
     static let exitCoverHold: TimeInterval = 0.42
+    /// How long another display's bar stays under its empty-bar picture
+    /// while a bar reveal is out (#88) before it gives up and shows the
+    /// icons: past this the picture risks a stale wallpaper or backdrop.
+    static let heldBarCeiling: TimeInterval = 600
     /// Revealed-strip snapshot (taken at reveal settle) painted at once on the
     /// next Instant/Fade reveal. Long-lived: engine item changes invalidate it
     /// explicitly; the cap only guards wallpaper/appearance drift.

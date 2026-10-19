@@ -283,6 +283,9 @@ final class ConcealGhostOverlay {
     private let imageView: NSImageView
     private var finished = false
     private var stoodDown = false
+    /// Counted in `stripActive`: a transition's cover. A held bar
+    /// (`holdsBar`) stays up for a whole reveal and is not one.
+    private let countsAsStrip: Bool
     /// When the safety fade is due. Fixed at `begin` unless a caller that
     /// knows better (a picture pass running follow-up rounds) pushes it out.
     private var safetyEnd = Date()
@@ -298,6 +301,12 @@ final class ConcealGhostOverlay {
         /// Cocoa bottom-left global — where this display's cover floats.
         let windowFrame: NSRect
         let takenAt: Date
+
+        /// The display this picture floats on.
+        @MainActor var display: CGDirectDisplayID? {
+            NSScreen.screens.first { NSMouseInRect(NSPoint(x: windowFrame.midX, y: windowFrame.midY), $0.frame, false) }?
+                .directDisplayID
+        }
     }
 
     /// Capture the strip on every display. `rect` is the primary-band strip
@@ -350,8 +359,10 @@ final class ConcealGhostOverlay {
     /// picture pass); `ownWindows` names them, looked up here when nil.
     /// `primaryOnly`: the primary display's band alone, all a pass cuts
     /// from (review EFF-2).
+    /// `displays`: only these displays' bars (nil: every one).
     static func snapshotSet(
-        of rect: CGRect?, excludingOwnWindows: Bool = false, ownWindows: [SCWindow]? = nil, primaryOnly: Bool = false
+        of rect: CGRect?, excludingOwnWindows: Bool = false, ownWindows: [SCWindow]? = nil, primaryOnly: Bool = false,
+        displays: Set<CGDirectDisplayID>? = nil
     ) async -> [BarSnapshot] {
         guard let rect, rect.width > 8 else { return [] }
         if let closed = menuClosedAt {
@@ -373,7 +384,7 @@ final class ConcealGhostOverlay {
         var content: SCShareableContent?
         let lookUpOwn = excludingOwnWindows && ownWindows == nil
         for screen in primaryOnly ? [primary] : NSScreen.screens {
-            guard let displayID = screen.directDisplayID,
+            guard let displayID = screen.directDisplayID, displays?.contains(displayID) ?? true,
                   let display = await scDisplay(for: displayID) else { continue }
             let bounds = CGDisplayBounds(displayID)  // CG top-left global
             // Bar heights differ per display (39pt notched builtin, 24pt
@@ -749,7 +760,12 @@ final class ConcealGhostOverlay {
     }
 
     /// Float pre-captured snapshots — synchronous, zero capture latency.
-    static func begin(from snaps: [BarSnapshot], safety: TimeInterval = 0.5, startHidden: Bool = false) -> GhostSet? {
+    /// `holdsBar`: a bar kept looking concealed for a whole reveal (#88). It
+    /// takes the clicks on it, so none lands on an icon it hides, without
+    /// making Pelmet the active app.
+    static func begin(
+        from snaps: [BarSnapshot], safety: TimeInterval = 0.5, startHidden: Bool = false, holdsBar: Bool = false
+    ) -> GhostSet? {
         guard !snaps.isEmpty else { return nil }
         // A cover orders in above every window at the bar's level, another
         // app's surface included: Sconce's notch glass lost its top 39pt
@@ -766,20 +782,31 @@ final class ConcealGhostOverlay {
             if !foreign.isEmpty {
                 PelmetLog.log("ghost: cover under \(foreign.map(\.owner).joined(separator: ", ")) @x=\(Int(f.minX))")
             }
-            return ConcealGhostOverlay(snapshot: snap, safety: safety, startHidden: startHidden, beneath: foreign.first?.id)
+            return ConcealGhostOverlay(snapshot: snap, safety: safety, startHidden: startHidden, beneath: foreign.first?.id, holdsBar: holdsBar)
         })
     }
 
-    private init(snapshot: BarSnapshot, safety: TimeInterval, startHidden: Bool = false, beneath: CGWindowID? = nil) {
+    private init(
+        snapshot: BarSnapshot, safety: TimeInterval, startHidden: Bool = false, beneath: CGWindowID? = nil, holdsBar: Bool = false
+    ) {
         let frame = snapshot.windowFrame
         let shot = snapshot.image
         Self.nextID += 1
         id = Self.nextID
-        window = NSWindow(contentRect: frame, styleMask: .borderless, backing: .buffered, defer: false)
+        countsAsStrip = !holdsBar
+        if holdsBar {
+            let panel = NSPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+            panel.hidesOnDeactivate = false
+            // Up for a whole reveal: on every Space of its display.
+            panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
+            window = panel
+        } else {
+            window = NSWindow(contentRect: frame, styleMask: .borderless, backing: .buffered, defer: false)
+        }
         window.isOpaque = false
         window.backgroundColor = .clear
         window.level = .statusBar
-        window.ignoresMouseEvents = true
+        window.ignoresMouseEvents = !holdsBar
         window.hasShadow = false
         imageView = NSImageView(
             image: NSImage(cgImage: shot, size: frame.size)
@@ -802,8 +829,8 @@ final class ConcealGhostOverlay {
             window.orderFrontRegardless()
         }
         window.displayIfNeeded()
-        Self.activeStripCount += 1
-        PelmetLog.log("ghost: strip #\(id) up \(Int(frame.width))×\(Int(frame.height)) @x=\(Int(frame.minX)) safety \(Int(safety * 1000))ms")
+        if countsAsStrip { Self.activeStripCount += 1 }
+        PelmetLog.log("ghost: \(holdsBar ? "held bar" : "strip") #\(id) up \(Int(frame.width))×\(Int(frame.height)) @x=\(Int(frame.minX)) safety \(Int(safety * 1000))ms")
         // Safety: never leave a stale cover if the caller's task dies.
         // Strong self on purpose: a cover nobody held any more (#52, a
         // shaded picture raised after its blink had been dismissed) was
@@ -836,7 +863,7 @@ final class ConcealGhostOverlay {
     private func standDown() {
         guard !stoodDown else { return }
         stoodDown = true
-        Self.activeStripCount -= 1
+        if countsAsStrip { Self.activeStripCount -= 1 }
     }
 
     func addPanelShade() {

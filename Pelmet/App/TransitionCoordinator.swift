@@ -320,6 +320,13 @@ final class TransitionCoordinator {
     /// lifted — the whole bar blinking (Gab, 2026-09-16, three displays).
     private var revealCoverActiveDisplay: CGDirectDisplayID?
     private var revealedStripActiveDisplay: CGDirectDisplayID?
+    /// The other displays' bars a bar reveal keeps looking concealed (#88,
+    /// `AppState.barsKeptConcealed`), up from the reveal until its conceal
+    /// has settled.
+    private var heldBars: ConcealGhostOverlay.GhostSet?
+    private var heldDisplays: Set<CGDirectDisplayID> = []
+    /// The engine has a bar reveal out: a live capture now films the icons.
+    private var barRevealed = false
 
     /// The widest strip any conceal has measured (left edge only — the
     /// right edge is the same chevron/visible cluster every time). A
@@ -418,6 +425,7 @@ final class TransitionCoordinator {
             backdropMayHaveChanged()
             await awaitCoverRetake(style: style)
             let emptyBar = freshEmptyBarSnapshots()
+            await holdOtherBars(appState.barsKeptConcealed)
             let coverSource = !emptyBar.isEmpty ? "precaptured" : style != .smooth ? "live capture" : "none"
             if !emptyBar.isEmpty {
                 // The still shows the collapsed glyph; a hole over the
@@ -465,7 +473,8 @@ final class TransitionCoordinator {
                         }
                     }
                 }
-                if let picture {
+                // A held bar shows no entrance: the icons stay off it.
+                if let picture = picture?.filter({ !($0.display.map(heldDisplays.contains) ?? false) }), !picture.isEmpty {
                     Self.dumpPictures(picture, label: "entrance", keep: revealedStripKeep ?? entranceKeep, punch: chevronPunch(clearingFrom: lastConcealedStripRect?.maxX))
                     let startsHidden: Bool = { if case .pop = recipe.entrance { return false } else { return true } }()
                     finished = ConcealGhostOverlay.begin(
@@ -489,6 +498,7 @@ final class TransitionCoordinator {
             }
             PelmetLog.log("effect reveal \(sections) → engine (anim=\(style.rawValue), cover=\(cover != nil), finished=\(finished != nil))")
             await engine.reveal(sections)
+            barRevealed = true
             trace.mark("engine")
             trace.note(await engine.lastConvergeTiming)
             let settled = await engine.snapshot()
@@ -607,12 +617,14 @@ final class TransitionCoordinator {
             let ownReleased = released.filter(appState.isOwnExtra)
             appState.forgetExtrasAlone(ownReleased)
             await engine.conceal(releasing: released.subtracting(ownReleased))
+            barRevealed = false
             trace.mark("engine")
             trace.note(await engine.lastConvergeTiming)
             // The strip's move starts the moment the swap has landed — the
             // real icons fade beneath an opaque picture, nothing can bounce.
             // Before the snapshot walk: that AX pass alone is ~100ms.
             strip?.animate(recipe.exit, entering: false)
+            releaseHeldBars()
             appState.updateSnapshot(await engine.snapshot())
             // The empty-bar cover lifts on swap-quiet.
             if let cover {
@@ -1027,6 +1039,78 @@ final class TransitionCoordinator {
         return narrowed.isEmpty ? revealCoverSnapshot : narrowed
     }
 
+    /// A bar reveal draws the hidden icons on every display: the ones that
+    /// reveal in a panel or a row keep their bar looking concealed under
+    /// the empty picture of the hidden run alone, from the strip's left
+    /// edge to the chevron. That run is bare wallpaper on a concealed bar,
+    /// the same whichever display is active — dimming touches only glyphs
+    /// (frames 2026-10-19, two displays: max diff 3 bright vs dim over the
+    /// run, glyphs on both sides of it changing) — so the idle picture
+    /// serves whatever display took it under, and a click on another bar
+    /// while the hold is up leaves it true. Needs the picture or a capture
+    /// before the swap: the icons are out on every bar right after.
+    private func holdOtherBars(_ displays: Set<CGDirectDisplayID>) async {
+        // A wider reveal of a bar already out: the icons are on every bar
+        // now, the hold that went up with the first one stays.
+        if heldBars != nil, heldDisplays == displays { return }
+        heldBars?.dismiss()
+        heldBars = nil
+        heldDisplays = []
+        guard !displays.isEmpty, let strip = lastConcealedStripRect else { return }
+        // Left: the widest strip, so the always-hidden run is in it too, and
+        // the capture indicator's shift (3–16pt for ~3s past any capture,
+        // the settle picture's included) moves no icon out from under it.
+        // Right: up to the chevron, which the hidden run ends against — the
+        // strip seeded at boot ended 85pt short of it and the first reveal
+        // showed the last icons on the held bar (live test, 2026-10-19).
+        // The crop pads by `capturePadding`: it lands on that edge, short
+        // of the chevron's glyph even shifted.
+        let right = max(strip.maxX, liveChevronMinX ?? strip.maxX)
+        let run = (min(strip.minX, widestStripMinX ?? strip.minX) - 16)...(right - ConcealGhostOverlay.capturePadding)
+        var source = revealCoverSnapshot
+        let live = source.first.map { Date().timeIntervalSince($0.takenAt) >= AppTiming.revealCoverFreshness } ?? true
+            || revealCoverUnderPanel != ClockClickRelay.notificationCenterIsOpen()
+        if live, barRevealed {
+            PelmetLog.log("held: no idle picture and the bar is out, nothing to hold for \(displays.sorted())")
+            return
+        }
+        if live {
+            let rect = CGRect(x: run.lowerBound, y: strip.minY, width: run.upperBound - run.lowerBound, height: strip.height)
+            source = await ConcealGhostOverlay.snapshotSet(of: rect, displays: displays)
+        }
+        let picture = ConcealGhostOverlay.cropped(source.filter { $0.display.map(displays.contains) ?? false }, toPrimaryX: run)
+        heldBars = ConcealGhostOverlay.begin(from: picture, safety: AppTiming.heldBarCeiling, holdsBar: true)
+        heldDisplays = heldBars == nil ? [] : displays
+        PelmetLog.log("held: \(heldBars.map { "\($0.ids) keep display(s) \(displays.sorted()) concealed" } ?? "nothing to hold for \(displays.sorted())") — run \(Int(run.lowerBound))..\(Int(run.upperBound)) from \(live ? "a live capture" : "the idle picture")")
+    }
+
+    /// The conceal swap is in: the held bars lift with the conceal's own
+    /// cover, once the agent's fade beneath has run. Not a lift a reveal
+    /// waits for: a picture taken under it is the empty bar it shows.
+    private func releaseHeldBars() {
+        guard let held = heldBars, let appState else { return }
+        heldBars = nil
+        heldDisplays = []
+        let liftAt = Date().addingTimeInterval(AppTiming.exitCoverHold)
+        Task { @MainActor in
+            await appState.waitUntilQuiesced(interval: 0.15, deadline: 2, poll: .milliseconds(30))
+            let remaining = liftAt.timeIntervalSinceNow
+            if remaining > 0 { try? await Task.sleep(for: .seconds(remaining)) }
+            held.dismiss()
+            PelmetLog.log("held: lifted \(held.ids)")
+        }
+    }
+
+    /// The displays changed under a hold: its pictures sit at the old
+    /// geometry and would eat clicks there. The icons show until the conceal.
+    func dropHeldBars(_ why: String) {
+        guard let held = heldBars else { return }
+        held.dismiss()
+        heldBars = nil
+        heldDisplays = []
+        PelmetLog.log("held: dropped \(held.ids) — \(why)")
+    }
+
     /// The pixel passes over the pictures are pure functions of the
     /// pictures and the chevron's columns; between reveals nothing changes,
     /// and both ran on the main thread on every reveal (2026-09-21).
@@ -1227,7 +1311,8 @@ final class TransitionCoordinator {
         revealedStripBackground = []
         revealedStripKeep = nil
         revealedStripUnderPanel = ClockClickRelay.notificationCenterIsOpen()
-        revealedStripSnapshot = await ConcealGhostOverlay.snapshotSet(of: revealCoverRect)
+        // Under a held bar's picture the icons are still there (#88).
+        revealedStripSnapshot = await ConcealGhostOverlay.snapshotSet(of: revealCoverRect, excludingOwnWindows: heldBars != nil)
         PelmetLog.log("finished: picture taken at \(reason) (\(revealedStripSnapshot.count) display(s), \(revealedStripSignature.count) hidden item(s))")
     }
 

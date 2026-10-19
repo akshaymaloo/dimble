@@ -774,7 +774,10 @@ final class AppState {
         chevronHostObservers.append(NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
         ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.scheduleChevronHostCheck("display change") }
+            MainActor.assumeIsolated {
+                self?.transitions.dropHeldBars("display change")
+                self?.scheduleChevronHostCheck("display change")
+            }
         })
         chevronHostObservers.append(DistributedNotificationCenter.default().addObserver(
             forName: Notification.Name("com.apple.screenIsUnlocked"), object: nil, queue: .main
@@ -3375,6 +3378,10 @@ final class AppState {
                         target: presenter === barPresenter ? .menuBar : decision.target,
                         followsChoice: !RevealRouting.needsBar(reason))
                     PelmetLog.log("reveal: \(presenter === barPresenter ? "bar" : decision.target.rawValue) from display \(decision.display.map(String.init) ?? "?") (\(reason.map { "\($0)" } ?? "no reason"))")
+                } else if RevealRouting.needsBar(reason) {
+                    // The editor or an Apply widens a bar a hover brought
+                    // out: every bar shows it now (barsKeptConcealed).
+                    revealDecision?.followsChoice = false
                 }
                 revealPresenter = presenter
                 presenter.reveal(sections, reason: reason, trace: trace)
@@ -3443,6 +3450,26 @@ final class AppState {
     /// (`pelmet.debug.panel`) is gone: left set, it beat the setting
     /// (review SIMP-7).
     var revealTarget: RevealTarget { settings.hiddenIconsIn }
+
+    /// The bars a bar reveal leaves looking concealed (#88): macOS draws the
+    /// revealed icons on every display, so each other display that hides
+    /// icons in a panel or a row keeps its strip under its empty-bar
+    /// picture. Only for a reveal that went to the bar by its display's
+    /// choice; Apply, the editor and "Shows all icons" keep every bar.
+    var barsKeptConcealed: Set<CGDirectDisplayID> {
+        guard let decision = revealDecision, decision.followsChoice, decision.target == .menuBar,
+              let revealedOn = decision.display else { return [] }
+        return Set(NSScreen.screens.compactMap { screen -> CGDirectDisplayID? in
+            guard let id = screen.directDisplayID, id != revealedOn else { return nil }
+            let uuid = screen.displayUUIDString
+            // A bar auto-hidden or under a full-screen app draws nothing to
+            // keep concealed.
+            guard settings.behavior(forDisplayUUID: uuid) == .collapse,
+                  settings.revealTarget(forDisplayUUID: uuid).panelLayout != nil,
+                  GlassPanel.drawnBarHeight(of: screen, fresh: true) != nil else { return nil }
+            return id
+        })
+    }
 
     /// The display's choice changed Panel ↔ Row under the panel it opened.
     func revealRetargeted(_ target: RevealTarget) {
