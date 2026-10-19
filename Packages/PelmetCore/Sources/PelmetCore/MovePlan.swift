@@ -45,6 +45,24 @@ public struct OrderEdits: Codable, Equatable, Sendable {
 
     public var isEmpty: Bool { order.isEmpty && previousSection.isEmpty }
 
+    /// Whether these edits move `id` or change what sits beside it. An icon
+    /// whose neighbours are the same on both sides keeps its slot, so Apply
+    /// need not lay it out to drag it: Siri moved out of Visible put the idle
+    /// Camera and Media in the bar for the pass, two blank slots beside the
+    /// chevron (2026-10-19).
+    public func touches(_ id: ItemID) -> Bool {
+        if previousSection[id] != nil || dropped.contains(id) { return true }
+        func beside(_ list: [ItemID], _ i: Int) -> (ItemID?, ItemID?) {
+            (i > 0 ? list[i - 1] : nil, i + 1 < list.count ? list[i + 1] : nil)
+        }
+        for (section, drawn) in order {
+            guard let i = drawn.firstIndex(of: id) else { continue }
+            guard let before = previousOrder[section], let j = before.firstIndex(of: id) else { return true }
+            return beside(drawn, i) != beside(before, j)
+        }
+        return false
+    }
+
     private enum CodingKeys: String, CodingKey { case order, previousSection, previousOrder, created, dropped }
 
     /// `previousSection` arrived after `order` shipped on the branch: an

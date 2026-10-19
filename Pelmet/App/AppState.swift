@@ -1350,7 +1350,10 @@ final class AppState {
     /// settle later (see `StatusItemFader.attach`).
     /// Apply pass: idle extras join the layout invisibly so they can be
     /// dragged (ExtrasManager.attachForApply). Returns what joined.
-    func attachIdleExtrasForApply() -> [ItemID] { extras?.attachForApply() ?? [] }
+    func attachIdleExtrasForApply() -> [ItemID] {
+        let edits = settings.orderEdits
+        return extras?.attachForApply(touched: { edits.touches($0.sectionKey) }) ?? []
+    }
     func detachIdleExtrasAfterApply() { extras?.detachAfterApply() }
 
     func preattachOwnItems(revealing sections: Set<PelmetCore.Section>) async {

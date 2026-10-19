@@ -404,3 +404,40 @@ import Testing
         #expect(plan.placements[b] == .chevronEdge)
     }
 }
+
+@Suite struct OrderEditTouchTests {
+    let camera = ItemID(rawValue: "status:app.fif7y.Pelmet::Pelmet.CameraMic")
+    let media = ItemID(rawValue: "status:app.fif7y.Pelmet::Pelmet.MediaControls")
+    let siri = ItemID(rawValue: "status:app.fif7y.Pelmet::Pelmet.Siri")
+    let cc = ItemID.bundleKey("com.apple.controlcenter"), snib = ItemID.bundleKey("app.fif7y.Snib")
+
+    @Test func anIconWhoseNeighboursStayIsUntouched() {
+        // Siri leaves Visible: Camera keeps nothing on its left and Media on its right.
+        let edits = OrderEdits(
+            order: [.visible: [camera, media, cc], .hidden: [snib, siri]],
+            previousSection: [siri: .visible],
+            previousOrder: [.visible: [camera, media, siri, cc], .hidden: [snib]],
+            dropped: [siri]
+        )
+        #expect(!edits.touches(camera))
+        #expect(edits.touches(media))
+        #expect(edits.touches(siri))
+    }
+
+    @Test func aDropBesideAnIconTouchesIt() {
+        let edits = OrderEdits(order: [.visible: [camera, snib, media]], previousOrder: [.visible: [camera, media]], dropped: [snib])
+        #expect(edits.touches(camera))
+        #expect(edits.touches(media))
+    }
+
+    @Test func anIconInASectionWithNoEditIsUntouched() {
+        let edits = OrderEdits(order: [.hidden: [siri, snib]], previousOrder: [.hidden: [snib, siri]])
+        #expect(!edits.touches(camera))
+        #expect(!OrderEdits().touches(camera))
+    }
+
+    @Test func anIconMissingFromTheOldOrderCountsAsTouched() {
+        let edits = OrderEdits(order: [.visible: [camera, media]])
+        #expect(edits.touches(camera))
+    }
+}

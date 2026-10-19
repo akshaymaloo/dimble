@@ -542,11 +542,13 @@ final class ExtrasManager {
     /// found its slot at the next camera-on edge (2026-09-20). For the pass,
     /// every idle extra joins the layout at alpha 0 (the agent gives it the
     /// slot it remembers), gets dragged like any icon, and leaves again in
-    /// `detachAfterApply`; its next real entry lands at the new slot.
-    func attachForApply() -> [ItemID] {
+    /// `detachAfterApply`; its next real entry lands at the new slot. Only
+    /// the extras the edits `touch` join: each one is a blank slot while it
+    /// is there.
+    func attachForApply(touched: (ItemID) -> Bool) -> [ItemID] {
         var attached: [ItemID] = []
         for (id, item) in items where lastVisible[id] != true && !preattached.contains(id) {
-            guard let spec = specs[id] else { continue }
+            guard let spec = specs[id], touched(Self.itemID(for: spec)) else { continue }
             StatusItemFader.attach(item, shownLength: Self.shownLength(for: spec))
             attachedForApply.insert(id)
             attached.append(Self.itemID(for: spec))
