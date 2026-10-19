@@ -487,6 +487,14 @@ public struct SettingsStore: Codable, Equatable, Sendable {
         return displayOverrides[uuid] ?? displayTemplate
     }
 
+    /// Each display keeps its own behavior wherever the pointer is (#88): a
+    /// connected display that shows all icons holds the bar out, and the
+    /// ones that hide icons are covered. macOS draws one set of icons on
+    /// every bar, so this is the only way both can hold at once.
+    public func anchorsReveal(connectedDisplayUUIDs uuids: [String?]) -> Bool {
+        uuids.contains { behavior(forDisplayUUID: $0) == .alwaysShowAll }
+    }
+
     /// Where a reveal decided on this display shows the hidden icons: its own
     /// choice while it hides icons, else the Panel tab's. A display that
     /// shows all icons keeps its entry for when it hides them again.

@@ -50,7 +50,25 @@ enum AlphaFade {
 }
 
 @MainActor
+/// A held bar's window: the clicks on the covered run are the bar's (#88).
+private final class HeldBarPanel: NSPanel {
+    override func sendEvent(_ event: NSEvent) {
+        switch event.type {
+        case .leftMouseDown:
+            ConcealGhostOverlay.onHeldBarClick?(screen?.directDisplayID, event.clickCount)
+        case .leftMouseUp, .rightMouseDown, .rightMouseUp, .otherMouseDown, .otherMouseUp:
+            break
+        default:
+            super.sendEvent(event)
+        }
+    }
+}
+
 final class ConcealGhostOverlay {
+    /// A click on a held bar's picture, with its display and click count:
+    /// an empty-bar click there, so it does what one would (AppState).
+    static var onHeldBarClick: ((CGDirectDisplayID?, Int) -> Void)?
+
     /// True while a reveal cover is up — SeparatorManager and ExtrasManager
     /// skip their per-item ghosts under it (a fading copy showing through
     /// would double-expose). Count-tracked: with back-to-back reveals, an
@@ -66,6 +84,8 @@ final class ConcealGhostOverlay {
         fileprivate let overlays: [ConcealGhostOverlay]
         /// The covers' ids as they read in the `ghost:` lines, "#3 #4".
         var ids: String { overlays.map { "#\($0.id)" }.joined(separator: " ") }
+        /// Still on screen: not dismissed, faded or timed out.
+        var isUp: Bool { overlays.contains { !$0.finished } }
         func dismiss() { for overlay in overlays { overlay.dismiss() } }
         /// Keeps the safety fade at least `seconds` from now.
         func keepUp(for seconds: TimeInterval) { for overlay in overlays { overlay.keepUp(for: seconds) } }
@@ -279,6 +299,13 @@ final class ConcealGhostOverlay {
     /// and a window's shadow both reach a few dozen points.
     static let backdropReach: CGFloat = 48
 
+    /// WindowServer's own bar window, every icon's glyph drawn in it:
+    /// "Menubar" at the main menu level with no app behind it — an owner
+    /// with an empty bundle id on 27.2, not a nil one (live, 2026-10-19).
+    static func isSystemBar(_ window: SCWindow) -> Bool {
+        window.title == "Menubar" && (window.owningApplication?.bundleIdentifier ?? "").isEmpty
+    }
+
     private let window: NSWindow
     private let imageView: NSImageView
     private var finished = false
@@ -360,9 +387,14 @@ final class ConcealGhostOverlay {
     /// `primaryOnly`: the primary display's band alone, all a pass cuts
     /// from (review EFF-2).
     /// `displays`: only these displays' bars (nil: every one).
+    /// `bare`: the bar as it is with no icon on it, at any time — the
+    /// WindowServer's Menubar window (the items and the menus) and Pelmet's
+    /// own windows left out. The bar is clear glass: what is left matches
+    /// the empty bar pixel for pixel, window shadows under it included
+    /// (2026-10-19, three displays, max diff 0 outside the glyphs).
     static func snapshotSet(
         of rect: CGRect?, excludingOwnWindows: Bool = false, ownWindows: [SCWindow]? = nil, primaryOnly: Bool = false,
-        displays: Set<CGDirectDisplayID>? = nil
+        displays: Set<CGDirectDisplayID>? = nil, bare: Bool = false
     ) async -> [BarSnapshot] {
         guard let rect, rect.width > 8 else { return [] }
         if let closed = menuClosedAt {
@@ -382,6 +414,7 @@ final class ConcealGhostOverlay {
         let windowList = onScreenWindows()
         // One lookup per call, shared by every display.
         var content: SCShareableContent?
+        let excludingOwnWindows = excludingOwnWindows || bare
         let lookUpOwn = excludingOwnWindows && ownWindows == nil
         for screen in primaryOnly ? [primary] : NSScreen.screens {
             guard let displayID = screen.directDisplayID, displays?.contains(displayID) ?? true,
@@ -438,15 +471,22 @@ final class ConcealGhostOverlay {
                 bandHeight: bandHeight, in: windowList
             )
             var excluded: [SCWindow] = excludingOwnWindows ? ownWindows ?? [] : []
-            if !foreign.isEmpty || lookUpOwn {
+            if !foreign.isEmpty || lookUpOwn || bare {
                 let ids = Set(foreign.map(\.id))
                 let me = ProcessInfo.processInfo.processIdentifier
                 if content == nil {
                     content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
                 }
-                excluded += content?.windows.filter {
+                let systemBars = bare ? content?.windows.filter { Self.isSystemBar($0) && $0.frame.intersects(bounds) } ?? [] : []
+                // Without WindowServer's bar left out the picture holds the
+                // icons out now, and a held bar would show them.
+                if bare, systemBars.isEmpty {
+                    PelmetLog.log("ghost: no bar window on display \(displayID) — no bare picture")
+                    continue
+                }
+                excluded += systemBars + (content?.windows.filter {
                     ids.contains($0.windowID) || (lookUpOwn && $0.owningApplication?.processID == me)
-                } ?? []
+                } ?? [])
                 if !foreign.isEmpty {
                     PelmetLog.log("ghost: capture leaves out \(foreign.map(\.owner).joined(separator: ", ")) (\(excluded.count) window(s))")
                 }
@@ -795,7 +835,7 @@ final class ConcealGhostOverlay {
         id = Self.nextID
         countsAsStrip = !holdsBar
         if holdsBar {
-            let panel = NSPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+            let panel = HeldBarPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
             panel.hidesOnDeactivate = false
             // Up for a whole reveal: on every Space of its display.
             panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
@@ -969,6 +1009,8 @@ final class ConcealGhostOverlay {
     ) {
         guard !finished else { return }
         finished = true
+        // A held bar on its way out is the bar beneath: clicks go through.
+        window.ignoresMouseEvents = true
         if slide, let layer = imageView.layer {
             let shift = min(imageView.bounds.width * 0.5, 80)
             let anim = CABasicAnimation(keyPath: "position.x")

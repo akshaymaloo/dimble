@@ -264,6 +264,10 @@ final class ItemPress {
         } else if let target, let aim {
             let frame = aim.frame
             clickedElsewhere = aim.onPressDisplay
+            // Anchored, the item is out under that bar's held picture (#88).
+            let unheld = transitions.unholdForPress(
+                display: (clickedElsewhere ? aimDisplay : nil) ?? CGMainDisplayID(), at: frame.midX)
+            defer { if unheld { transitions.reholdAfterPress() } }
             let geometry = Self.geometry(at: frame)
             let before = await Self.counts(pid: target.pid, geometry: geometry)
             let wasFront = Self.isFrontmost(target.pid)
@@ -285,7 +289,7 @@ final class ItemPress {
             let sign = await waitForSign(over: before, pid: target.pid, geometry: geometry, frontCounts: !wasFront, run: run)
             PelmetLog.log("press: \(key.rawValue) \(sign.map { "showed \($0.rawValue)" } ?? "showed nothing") at \(ms())ms")
             // An item that was never put away has nothing to wait for.
-            if let sign, revealed || toggle != nil {
+            if let sign, revealed || toggle != nil || unheld {
                 atRest = await waitUntilGone(key, sign: sign, pid: target.pid, before: before, geometry: geometry, run: run, elapsed: ms)
             } else {
                 atRest = sign == nil

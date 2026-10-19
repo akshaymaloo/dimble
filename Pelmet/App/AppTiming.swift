@@ -125,6 +125,9 @@ enum AppTiming {
     /// How long another display's bar stays under its empty-bar picture
     /// while a bar reveal is out (#88) before it gives up and shows the
     /// icons: past this the picture risks a stale wallpaper or backdrop.
+    /// Anchored (#88), a held picture is the bar for as long as a display
+    /// that shows all icons is connected: refreshed, not timed out.
+    static let anchoredBarCeiling: TimeInterval = 86_400
     static let heldBarCeiling: TimeInterval = 600
     /// Revealed-strip snapshot (taken at reveal settle) painted at once on the
     /// next Instant/Fade reveal. Long-lived: engine item changes invalidate it

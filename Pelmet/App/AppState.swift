@@ -16,6 +16,9 @@ struct RevealDecision: Equatable {
     /// Went where the display's choice said: false for the reasons that
     /// need the bar whatever it says (`RevealRouting.needsBar`).
     var followsChoice = true
+    /// The other displays that hide icons keep their bars concealed: every
+    /// reveal but the ones that need every bar (Apply, the editor).
+    var holdsOthers = true
 }
 
 @Observable
@@ -228,6 +231,9 @@ final class AppState {
     @ObservationIgnored private var debugPicturePassObserver: NSObjectProtocol?
 
     private func wireTransitionSettleCallbacks() {
+        ConcealGhostOverlay.onHeldBarClick = { [weak self] display, clicks in
+            self?.heldBarClicked(display: display, clickCount: clicks)
+        }
         transitions.onRevealSettled = { [weak self] in
             guard let self else { return }
             dispatch(rehide.handle(.transitionSettled))
@@ -248,6 +254,7 @@ final class AppState {
             guard let self else { return }
             dispatch(rehide.handle(.transitionSettled))
             settleCatchUp()
+            if launchBaselineApplied { reconcileAnchor("conceal settled") }
             // Rapid hover out-in: if the pointer is back in the band by the
             // time this conceal lands, its entry edge is spent — re-arm the
             // hover reveal so the bar doesn't stay shut under the pointer.
@@ -768,7 +775,10 @@ final class AppState {
         for (name, why) in [(NSWorkspace.didWakeNotification, "wake"),
                             (NSWorkspace.screensDidWakeNotification, "displays woke")] {
             chevronHostObservers.append(workspace.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.scheduleChevronHostCheck(why) }
+                MainActor.assumeIsolated {
+                    self?.scheduleChevronHostCheck(why)
+                    self?.scheduleAnchorCheck(why)
+                }
             })
         }
         chevronHostObservers.append(NotificationCenter.default.addObserver(
@@ -777,13 +787,31 @@ final class AppState {
             MainActor.assumeIsolated {
                 self?.transitions.dropHeldBars("display change")
                 self?.scheduleChevronHostCheck("display change")
+                self?.scheduleAnchorCheck("display change")
             }
         })
         chevronHostObservers.append(DistributedNotificationCenter.default().addObserver(
             forName: Notification.Name("com.apple.screenIsUnlocked"), object: nil, queue: .main
         ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.scheduleChevronHostCheck("screen unlocked") }
+            MainActor.assumeIsolated {
+                self?.scheduleChevronHostCheck("screen unlocked")
+                self?.scheduleAnchorCheck("screen unlocked")
+            }
         })
+    }
+
+    /// Displays come and go in a burst: once they have settled, the bar is
+    /// anchored for a display that shows all icons or not, and the held
+    /// pictures go back up at the new geometry.
+    @ObservationIgnored private var anchorCheck: Task<Void, Never>?
+    private func scheduleAnchorCheck(_ why: String) {
+        anchorCheck?.cancel()
+        anchorCheck = Task { [weak self] in
+            try? await Task.sleep(for: AppTiming.chevronHostCheckDelay)
+            guard !Task.isCancelled, let self, self.launchBaselineApplied else { return }
+            self.reconcileAnchor(why)
+            self.transitions.refreshHeld(why)
+        }
     }
 
     /// The last event wins: a wake, a display change and an unlock come in
@@ -920,7 +948,9 @@ final class AppState {
             // crossings, and on its first sighting only from here on, so the
             // display Pelmet launches under gets its policy applied here
             // (queued behind the conceal's settle).
-            if pointerDisplayBehavior == .alwaysShowAll {
+            if revealAnchored {
+                reconcileAnchor("launch")
+            } else if pointerDisplayBehavior == .alwaysShowAll {
                 reveal([.hidden], reason: .displayPolicy)
             }
             bandMonitor?.seedPointerDisplay()
@@ -962,6 +992,7 @@ final class AppState {
     // MARK: - Intents (UI + monitors call these)
 
     func toggle(reason: RevealReason, sections: Set<PelmetCore.Section> = [.hidden]) {
+        if anchoredShowAllAsksNothing(sections, reason) { return }
         PerfTrace.markTrigger("\(reason)")
         // A click landing in the first moments of a hover reveal: the
         // pointer reached the chevron, the hover fired ~100ms later, and
@@ -997,7 +1028,17 @@ final class AppState {
         }
     }
 
+    /// Anchored, a display that shows all icons has them out already: a
+    /// hover or a click on its bar asks for nothing.
+    private func anchoredShowAllAsksNothing(_ sections: Set<PelmetCore.Section>, _ reason: RevealReason) -> Bool {
+        guard transitions.anchored, case .concealed = rehide.state, RevealRouting.startsAtBar(reason),
+              sections.isSubset(of: transitions.anchoredSections),
+              pointerDisplayBehavior == .alwaysShowAll else { return false }
+        return true
+    }
+
     func reveal(_ sections: Set<PelmetCore.Section>, reason: RevealReason) {
+        if anchoredShowAllAsksNothing(sections, reason) { return }
         PerfTrace.markTrigger("\(reason)")
         // The panel is up and this needs the real bar (⌘↩ in Search, an
         // Apply): the panel closes first and the reveal queues behind it. A
@@ -1533,6 +1574,7 @@ final class AppState {
         guard granted != screenRecordingGranted else { return }
         screenRecordingGranted = granted
         PelmetLog.log("screen: recording granted=\(granted)")
+        if launchBaselineApplied { reconcileAnchor("screen recording \(granted ? "granted" : "lost")") }
     }
 
     /// Grant arrived: the engine's walks were empty until now, and the clock
@@ -2059,7 +2101,7 @@ final class AppState {
     /// conceal here collapsed the bar even on "always show everything"
     /// displays.
     func applyPointerDisplayPolicyAfterDismissal() {
-        if pointerDisplayBehavior == .alwaysShowAll {
+        if !transitions.anchored, pointerDisplayBehavior == .alwaysShowAll {
             reveal([.hidden], reason: .displayPolicy)
         } else {
             concealNow()
@@ -2078,14 +2120,14 @@ final class AppState {
     /// Sound" and let a settle check see neither bar (live test,
     /// 2026-10-13). Anything else still conceals and re-reveals.
     func restoreDisplayPolicyAfterPass() {
-        if pointerDisplayBehavior == .alwaysShowAll, revealPresenter === barPresenter,
+        if !transitions.anchored, pointerDisplayBehavior == .alwaysShowAll, revealPresenter === barPresenter,
            case .revealed(let current, _) = rehide.state, current.contains(.hidden), current.count > 1 {
             dispatch(rehide.handle(.narrowRequested([.hidden], .displayPolicy)))
             PelmetLog.log("displays: pass over — narrowed to the policy's reveal, state=\(rehide.state)")
             return
         }
         concealNow()
-        guard pointerDisplayBehavior == .alwaysShowAll else { return }
+        guard !transitions.anchored, pointerDisplayBehavior == .alwaysShowAll else { return }
         reveal([.hidden], reason: .displayPolicy)
         PelmetLog.log("displays: pass over — back to the policy's reveal, state=\(rehide.state)")
     }
@@ -2096,7 +2138,10 @@ final class AppState {
     /// side lands on window close or the next display crossing.
     func displayBehaviorEdited() {
         PelmetLog.log("displays: behavior edited, pointer display=\(pointerDisplayBehavior)")
-        if pointerDisplayBehavior == .alwaysShowAll {
+        if revealAnchored || transitions.anchored {
+            reconcileAnchor("behavior edited")
+            transitions.refreshHeld("behavior edited")
+        } else if pointerDisplayBehavior == .alwaysShowAll {
             reveal([.hidden], reason: .displayPolicy)
         }
     }
@@ -3318,17 +3363,19 @@ final class AppState {
     /// What is revealed ON THE BAR. A reveal the panel draws leaves the bar
     /// concealed, so Pelmet's own items, covers and pictures stay put.
     var currentRevealedSections: Set<PelmetCore.Section> {
-        if let picturePassSections { return picturePassSections }
-        guard !panelShowsReveal else { return [] }
+        // Anchored, Hidden is out on the bar whatever the machine says.
+        let anchored = transitions.anchored ? transitions.anchoredSections : []
+        if let picturePassSections { return picturePassSections.union(anchored) }
+        guard !panelShowsReveal else { return anchored }
         switch rehide.state {
         case .revealed(let sections, _):
-            return sections
+            return sections.union(anchored)
         case .transitioning(target: .reveal(let sections, _), _):
             // Track the transition's destination so Pelmet-owned items appear
             // in the same swap as the assertion-managed ones.
-            return sections
+            return sections.union(anchored)
         default:
-            return []
+            return anchored
         }
     }
 
@@ -3376,12 +3423,14 @@ final class AppState {
                     revealDecision = RevealDecision(
                         display: decision.display, uuid: decision.uuid,
                         target: presenter === barPresenter ? .menuBar : decision.target,
-                        followsChoice: !RevealRouting.needsBar(reason))
+                        followsChoice: !RevealRouting.needsBar(reason),
+                        holdsOthers: !RevealRouting.needsBar(reason) || reason == .displayPolicy)
                     PelmetLog.log("reveal: \(presenter === barPresenter ? "bar" : decision.target.rawValue) from display \(decision.display.map(String.init) ?? "?") (\(reason.map { "\($0)" } ?? "no reason"))")
                 } else if RevealRouting.needsBar(reason) {
                     // The editor or an Apply widens a bar a hover brought
                     // out: every bar shows it now (barsKeptConcealed).
                     revealDecision?.followsChoice = false
+                    if reason != .displayPolicy { revealDecision?.holdsOthers = false }
                 }
                 revealPresenter = presenter
                 presenter.reveal(sections, reason: reason, trace: trace)
@@ -3451,24 +3500,62 @@ final class AppState {
     /// (review SIMP-7).
     var revealTarget: RevealTarget { settings.hiddenIconsIn }
 
-    /// The bars a bar reveal leaves looking concealed (#88): macOS draws the
-    /// revealed icons on every display, so each other display that hides
-    /// icons in a panel or a row keeps its strip under its empty-bar
-    /// picture. Only for a reveal that went to the bar by its display's
-    /// choice; Apply, the editor and "Shows all icons" keep every bar.
+    /// The bars kept looking concealed (#88): macOS draws one set of icons
+    /// on every bar, so a display that hides icons wears the empty picture
+    /// of its hidden run while they are out for another display — a bar
+    /// reveal elsewhere, or the bar anchored out for a display that shows
+    /// all. A reveal on the display itself lifts its own. Apply and the
+    /// editor keep every bar.
     var barsKeptConcealed: Set<CGDirectDisplayID> {
-        guard let decision = revealDecision, decision.followsChoice, decision.target == .menuBar,
-              let revealedOn = decision.display else { return [] }
+        var revealedOn: CGDirectDisplayID?
+        if let decision = revealDecision, decision.target == .menuBar {
+            guard decision.holdsOthers else { return [] }
+            revealedOn = decision.display
+        } else if !transitions.anchored {
+            return []
+        }
         return Set(NSScreen.screens.compactMap { screen -> CGDirectDisplayID? in
-            guard let id = screen.directDisplayID, id != revealedOn else { return nil }
-            let uuid = screen.displayUUIDString
-            // A bar auto-hidden or under a full-screen app draws nothing to
-            // keep concealed.
-            guard settings.behavior(forDisplayUUID: uuid) == .collapse,
-                  settings.revealTarget(forDisplayUUID: uuid).panelLayout != nil,
+            guard let id = screen.directDisplayID, id != revealedOn, id != transitions.pressUnheld,
+                  settings.behavior(forDisplayUUID: screen.displayUUIDString) == .collapse,
+                  // A bar auto-hidden or under a full-screen app draws
+                  // nothing to keep concealed.
                   GlassPanel.drawnBarHeight(of: screen, fresh: true) != nil else { return nil }
             return id
         })
+    }
+
+    /// A connected display shows all icons: the bar stays out for it
+    /// wherever the pointer is, and the displays that hide icons are held
+    /// (`TransitionCoordinator.anchored`, #88).
+    var revealAnchored: Bool {
+        // The pictures need Screen Recording: without it the pointer's
+        // display decides, as before.
+        screenRecordingGranted
+            && settings.anchorsReveal(connectedDisplayUUIDs: NSScreen.screens.map(\.displayUUIDString))
+    }
+
+    /// Bring the bar to what the connected displays ask. Only from a
+    /// concealed bar: a reveal up settles first, and its conceal calls this.
+    func reconcileAnchor(_ why: String) {
+        let want = revealAnchored
+        guard want != transitions.anchorTarget else { return }
+        guard case .concealed = rehide.state else {
+            PelmetLog.log("anchor: \(want ? "on" : "off") waits for the conceal — \(why)")
+            return
+        }
+        PelmetLog.log("anchor: \(want ? "on" : "off") — \(why)")
+        transitions.setAnchored(want)
+    }
+
+    /// A click on a held bar's picture is a click on that bar's empty run.
+    private func heldBarClicked(display: CGDirectDisplayID?, clickCount: Int) {
+        PelmetLog.log("held: click ×\(clickCount) on display \(display.map(String.init) ?? "?")")
+        guard settings.revealTriggers.clickEnabled else { return }
+        if clickCount == 1 {
+            toggle(reason: .click)
+        } else if settings.revealTriggers.doubleClickForAlwaysHidden {
+            reveal([.hidden, .alwaysHidden], reason: .doubleClick)
+        }
     }
 
     /// The display's choice changed Panel ↔ Row under the panel it opened.
@@ -3512,7 +3599,7 @@ final class AppState {
                 // pointer has been on it.
                 let panelHolds = self.panelShowsReveal && self.panelPresenter.holdsReveal
                 if self.editorHoldsBar
-                    || self.pointerDisplayBehavior == .alwaysShowAll
+                    || (!self.transitions.anchored && self.pointerDisplayBehavior == .alwaysShowAll)
                     || self.applying
                     || panelHolds
                     || bandReason != nil {
@@ -3990,6 +4077,16 @@ final class AppState {
     }
 
     func updateSnapshot(_ snap: EngineSnapshot) {
+        defer {
+            if transitions.anchored {
+                transitions.refreshHeld("items moved")
+            } else if launchBaselineApplied, case .concealed = rehide.state, revealAnchored, !transitions.anchorTarget,
+                      transitions.anchorFailedAt.map({ -$0.timeIntervalSinceNow > 30 }) ?? true {
+                // An anchor that found no bar to picture (a locked screen at
+                // launch) tries again once the bar reads.
+                reconcileAnchor("items moved")
+            }
+        }
         let now = Date.now
         // Kept even when the walk reads as the snapshot in hand and is
         // dropped below: it read the bar at rest all the same, and an extra
