@@ -574,6 +574,10 @@ final class AppState {
     private var rehostingChevron = false
     /// The last "not re-hosted" line, logged once per change.
     private var chevronHostNote: String?
+    /// Debug: `open -a Dimble --args -pelmet.debug.forceChevronRehost YES`
+    /// re-hosts a chevron that's on the bar, once, at the next wake, unlock
+    /// or display change: the re-host path, on a Mac that never drops it.
+    private var debugForceChevronRehost = UserDefaults.standard.bool(forKey: "pelmet.debug.forceChevronRehost")
 
     /// Menu-bar agent apps (LSUIElement / background-only) post no launch
     /// notification — Snib, OpenClip and Sconce relaunched all afternoon
@@ -803,6 +807,11 @@ final class AppState {
             try? await Task.sleep(for: AppTiming.chevronHostConfirmDelay)
             guard !Task.isCancelled, settings.showStatusItem, statusItem != nil, !rehostingChevron else { return }
             (verdict, detail) = await chevronHostingVerdict()
+        }
+        if verdict == .hosted, debugForceChevronRehost {
+            debugForceChevronRehost = false
+            verdict = .rehost
+            detail += ", forced by pelmet.debug.forceChevronRehost"
         }
         switch verdict {
         case .hosted:
