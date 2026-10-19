@@ -121,11 +121,44 @@ enum AppleMenuExtra: String, CaseIterable {
 }
 
 enum Siri {
-    /// What a click on Apple's icon does: bring up Siri.
-    static func activate() {
+    /// What a click on Apple's icon does: its status menu press, begun and
+    /// ended. The new Siri answers it with the typing panel (a second tap
+    /// closes it, its Voice Mode button talks); macOS's own handler decides,
+    /// so a Mac without it gets whatever Apple's icon gets there (#83).
+    /// Apple's icon sends the press over XPC, behind a private entitlement;
+    /// Siri.app reads the same press from a reopen event's `keyAEPropData`
+    /// string, which needs none (probed 2026-10-19, 27.2). End alone does
+    /// nothing, so it waits for Begin's delivery.
+    static func tap() {
+        reopen(with: "com.apple.Siri.event.statusMenu.pressBegan") {
+            reopen(with: "com.apple.Siri.event.statusMenu.pressEnded")
+        }
+    }
+
+    /// Siri by voice: a plain reopen, the hotkey's action.
+    static func talk() {
         let url = URL(fileURLWithPath: "/System/Applications/Siri.app")
         NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration()) { _, error in
             if let error { PelmetLog.log("siri: open failed — \(error.localizedDescription)") }
+        }
+    }
+
+    nonisolated private static func reopen(with identifier: String, then next: (@Sendable () -> Void)? = nil) {
+        let event = NSAppleEventDescriptor(
+            eventClass: AEEventClass(kCoreEventClass), eventID: AEEventID(kAEReopenApplication),
+            targetDescriptor: nil, returnID: AEReturnID(kAutoGenerateReturnID), transactionID: AETransactionID(kAnyTransactionID)
+        )
+        event.setParam(NSAppleEventDescriptor(string: identifier), forKeyword: AEKeyword(keyAEPropData))
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.appleEvent = event
+        configuration.activates = false
+        let url = URL(fileURLWithPath: "/System/Library/CoreServices/Siri.app")
+        NSWorkspace.shared.openApplication(at: url, configuration: configuration) { _, error in
+            if let error {
+                PelmetLog.log("siri: \(identifier) failed — \(error.localizedDescription)")
+                return
+            }
+            next?()
         }
     }
 

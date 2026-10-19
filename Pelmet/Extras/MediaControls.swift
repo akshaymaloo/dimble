@@ -1216,12 +1216,14 @@ final class ExtrasManager {
         case .siri:
             if rightClick {
                 let menu = NSMenu()
+                let talk = NSMenuItem(title: String(localized: "Talk to Siri"), action: #selector(talkToSiri), keyEquivalent: "")
+                talk.target = self
                 let settings = NSMenuItem(title: String(localized: "Siri Settings…"), action: #selector(siriSettings), keyEquivalent: "")
                 settings.target = self
-                menu.items = [settings]
+                menu.items = [talk, .separator(), settings]
                 popUp(menu, on: statusItem.value)
             } else {
-                Siri.activate()
+                Siri.tap()
             }
         case .focus:
             if rightClick {
@@ -1481,6 +1483,7 @@ final class ExtrasManager {
     @objc private func skipBackup() { timeMachine?.skipBackup() }
     @objc private func browseBackups() { TimeMachineBackup.browseBackups() }
     @objc private func timeMachineSettings() { TimeMachineBackup.openSettings() }
+    @objc private func talkToSiri() { Siri.talk() }
     @objc private func siriSettings() { Siri.openSettings() }
     @objc private func focusSettings() { ControlCenterFocus.openSettings() }
 
