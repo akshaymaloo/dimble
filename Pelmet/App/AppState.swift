@@ -214,15 +214,17 @@ final class AppState {
     @ObservationIgnored private var debugPanelShotObserver: NSObjectProtocol?
 
     /// Panel spike S1: `defaults write app.fif7y.Pelmet pelmet.debug.picturePass
-    /// -bool YES`, relaunch, then post `app.fif7y.Pelmet.debug.picturePass`.
+    /// -bool YES`, relaunch, then post `app.fif7y.Pelmet.debug.picturePass`
+    /// (object `always`: Always Hidden too).
     private func observeDebugPicturePass() {
         guard UserDefaults.standard.bool(forKey: "pelmet.debug.picturePass") else { return }
         debugPicturePassObserver = DistributedNotificationCenter.default().addObserver(
             forName: Notification.Name("app.fif7y.Pelmet.debug.picturePass"), object: nil, queue: .main
-        ) { [weak self] _ in
+        ) { [weak self] note in
+            let always = note.object as? String == "always"
             MainActor.assumeIsolated {
                 guard let self else { return }
-                Task { await self.transitions.debugPicturePass() }
+                Task { await self.transitions.debugPicturePass(always: always) }
             }
         }
         PelmetLog.log("pass: debug trigger on — app.fif7y.Pelmet.debug.picturePass")
@@ -3365,7 +3367,9 @@ final class AppState {
     var currentRevealedSections: Set<PelmetCore.Section> {
         // Anchored, Hidden is out on the bar whatever the machine says.
         let anchored = transitions.anchored ? transitions.anchoredSections : []
-        if let picturePassSections { return picturePassSections.union(anchored) }
+        // A pass says exactly what is out (it adds the anchor itself, and
+        // its rounds put every section away).
+        if let picturePassSections { return picturePassSections }
         guard !panelShowsReveal else { return anchored }
         switch rehide.state {
         case .revealed(let sections, _):

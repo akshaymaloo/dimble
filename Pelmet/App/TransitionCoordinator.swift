@@ -1327,6 +1327,17 @@ final class TransitionCoordinator {
 
     // MARK: - Anchored (#88)
 
+    /// At rest for a picture pass: concealed, or anchored with nothing out
+    /// beyond the anchor — no bar reveal under way, the panel's own reveal
+    /// allowed (it leaves the bar as it rests).
+    private var barRestsForPass: Bool {
+        guard let appState else { return false }
+        let out = appState.currentRevealedSections
+        if out.isEmpty { return true }
+        guard anchored, out == anchoredSections else { return false }
+        return appState.panelShowsReveal || (!appState.isRevealed && !appState.isTransitioning)
+    }
+
     /// The bar goes out for good (a display that shows all icons is
     /// connected) or back to concealing. Called on a concealed, settled bar.
     /// Where the anchor is headed: a request still queued behind another.
@@ -1339,6 +1350,9 @@ final class TransitionCoordinator {
         let previous = anchorTask
         anchorTask = Task { @MainActor in
             await previous?.value
+            // A pass ends where it started (concealed or at the anchor):
+            // turning the anchor under it would be undone by its end.
+            await awaitPicturePass()
             defer { if pendingAnchor == on { pendingAnchor = nil } }
             if on {
                 // Every hiding display is covered before its icons come out.
@@ -1844,7 +1858,10 @@ extension TransitionCoordinator {
         let dump = dump || UserDefaults.standard.bool(forKey: "pelmet.debug.dumpPass")
         let start = Date()
         func ms() -> Int { Int(Date().timeIntervalSince(start) * 1000) }
-        guard appState.currentRevealedSections.isEmpty else {
+        // Anchored (#88), Hidden is out for good and the bar rests that way:
+        // the pass films it as it is and ends back at the anchor.
+        let anchoredPass = anchored
+        guard barRestsForPass else {
             PelmetLog.log("pass: bar is revealed, skipped")
             return nil
         }
@@ -1883,13 +1900,18 @@ extension TransitionCoordinator {
         func clearOfRule(_ frame: CGRect) -> Bool {
             !ruleFrames.contains { min($0.maxX, frame.maxX) - max($0.minX, frame.minX) > 2 }
         }
+        // Anchored with no cover to go under, Always Hidden stays in.
+        var passSections = sections
         func wanted(_ id: ItemID) -> Bool {
-            sections.contains(model.section(of: id.sectionKey)) && !ruleOut.contains(id.sectionKey)
+            passSections.contains(model.section(of: id.sectionKey)) && !ruleOut.contains(id.sectionKey)
         }
-        var empty = freshEmptyBarSnapshots(cropped: false)
-        let emptySource = empty.isEmpty ? "captured" : "precaptured"
+        // Anchored, the idle picture isn't kept and the icons are out: the
+        // bare bar (WindowServer's bar window left out) is the empty one.
+        var empty = anchoredPass ? [] : freshEmptyBarSnapshots(cropped: false)
+        let emptySource = anchoredPass ? "captured bare" : empty.isEmpty ? "captured" : "precaptured"
         if empty.isEmpty {
-            empty = await ConcealGhostOverlay.snapshotSet(of: precaptureRect, excludingOwnWindows: true, primaryOnly: true)
+            empty = await ConcealGhostOverlay.snapshotSet(
+                of: precaptureRect, excludingOwnWindows: true, primaryOnly: true, bare: anchoredPass)
         }
         PelmetLog.log("pass: empty bar \(emptySource) at \(ms())ms (\(empty.count) display(s))")
 
@@ -1938,11 +1960,23 @@ extension TransitionCoordinator {
         }
         let primaryMaxX = primaryMaxX
 
-        let coverStart = Date()
-        let cover = await beginBarCover(label: "pass")
-        PelmetLog.log("pass: cover \(cover == nil ? "none" : "up") at \(ms())ms")
-        appState.picturePassSections = sections
-        await engine.reveal(sections)
+        var coverStart = Date()
+        // Anchored, only a section the anchor doesn't have out (Always
+        // Hidden) changes the bar, under a cover of the bar as it looks:
+        // held pictures included, so every display stays as it was.
+        var adds = anchoredPass ? sections.subtracting(anchoredSections) : sections
+        var cover = !anchoredPass || !adds.isEmpty ? await beginBarCover(label: "pass") : nil
+        if anchoredPass, cover == nil, !adds.isEmpty {
+            // Out bare, Always Hidden would show on the displays that show
+            // all icons, and past a held picture's run.
+            PelmetLog.log("pass: no cover, anchored — Always Hidden stays in")
+            adds = []
+            passSections = anchoredSections
+        }
+        let movesBar = !anchoredPass || !adds.isEmpty
+        PelmetLog.log("pass: cover \(cover == nil ? "none" : "up")\(anchoredPass ? " (anchored, adds \(adds.count) section(s))" : "") at \(ms())ms")
+        appState.picturePassSections = anchoredPass ? passSections.union(anchoredSections) : sections
+        if movesBar { await engine.reveal(anchoredPass ? passSections.union(anchoredSections) : sections) }
         // An app that quit since the panel drew never comes: waiting on it
         // held every walk to the deadline.
         let running = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
@@ -1950,7 +1984,7 @@ extension TransitionCoordinator {
         let snap = await settledWalk(watching: { wanted($0) }, awaiting: awaiting)
         appState.updateSnapshot(snap)
         // The panel orders its tiles the way the bar just drew them.
-        appState.recordDrawnOrder(snap, revealed: sections)
+        appState.recordDrawnOrder(snap, revealed: anchoredPass ? passSections.union(anchoredSections) : sections)
         let drawn = snap.items.filter { wanted($0.id) && $0.frame != nil }
         let onPrimary = drawn.filter { MenuBarGeometry.isInPrimaryBand($0.frame!, primaryMaxX: primaryMaxX) }
         PelmetLog.log("pass: revealed at \(ms())ms (\(drawn.count) drawn, \(onPrimary.count) on the primary bar)")
@@ -1996,6 +2030,7 @@ extension TransitionCoordinator {
         var leftovers = Set<ItemID>()
         // Left over and never given a round: not tried, not failed.
         var deferred = Set<ItemID>()
+        var roundsRan = false
         if pictures != nil, !wanting.isEmpty {
             let asking = Set(wanting.filter(wanted))
             leftovers = PicturePassBatches.leftovers(
@@ -2012,6 +2047,13 @@ extension TransitionCoordinator {
             deferred = leftovers
             leftovers.subtract(theirs)
             deferred.subtract(leftovers)
+            // Anchored, a Hidden-only pass went without a cover: the rounds
+            // reflow the bar, so they get one now, of the bar as it looks.
+            if anchoredPass, cover == nil, !leftovers.isEmpty {
+                coverStart = Date()
+                cover = await beginBarCover(label: "pass")
+                PelmetLog.log("pass: cover \(cover == nil ? "none" : "up") for the rounds (anchored) at \(ms())ms")
+            }
             var roundsAsked = Set<ItemID>()
             let ceiling = AppTiming.transitionCoverSafety + Double(PicturePassBatches.maxFollowUps) * AppTiming.picturePassBatch
             var sectionsOut = true
@@ -2030,6 +2072,7 @@ extension TransitionCoordinator {
                     break
                 }
                 followUps += 1
+                roundsRan = true
                 // The cover is held up for this round only, once it starts.
                 cover?.keepUp(for: AppTiming.picturePassBatch + PicturePassBatches.liftReserve)
                 // One swap a round: the items come out before the sections go
@@ -2070,9 +2113,18 @@ extension TransitionCoordinator {
         }
 
         appState.picturePassSections = nil
-        await engine.conceal()
+        if !anchoredPass {
+            await engine.conceal()
+        } else if roundsRan {
+            // Back to the anchor, not concealed: the displays that show all
+            // icons keep them. The rounds put every section away.
+            await engine.reveal(anchoredSections)
+        } else if movesBar {
+            // Always Hidden goes back, Hidden stays out.
+            await engine.narrowReveal(to: anchoredSections)
+        }
         appState.updateSnapshot(await engine.snapshot())
-        PelmetLog.log("pass: concealed at \(ms())ms")
+        PelmetLog.log("pass: \(anchoredPass ? "back to the anchor" : "concealed") at \(ms())ms")
         if let cover {
             endBarCover(cover, label: "pass") { [weak self] in
                 self?.endBarHold()
@@ -2084,7 +2136,8 @@ extension TransitionCoordinator {
         guard let pictures else { return nil }
         // Against no empty bar nothing could be cut: says nothing either
         // (review WRAP-1, every tile stood in for 15 minutes).
-        let failed = empty.isEmpty ? [] : wanting.subtracting(pictures.keys).subtracting(deferred)
+        let failed: Set<ItemID> = empty.isEmpty ? [] : wanting.subtracting(pictures.keys).subtracting(deferred)
+            .filter { passSections.contains(model.section(of: $0.sectionKey)) }
         return (pictures, failed, absent)
     }
 
@@ -2108,8 +2161,10 @@ extension TransitionCoordinator {
         guard let appState else { return nil }
         // A picture pass has the bar (the panel's first open): wait it out.
         await awaitPicturePass()
+        // Anchored, the drags would land on a held picture: the Apply runs
+        // as a plain one, which lifts them (#88).
         guard !passInFlight, appState.currentRevealedSections.isEmpty else {
-            PelmetLog.log("apply: quiet pass skipped, the bar is busy")
+            PelmetLog.log("apply: quiet pass skipped, \(anchored ? "the bar is anchored" : "the bar is busy")")
             return nil
         }
         beginBarHold(.quietApply)
@@ -2211,12 +2266,15 @@ extension TransitionCoordinator {
             PelmetLog.log("pass: \(key.rawValue) not on the primary bar, no picture")
             return nil
         }
-        let empty = freshEmptyBarSnapshots(cropped: false)
+        let rect = CGRect(x: frame.minX - 8, y: frame.minY, width: frame.width + 16, height: frame.height)
+        // Anchored, no idle picture is kept: the bare bar there is the empty one.
+        let empty = anchored
+            ? await ConcealGhostOverlay.snapshotSet(of: rect, excludingOwnWindows: true, primaryOnly: true, bare: true)
+            : freshEmptyBarSnapshots(cropped: false)
         guard !empty.isEmpty else {
             PelmetLog.log("pass: no fresh empty-bar picture for \(key.rawValue)")
             return nil
         }
-        let rect = CGRect(x: frame.minX - 8, y: frame.minY, width: frame.width + 16, height: frame.height)
         let strip = await ConcealGhostOverlay.snapshotSet(of: rect, excludingOwnWindows: true, primaryOnly: true)
         return Self.pictures(of: [(key, frame)], strip: strip, empty: empty, dump: false)[key]
     }
@@ -2271,9 +2329,16 @@ extension TransitionCoordinator {
         return pictures
     }
 
-    /// Debug trigger (`pelmet.debug.picturePass`): Hidden, dumped to disk.
-    func debugPicturePass() async {
-        _ = await picturePass([.hidden], dump: true)
+    /// Debug trigger (`pelmet.debug.picturePass`): Hidden (and Always
+    /// Hidden), dumped to disk.
+    func debugPicturePass(always: Bool = false) async {
+        let sections: Set<PelmetCore.Section> = always ? [.hidden, .alwaysHidden] : [.hidden]
+        // Every icon of those sections wanted, as a panel with none would
+        // ask: the rounds run for the ones behind the «.
+        // From the assignments: a concealed icon is not in the walk.
+        let wanting = Set((appState?.settings.sectionModel.assignments ?? [:]).filter { sections.contains($0.value) }.keys)
+        let found = await picturePass(sections, wanting: wanting, dump: true)
+        PelmetLog.log("pass: debug — \(found.map { "\($0.pictures.count) picture(s)" } ?? "no pass")")
     }
 
     /// A filmed frame as `ItemPictures.rgba` reads it, kept for the next
