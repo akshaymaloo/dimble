@@ -29,4 +29,27 @@ public enum ChevronTrap {
     }
 
     static let slack: CGFloat = 4
+
+    // MARK: Making room with Pelmet's own extras
+
+    /// What a notched bar keeps clear right of the notch before the « takes
+    /// the leftmost item: the chevron drew 27pt from it (ballast 540) and
+    /// went behind at 12pt (555), 2026-10-19. The end that fitted, so an
+    /// extra brought back never pushes the chevron behind again.
+    public static let notchClearance: CGFloat = 27
+
+    /// The room left of a drawn chevron on a notched bar: what an extra
+    /// coming back may take without putting the chevron behind the «.
+    public static func room(chevronMinX: CGFloat, notchMaxX: CGFloat) -> CGFloat {
+        chevronMinX - notchMaxX - notchClearance
+    }
+
+    /// Which extra out of the bar comes back, from their widths in the order
+    /// they went: the latest that fits in `room`. Nil when none fits, or the
+    /// room is no more than a return already failed at (it put the chevron
+    /// behind the « again).
+    public static func restorable(widths: [CGFloat], room: CGFloat, failedRoom: CGFloat?) -> Int? {
+        if let failedRoom, room <= failedRoom { return nil }
+        return widths.indices.last { widths[$0] <= room }
+    }
 }

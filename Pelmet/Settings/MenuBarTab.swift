@@ -89,10 +89,14 @@ struct OverflowHint: View {
         // The chevron is the one that matters: without it the hidden icons
         // are out of reach (#81).
         let chevron = appState.chevronTrapped
+        // Own extras out of the bar so the chevron fits: nothing is behind
+        // the «, but icons the user put in Visible are gone for now.
+        let yielded = count == 0 && !appState.chevronYielded.isEmpty
         Group {
-            if count > 0 {
+            if count > 0 || yielded {
                 Label {
-                    chevron ? Text("The chevron doesn't fit")
+                    yielded ? Text("Made room for the chevron")
+                        : chevron ? Text("The chevron doesn't fit")
                         : count == 1 ? Text("1 icon doesn't fit") : Text("\(count) icons don't fit")
                 } icon: {
                     Image(systemName: "rectangle.compress.vertical")
@@ -100,13 +104,15 @@ struct OverflowHint: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-                .help(chevron
+                .help(yielded
+                    ? Text("Your menu bar is full: Dimble took some of its own icons out so the chevron stays on the bar. They come back when there's room.")
+                    : chevron
                     ? Text("Your menu bar is full: the chevron sits behind macOS's « until there's room. Move an icon to Hidden to bring it back.")
                     : Text("Your menu bar is full: \(count) icons sit behind macOS's « until there's room. Dimble leaves them where they are."))
                 .transition(.opacity)
             }
         }
-        .animation(.easeOut(duration: 0.2), value: count > 0)
+        .animation(.easeOut(duration: 0.2), value: count > 0 || yielded)
     }
 }
 
