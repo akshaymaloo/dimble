@@ -45,6 +45,11 @@ extension NSScreen {
         return DisplayUUIDCache.uuid(for: id)
     }
 
+    @MainActor
+    static func uuid(ofDisplay id: CGDirectDisplayID) -> String? {
+        DisplayUUIDCache.uuid(for: id)
+    }
+
     /// The screen containing a point (bottom-left global coordinates).
     static func containing(_ location: NSPoint) -> NSScreen? {
         NSScreen.screens.first { NSMouseInRect(location, $0.frame, false) }

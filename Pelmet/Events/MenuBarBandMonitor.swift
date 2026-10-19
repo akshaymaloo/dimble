@@ -362,7 +362,8 @@ final class MenuBarBandMonitor {
             let action = DisplayCrossing.action(
                 from: lastDisplayUUID, to: displayUUID,
                 behavior: appState.settings.behavior(forDisplayUUID: displayUUID),
-                launched: appState.launchBaselineApplied, revealed: appState.isRevealed
+                launched: appState.launchBaselineApplied, revealed: appState.isRevealed,
+                anchored: appState.transitions.anchored
             )
             lastDisplayUUID = displayUUID
             switch action {

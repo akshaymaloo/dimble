@@ -30,12 +30,22 @@ public enum DisplayCrossing {
     /// sighting stays a baseline: the launch concealed already, and arming
     /// the countdown there concealed the bar on the first move after a
     /// reveal.
+    ///
+    /// `anchored`: a connected display shows all icons, so the bar stays out
+    /// for it wherever the pointer is and the displays that hide icons wear
+    /// their covers (`SettingsStore.anchorsReveal`). An "always show all"
+    /// display then asks nothing of its own — its icons are out — and the
+    /// pointer arriving there leaves a reveal it brought out on a hiding
+    /// display, as it leaves any band.
     public static func action(
-        from previous: String?, to current: String?, behavior: DisplayBehavior, launched: Bool, revealed: Bool
+        from previous: String?, to current: String?, behavior: DisplayBehavior, launched: Bool, revealed: Bool,
+        anchored: Bool = false
     ) -> Action {
         guard current != previous else { return .none }
         let crossed = previous != nil
         switch behavior {
+        case .alwaysShowAll where anchored:
+            return crossed && revealed ? .leaveBand : .none
         case .alwaysShowAll:
             return crossed || launched ? .reveal : .none
         case .collapse:

@@ -123,6 +123,31 @@ struct SettingsStoreTests {
         }
     }
 
+    // The per-display choice (#88) reads value by value: an unknown target
+    // or a wrong type drops that display's entry alone (back to the Panel
+    // tab's choice), never the others, and never the rest of the blob.
+    @Test func displayRevealTargetsDecodeEachValueOnItsOwn() throws {
+        let legacy = try JSONDecoder().decode(SettingsStore.self, from: Data("{}".utf8))
+        #expect(legacy.displayRevealTargets.isEmpty)
+        let mixed = try JSONDecoder().decode(SettingsStore.self, from: Data(#"""
+            {"displayRevealTargets":{"A":"menuBar","B":"floatingBar","C":3,"D":"row","E":null},
+             "hiddenIconsIn":"panel","rehideDelay":9}
+            """#.utf8))
+        #expect(mixed.displayRevealTargets == ["A": .menuBar, "D": .row])
+        #expect(mixed.revealTarget(forDisplayUUID: "B") == .panel)
+        #expect(mixed.hiddenIconsIn == .panel)
+        #expect(mixed.rehideDelay == 9)
+        let notAMap = try JSONDecoder().decode(
+            SettingsStore.self, from: Data(#"{"displayRevealTargets":["row"],"autoRehide":false}"#.utf8))
+        #expect(notAMap.displayRevealTargets.isEmpty)
+        #expect(notAMap.autoRehide == false)
+
+        var settings = SettingsStore()
+        settings.displayRevealTargets = ["37D8832A-2D66-02CA-B9F7-8F30A301B230": .menuBar, "B": .panel, "C": .row]
+        let back = try JSONDecoder().decode(SettingsStore.self, from: JSONEncoder().encode(settings))
+        #expect(back.displayRevealTargets == settings.displayRevealTargets)
+    }
+
     // The panel options are a new nested field: defaults for an older blob,
     // and one bad option inside costs only itself.
     @Test func panelOptionsDefaultFallBackAndRoundTrip() throws {

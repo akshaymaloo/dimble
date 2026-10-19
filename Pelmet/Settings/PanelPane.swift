@@ -28,11 +28,22 @@ struct PanelPane: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
+                    // Only with a second display, or one that picked its own:
+                    // with one display there is nothing to set apart.
+                    if NSScreen.screens.count > 1 || !ownTargets.isEmpty {
+                        Text("Set per display in [Settings › Displays](dimble-settings:displays).")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .environment(\.openURL, OpenURLAction { _ in
+                                appState.settingsTab = .displays
+                                return .handled
+                            })
+                    }
                 }
                 .settingAnchor("hiddenIconsIn")
                 PanelPreviewStage(target: target)
             }
-            if target == .menuBar {
+            if inUse.isEmpty {
                 SettingNote("Pick Panel or Row to set names, columns and groups.")
             } else {
                 icons
@@ -40,7 +51,7 @@ struct PanelPane: View {
         }
         .onChange(of: appState.settingsFocusRow, initial: true) { _, row in
             guard let row else { return }
-            if Self.modeRows[row].map({ !$0.contains(target) }) == true {
+            if Self.modeRows[row].map({ $0.isDisjoint(with: inUse) }) == true {
                 // Search found a row this mode doesn't draw: land on the
                 // picker that brings it.
                 appState.settingsFocusRow = "hiddenIconsIn"
@@ -51,6 +62,22 @@ struct PanelPane: View {
             }
         }
     }
+
+    /// What the connected displays picked for themselves (Settings › Displays).
+    private var ownTargets: Set<RevealTarget> {
+        Set(NSScreen.screens.compactMap { appState.settings.ownRevealTarget(forDisplayUUID: $0.displayUUIDString) })
+    }
+
+    /// Panel and Row as they are used: this tab's choice and each display's
+    /// own. The Icons rows follow every layout in use, so a display's panel
+    /// can be set up with this tab on Menu bar.
+    private var inUse: Set<RevealTarget> {
+        ownTargets.union([target]).subtracting([.menuBar])
+    }
+
+    /// The layout the Icons captions speak for: Row only when no panel is
+    /// in use.
+    private var iconsTarget: RevealTarget { inUse.contains(.panel) ? .panel : .row }
 
     /// The Icons rows and the modes that draw them.
     private static let modeRows: [String: Set<RevealTarget>] = [
@@ -76,7 +103,7 @@ struct PanelPane: View {
     private var icons: some View {
         let options = appState.settings.panel
         return SettingsCard(title: "Icons") {
-            if target == .panel {
+            if inUse.contains(.panel) {
                 SettingRow(title: "Columns",
                            caption: "Auto fits your icons. Or drag the panel's edge.") {
                     PelmetMenuPicker(selection: binding(\.columns), options: columnChoices(options.columns))
@@ -91,7 +118,7 @@ struct PanelPane: View {
             .settingAnchor("panelAlwaysHidden")
             // Under its menu, so it comes and goes without moving the menu
             // from under the pointer. The row draws no fold.
-            if target == .panel, options.alwaysHidden != .hidden {
+            if inUse.contains(.panel), options.alwaysHidden != .hidden {
                 SettingRow(title: "Opens from") {
                     PelmetSegments(selection: binding(\.alwaysHiddenFold), options: [
                         (.tile, "Tile"), (.count, "Chip"), (.handle, "Handle"),
@@ -100,7 +127,7 @@ struct PanelPane: View {
                 .padding(.leading, 16)
                 .settingAnchor("panelFold")
             }
-            if target == .panel {
+            if inUse.contains(.panel) {
                 SettingToggleRow(title: "Show names", caption: "Names under each icon. Off fits more in a row.",
                                  isOn: binding(\.showsNames))
                     .settingAnchor("panelNames")
@@ -110,7 +137,7 @@ struct PanelPane: View {
                 .settingAnchor("panelClosedApps")
             SettingToggleRow(
                 title: "Separators start a new row",
-                caption: target == .row
+                caption: iconsTarget == .row
                     ? "Keeps the groups you made in the menu bar apart."
                     : "Keeps the groups you made in the menu bar together, one row each.",
                 isOn: binding(\.separatorsBreakRows))
@@ -124,7 +151,7 @@ struct PanelPane: View {
     private func alwaysHiddenCaption(_ mode: PanelOptions.AlwaysHiddenMode) -> LocalizedStringKey {
         let spec = appState.settings.alwaysHiddenHotkey ?? .alwaysHiddenDefault
         let shortcut = spec.isOff ? "" : spec.display
-        switch (target, mode) {
+        switch (iconsTarget, mode) {
         case (.row, .hidden):
             return shortcut.isEmpty ? "Out of the row." : "Out of the row. Press \(shortcut) to reach them."
         case (.row, _): return "Out of the row until you turn them on in its right-click menu."
