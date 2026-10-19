@@ -497,6 +497,7 @@ final class AppState {
         }
         readAppleMenuBarSwitches()
         observeRunningApplications()
+        watchChevronHosting()
     }
 
     /// One walk a second after the last time System Settings lost focus:
@@ -566,6 +567,13 @@ final class AppState {
     private var runningAppsObservation: NSKeyValueObservation?
     private var lastRelaunchQueue: [String: Date] = [:]
     private var siblingLaunchLogged: Set<String> = []
+    private var chevronHostObservers: [NSObjectProtocol] = []
+    private var chevronHostCheck: Task<Void, Never>?
+    /// When the chevron was last re-hosted, for `ChevronHosting.budget`.
+    private var chevronRehosts: [Date] = []
+    private var rehostingChevron = false
+    /// The last "not re-hosted" line, logged once per change.
+    private var chevronHostNote: String?
 
     /// Menu-bar agent apps (LSUIElement / background-only) post no launch
     /// notification — Snib, OpenClip and Sconce relaunched all afternoon
@@ -734,6 +742,100 @@ final class AppState {
             }
             PelmetLog.log("adoptWindow: \(bundle) never registered — giving up")
         }
+    }
+
+    /// A lid closed on external displays and opened on the built-in alone
+    /// left the chevron on no bar until a relaunch (#26, cpierce). Each
+    /// wake, unlock or display change looks again once the bar settles.
+    private func watchChevronHosting() {
+        let workspace = NSWorkspace.shared.notificationCenter
+        for (name, why) in [(NSWorkspace.didWakeNotification, "wake"),
+                            (NSWorkspace.screensDidWakeNotification, "displays woke")] {
+            chevronHostObservers.append(workspace.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.scheduleChevronHostCheck(why) }
+            })
+        }
+        chevronHostObservers.append(NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.scheduleChevronHostCheck("display change") }
+        })
+        chevronHostObservers.append(DistributedNotificationCenter.default().addObserver(
+            forName: Notification.Name("com.apple.screenIsUnlocked"), object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.scheduleChevronHostCheck("screen unlocked") }
+        })
+    }
+
+    /// The last event wins: a wake, a display change and an unlock come in
+    /// a burst, and only the settled bar is worth a look.
+    private func scheduleChevronHostCheck(_ why: String) {
+        chevronHostCheck?.cancel()
+        chevronHostCheck = Task { [weak self] in
+            try? await Task.sleep(for: AppTiming.chevronHostCheckDelay)
+            guard !Task.isCancelled, let self else { return }
+            await self.checkChevronHosted(after: why)
+        }
+    }
+
+    private func chevronHostingVerdict() async -> (verdict: ChevronHosting.Verdict, detail: String) {
+        let snap = await engine.snapshot()
+        let drawn = statusItem?.windowFrame
+        chevronRehosts.removeAll { Date.now.timeIntervalSince($0) > ChevronHosting.budgetWindow }
+        let verdict = ChevronHosting.verdict(
+            drawn: drawn, screens: NSScreen.screens.map(\.frame), walkedItems: snap.items.count,
+            walkedChevron: pelmetChevronItem(in: snap) != nil, recentRehosts: chevronRehosts.count
+        )
+        let window = drawn.map { "window at x=\(Int($0.minX)) y=\(Int($0.minY))" } ?? "no window"
+        return (verdict, "\(window), walk \(snap.items.count) item(s), \(NSScreen.screens.count) display(s)")
+    }
+
+    private func checkChevronHosted(after why: String) async {
+        guard settings.showStatusItem, statusItem != nil, engineStarted, !rehostingChevron else { return }
+        guard !barInFlux else {
+            scheduleChevronHostCheck(why)
+            return
+        }
+        var (verdict, detail) = await chevronHostingVerdict()
+        if verdict == .rehost {
+            // Once more after a beat: the agent may still be re-hosting it.
+            PelmetLog.log("chevron: not on any bar after \(why) (\(detail)) — looking once more")
+            try? await Task.sleep(for: AppTiming.chevronHostConfirmDelay)
+            guard !Task.isCancelled, settings.showStatusItem, statusItem != nil, !rehostingChevron else { return }
+            (verdict, detail) = await chevronHostingVerdict()
+        }
+        switch verdict {
+        case .hosted:
+            if chevronHostNote != nil { PelmetLog.log("chevron: on the bar again after \(why) (\(detail))") }
+            chevronHostNote = nil
+        case .wait(let reason):
+            let note = "chevron: not on any bar after \(why), not re-hosted: \(reason)"
+            if note != chevronHostNote { PelmetLog.log("\(note) (\(detail))") }
+            chevronHostNote = note
+        case .rehost:
+            // Its own task: a later event cancels the check, and a cancelled
+            // sleep inside the adoption window would spin its walks.
+            Task { [weak self] in await self?.rehostChevron(after: why, detail: detail) }
+        }
+    }
+
+    /// What a relaunch does for the chevron, without the relaunch: a fresh
+    /// registration, then an adoption window, since the agent parks an item
+    /// registered under the assertion (`bootEngine`).
+    private func rehostChevron(after why: String, detail: String) async {
+        guard !rehostingChevron, settings.showStatusItem, statusItem != nil else { return }
+        rehostingChevron = true
+        defer { rehostingChevron = false }
+        chevronRehosts.append(.now)
+        PelmetLog.log("chevron: still not on any bar after \(why) (\(detail)) — re-hosting (\(chevronRehosts.count)/\(ChevronHosting.budget))")
+        statusItem?.remove()
+        statusItem = PelmetStatusItem(appState: self)
+        statusItem?.updateSymbol(revealed: isRevealedOrRevealing)
+        _ = await coveringAdoption { await engine.openAdoptionWindow(for: PelmetBundle.mainID, expecting: Self.chevronItemID) }
+        updateSnapshot(await engine.snapshot())
+        let after = await chevronHostingVerdict()
+        chevronHostNote = after.verdict == .hosted ? nil : "re-hosted, still off"
+        PelmetLog.log("chevron: re-hosted — \(after.verdict == .hosted ? "on the bar" : "still not on any bar") (\(after.detail))")
     }
 
     private func startEngineEventPump() {

@@ -219,6 +219,12 @@ enum AppTiming {
     /// apps build their tray ~20s in).
     static let relaunchAdoptionDelay: Duration = .seconds(3)
     static let relaunchAdoptionRetry: Duration = .seconds(15)
+    /// Wake, unlock or a display change → is the chevron still on a bar
+    /// (#26)? The walk is back ~200ms after an unlock, and the wait leaves
+    /// the agent time to re-host what it will. A missing chevron gets one
+    /// more look before it's re-hosted.
+    static let chevronHostCheckDelay: Duration = .seconds(4)
+    static let chevronHostConfirmDelay: Duration = .seconds(3)
     /// « expansion → re-measure: the trapped items reflow in left of the
     /// notch and the visible run shifts (~38pt) before frames are true.
     static let overflowExpandSettle: Duration = .milliseconds(700)
