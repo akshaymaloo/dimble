@@ -458,7 +458,7 @@ final class MenuBarBandMonitor {
     /// pointer. Nil when nothing holds. One window list per verdict: the
     /// old Bool + diagnostic-twin pair walked the list twice per deferred
     /// reveal (perf audit 2026-09-15, fix 4b).
-    enum DeferReason: String { case band, active, elevated, drag }
+    enum DeferReason: String { case band, active, elevated, drag, overflow }
 
     func rehideDeferReason() -> DeferReason? {
         if pointerInBand { return .band }
@@ -466,7 +466,14 @@ final class MenuBarBandMonitor {
         // Pelmet frontmost only holds the bar for the layout editor and the
         // onboarding demo — the General tab is not a reason to stay revealed.
         if NSApp.isActive, appState?.editorHoldsBar == true || OnboardingController.shared.isPresented { return .active }
-        return pointerIsOverElevatedWindow() ? .elevated : nil
+        if pointerIsOverElevatedWindow() { return .elevated }
+        // Apple's « open on hidden icons that didn't fit: it draws them left
+        // of the notch, and the notch is off the band, so the way there read
+        // as leaving the bar and they concealed under the pointer (#81, live
+        // test 2026-10-19).
+        if let appState, appState.isRevealed, appState.overflowTrappedCount > 0,
+           OverflowToggle.isExpanded() == true { return .overflow }
+        return nil
     }
 
     /// Deliberately narrow: only visible, menu/popover-sized windows at

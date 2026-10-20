@@ -76,6 +76,17 @@ enum OverflowToggle {
         return listed(in: app) ?? sweep(app)
     }
 
+    /// Whether the « is open now, by its label only: the rehide reads it on
+    /// the main thread, where the sweep's 200-odd hit-tests don't belong.
+    /// Nil when the bar has none.
+    nonisolated static func isExpanded() -> Bool? {
+        guard let agent = NSRunningApplication.runningApplications(withBundleIdentifier: PelmetBundle.agentID).first
+        else { return nil }
+        let app = AXUIElementCreateApplication(agent.processIdentifier)
+        AXUIElementSetMessagingTimeout(app, 0.25)
+        return listed(in: app)?.expanded
+    }
+
     /// The agent lists the « with its extras. The sweep below stops 200pt
     /// short of the right edge, and on a bar with few icons the « sits
     /// nearer the clock than that (x=1614 on the 1800pt built-in, #81).
