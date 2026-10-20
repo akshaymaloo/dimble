@@ -66,10 +66,50 @@ public enum ChevronTrap {
 
     /// Which extra out of the bar comes back, from their widths in the order
     /// they went: the latest that fits in `room`. Nil when none fits, or the
-    /// room is no more than a return already failed at (it put the chevron
-    /// behind the « again).
+    /// room is less than `shortRoomMargin` past one a return already failed
+    /// at (a « came back with it, or the chevron went behind one).
     public static func restorable(widths: [CGFloat], room: CGFloat, failedRoom: CGFloat?) -> Int? {
-        if let failedRoom, room <= failedRoom { return nil }
+        if let failedRoom, room < failedRoom + shortRoomMargin { return nil }
         return widths.indices.last { widths[$0] <= room }
+    }
+
+    /// How much more room than a failed return the next one needs. The room
+    /// moves a few points with nothing joining the bar: AX pads a frame by
+    /// up to 2pt, and an icon that draws what it counts (a timer, a network
+    /// meter) changes width with its digits. Without it a return failed at
+    /// 60 came back at 61 and failed again every 30s (review, 2026-10-20).
+    public static let shortRoomMargin: CGFloat = 10
+}
+
+/// A room a return failed at, with the icons the bar drew then: it holds for
+/// that bar only. An icon that joins or leaves it (an app adding its icon on
+/// wake, then quitting) makes another bar, and the room is read afresh.
+public struct ShortRoom: Equatable, Sendable {
+    public let room: CGFloat
+    public let bar: Set<ItemID>
+
+    public init(room: CGFloat, bar: Set<ItemID>) {
+        self.room = room
+        self.bar = bar
+    }
+
+    public func holds(on bar: Set<ItemID>) -> Bool { self.bar == bar }
+}
+
+/// The bar read again after an extra came back, at rest only (a reveal, a
+/// pass or Apply has a bar of its own): no « on the chevron's bar and it
+/// fits; a « twice in a row and it didn't, wherever the agent put it.
+public struct RestoreCheck: Sendable {
+    public enum Verdict: Equatable, Sendable { case fits, short }
+
+    private var toggleReads = 0
+
+    public init() {}
+
+    /// One read at rest; the verdict once there is one.
+    public mutating func read(toggleOnBar: Bool) -> Verdict? {
+        guard toggleOnBar else { return .fits }
+        toggleReads += 1
+        return toggleReads >= 2 ? .short : nil
     }
 }

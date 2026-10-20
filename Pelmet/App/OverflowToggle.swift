@@ -73,7 +73,7 @@ enum OverflowToggle {
         guard let agent = NSRunningApplication.runningApplications(withBundleIdentifier: PelmetBundle.agentID).first
         else { return nil }
         let app = AXUIElementCreateApplication(agent.processIdentifier)
-        return listed(in: app) ?? sweep(app)
+        return listed(in: app).first ?? sweep(app)
     }
 
     /// Whether the « is open now, by its label only: the rehide reads it on
@@ -91,28 +91,40 @@ enum OverflowToggle {
         else { return nil }
         let app = AXUIElementCreateApplication(agent.processIdentifier)
         AXUIElementSetMessagingTimeout(app, 0.25)
-        return listed(in: app)
+        return listed(in: app).first
+    }
+
+    /// Every « the agent lists, by its label: with a bar on each display,
+    /// the first listed can be another display's (review, 2026-10-20).
+    nonisolated static func listedToggles() -> [Toggle] {
+        guard let agent = NSRunningApplication.runningApplications(withBundleIdentifier: PelmetBundle.agentID).first
+        else { return [] }
+        let app = AXUIElementCreateApplication(agent.processIdentifier)
+        AXUIElementSetMessagingTimeout(app, 0.25)
+        return listed(in: app, all: true)
     }
 
     /// The agent lists the « with its extras. The sweep below stops 200pt
     /// short of the right edge, and on a bar with few icons the « sits
     /// nearer the clock than that (x=1614 on the 1800pt built-in, #81).
-    nonisolated private static func listed(in app: AXUIElement) -> Toggle? {
+    nonisolated private static func listed(in app: AXUIElement, all: Bool = false) -> [Toggle] {
         var barV: CFTypeRef?
         guard AXUIElementCopyAttributeValue(app, kAXExtrasMenuBarAttribute as CFString, &barV) == .success,
-              let barV, CFGetTypeID(barV) == AXUIElementGetTypeID() else { return nil }
+              let barV, CFGetTypeID(barV) == AXUIElementGetTypeID() else { return [] }
         // A timeout set on the app element stays on it: the elements read
         // from it take the default 6s each.
         let bar = barV as! AXUIElement
         AXUIElementSetMessagingTimeout(bar, 0.25)
         var kidsV: CFTypeRef?
         AXUIElementCopyAttributeValue(bar, kAXChildrenAttribute as CFString, &kidsV)
+        var toggles: [Toggle] = []
         for kid in (kidsV as? [AXUIElement]) ?? [] {
             AXUIElementSetMessagingTimeout(kid, 0.25)
             guard let expanded = state(of: kid) else { continue }
-            return Toggle(element: kid, frame: currentFrame(of: kid) ?? .zero, expanded: expanded)
+            toggles.append(Toggle(element: kid, frame: currentFrame(of: kid) ?? .zero, expanded: expanded))
+            if !all { break }
         }
-        return nil
+        return toggles
     }
 
     /// Sweep the primary band through the agent's app element. ~3pt steps

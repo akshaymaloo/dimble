@@ -80,9 +80,45 @@ import Testing
         #expect(ChevronTrap.restorable(widths: [], room: 600, failedRoom: nil) == nil)
     }
 
-    @Test func noReturnUntilThereIsMoreRoomThanAtAFailedOne() {
+    @Test func noReturnUntilTheRoomIsAMarginPastAFailedOne() {
         #expect(ChevronTrap.restorable(widths: [42], room: 60, failedRoom: 60) == nil)
         #expect(ChevronTrap.restorable(widths: [42], room: 50, failedRoom: 60) == nil)
-        #expect(ChevronTrap.restorable(widths: [42], room: 61, failedRoom: 60) == 0)
+        // A meter's digits or AX padding: not more room.
+        #expect(ChevronTrap.restorable(widths: [42], room: 61, failedRoom: 60) == nil)
+        #expect(ChevronTrap.restorable(widths: [42], room: 69.5, failedRoom: 60) == nil)
+        #expect(ChevronTrap.restorable(widths: [42], room: 60 + ChevronTrap.shortRoomMargin, failedRoom: 60) == 0)
+        // The margin gates a return; it doesn't change what fits.
+        #expect(ChevronTrap.restorable(widths: [42, 573], room: 80, failedRoom: 60) == 0)
+    }
+
+    @Test func aShortRoomHoldsForTheBarItWasLearntOn() {
+        let bar: Set<ItemID> = [ItemID(rawValue: "bundle:com.apple.weather.menu"), ItemID(rawValue: "bundle:app.fif7y.Snib")]
+        let short = ShortRoom(room: 60, bar: bar)
+        #expect(short.holds(on: bar))
+        // An app added its icon on wake, or quit.
+        #expect(!short.holds(on: bar.union([ItemID(rawValue: "bundle:com.example.Meter")])))
+        #expect(!short.holds(on: [ItemID(rawValue: "bundle:app.fif7y.Snib")]))
+    }
+
+    @Test func theLeftEdgeBoundaryIsTheNotchPlusSlack() {
+        // Ending exactly `slack` past the notch's edge is still the open «.
+        let atSlack = CGRect(x: 1000, y: 0, width: 14, height: 37)
+        #expect(ChevronTrap.leftEdge(chevronMinX: 1097, frames: [atSlack], notchMaxX: 1010) == 1097)
+        let past = CGRect(x: 1000, y: 0, width: 14.5, height: 37)
+        #expect(ChevronTrap.leftEdge(chevronMinX: 1097, frames: [past], notchMaxX: 1010) == 1000)
+    }
+
+    @Test func aReturnFitsAtTheFirstReadWithNoToggle() {
+        var check = RestoreCheck()
+        #expect(check.read(toggleOnBar: false) == .fits)
+        var late = RestoreCheck()
+        #expect(late.read(toggleOnBar: true) == nil)
+        #expect(late.read(toggleOnBar: false) == .fits)
+    }
+
+    @Test func aToggleTwiceInARowIsShort() {
+        var check = RestoreCheck()
+        #expect(check.read(toggleOnBar: true) == nil)
+        #expect(check.read(toggleOnBar: true) == .short)
     }
 }

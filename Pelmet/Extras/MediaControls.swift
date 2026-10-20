@@ -661,14 +661,8 @@ final class ExtrasManager {
     /// is on, a counting timer), as does one brought out alone. Its key, nil
     /// when none can go.
     func yieldOne() -> ItemID? {
-        guard let appState else { return nil }
-        let model = appState.settings.sectionModel
         let next = items.compactMap { id, item -> (id: UUID, frame: NSRect)? in
-            guard let spec = specs[id], lastVisible[id] == true, !shownAlone.contains(id),
-                  !yielded.contains(where: { $0.id == id }), spec.kind != .cameraMicIndicator,
-                  !ruleForcesShow(spec),
-                  model.section(of: Self.itemID(for: spec)) == .visible,
-                  let frame = item.button?.window?.frame, frame.width > 0 else { return nil }
+            guard canYield(id), let frame = item.button?.window?.frame, frame.width > 0 else { return nil }
             return (id, frame)
         }.min { $0.frame.minX < $1.frame.minX }
         guard let next, let spec = specs[next.id] else { return nil }
@@ -676,6 +670,15 @@ final class ExtrasManager {
         PelmetLog.log("extras: \(spec.itemTitle) out to make room for the chevron (\(Int(next.frame.width))pt)")
         applyCurrent()
         return Self.itemID(for: spec)
+    }
+
+    /// Up in Visible on its section alone, and not out already: an
+    /// indicator, or one brought out alone, keeps its place.
+    private func canYield(_ id: UUID) -> Bool {
+        guard let appState, let spec = specs[id], lastVisible[id] == true, !shownAlone.contains(id),
+              !yielded.contains(where: { $0.id == id }), spec.kind != .cameraMicIndicator,
+              !ruleForcesShow(spec) else { return false }
+        return appState.settings.sectionModel.section(of: Self.itemID(for: spec)) == .visible
     }
 
     /// Out on its own rule whatever its section: a counting timer, a Focus
@@ -701,11 +704,10 @@ final class ExtrasManager {
     }
 
     /// Takes the extra that just came back out again: the bar had no room
-    /// for it after all (`room` was short). Its key, nil when it is no
-    /// longer up.
+    /// for it after all (`room` was short). Its key, nil when it can't go
+    /// (`canYield`: a timer that started counting meanwhile stays).
     func yieldRestoredAgain(shortRoom room: CGFloat) -> ItemID? {
-        guard let restored = lastRestored, let spec = specs[restored.id], lastVisible[restored.id] == true,
-              !yielded.contains(where: { $0.id == restored.id }) else { return nil }
+        guard let restored = lastRestored, canYield(restored.id), let spec = specs[restored.id] else { return nil }
         lastRestored = nil
         yielded.append(restored)
         PelmetLog.log("extras: \(spec.itemTitle) out again, \(Int(room))pt was short")
@@ -716,6 +718,7 @@ final class ExtrasManager {
     /// No chevron left to make room for (its icon is off, the bar has no
     /// notch to measure the room by): every extra comes back.
     func restoreAllYielded() {
+        lastRestored = nil
         guard !yielded.isEmpty else { return }
         yielded.removeAll()
         PelmetLog.log("extras: back from making room for the chevron")
