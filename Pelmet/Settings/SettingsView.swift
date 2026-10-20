@@ -149,12 +149,18 @@ struct SettingsView: View {
                             Text(appState.settingsTab.title)
                                 .font(.system(size: 22, weight: .semibold))
                             if appState.settingsTab == .menuBar {
+                                // The hint gives way first: it truncates,
+                                // its sentence is the tooltip. Squeezed, the
+                                // actions wrapped letter by letter ("Re try",
+                                // live test 2026-10-19).
                                 OverflowHint()
                                     .padding(.leading, 8)
+                                    .layoutPriority(-1)
                             }
-                            Spacer()
+                            Spacer(minLength: 8)
                             if appState.settingsTab == .menuBar {
                                 ApplyBarButton()
+                                    .fixedSize()
                             }
                         }
                         .padding(.horizontal, 28)

@@ -104,6 +104,7 @@ struct OverflowHint: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
+                .truncationMode(.tail)
                 .help(yielded
                     ? Text("Your menu bar is full: Dimble took some of its own icons out so the chevron stays on the bar. They come back when there's room.")
                     : chevron
