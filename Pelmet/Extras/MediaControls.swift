@@ -550,10 +550,12 @@ final class ExtrasManager {
     /// slot it remembers), gets dragged like any icon, and leaves again in
     /// `detachAfterApply`; its next real entry lands at the new slot. Only
     /// the extras the edits `touch` join: each one is a blank slot while it
-    /// is there.
+    /// is there. Never one out to make room for the chevron: back for the
+    /// pass, it crowded the bar it left (live test, 2026-10-19 20:29).
     func attachForApply(touched: (ItemID) -> Bool) -> [ItemID] {
         var attached: [ItemID] = []
-        for (id, item) in items where lastVisible[id] != true && !preattached.contains(id) {
+        for (id, item) in items where lastVisible[id] != true && !preattached.contains(id)
+            && !yielded.contains(where: { $0.id == id }) {
             guard let spec = specs[id], touched(Self.itemID(for: spec)) else { continue }
             StatusItemFader.attach(item, shownLength: Self.shownLength(for: spec))
             attachedForApply.insert(id)
