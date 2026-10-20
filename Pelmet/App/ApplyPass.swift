@@ -634,11 +634,13 @@ enum ApplyPass {
             appState.updateSnapshot(snap)
             frames = primaryFrames(snap, appState: appState)
             var landed = inSlot(frames)
-            // One retry, re-aimed at the bounds as they sit after the reflow.
+            // One retry, re-aimed at the bounds as they sit after the reflow,
+            // as a jump: an eased drag bounces whenever WindowServer refuses
+            // the agent's window drag (ItemMover.cmdDrag), a jump lands.
             if !landed, let x = frames[move.item]?.midX, let retryX = aim(frames), abs(retryX - x) > 4 {
-                PelmetLog.log("apply: retry \(move.item.rawValue) x=\(x) → \(retryX)")
+                PelmetLog.log("apply: retry \(move.item.rawValue) x=\(x) → \(retryX) (jump)")
                 noteDrag(from: x, to: retryX, in: snap, frames: frames)
-                await ItemMover.cmdDrag(from: CGPoint(x: x, y: 12), to: CGPoint(x: retryX, y: 12), ownItem: ownItem)
+                await ItemMover.cmdDrag(from: CGPoint(x: x, y: 12), to: CGPoint(x: retryX, y: 12), ownItem: ownItem, jump: true)
                 snap = await quiesced(engine, watching: move.item, appState: appState)
                 appState.updateSnapshot(snap)
                 frames = primaryFrames(snap, appState: appState)

@@ -32,7 +32,9 @@ public enum ItemMover {
     /// (their owning app tracks the drag).
     /// `ownItem`: Pelmet's own registrations get the short courtesy gap
     /// before the pointer is borrowed (EngineTiming.ownItemDragIdleMaxWait).
-    public static func cmdDrag(from: CGPoint, to: CGPoint, ownItem: Bool = false) async {
+    /// `jump`: the first drag event lands on the target, for a WindowServer
+    /// that refuses the agent's window drag (see the path below).
+    public static func cmdDrag(from: CGPoint, to: CGPoint, ownItem: Bool = false, jump: Bool = false) async {
         guard let source = CGEventSource(stateID: .hidSystemState) else { return }
         // Tag every event from this source so the shield's tap can tell our
         // synthetic stream from real HID input.
@@ -90,13 +92,27 @@ public enum ItemMover {
         // and LONG drags need finer motion for the agent to track slot
         // crossings (a fixed-6-step 440pt drag = 74pt jumps bounced entirely,
         // verified live 2026-08-21).
-        let distance = abs(to.x - from.x) + abs(to.y - from.y)
-        let steps = min(24, max(6, Int(distance / 40)))
-        for step in 1...steps {
-            let t = CGFloat(step) / CGFloat(steps)
-            let x = from.x + (to.x - from.x) * t
-            let y = from.y + (to.y - from.y) * t
-            post(.leftMouseDragged, at: CGPoint(x: x, y: y))
+        // A jump instead: the agent starts its drag on the first drag event
+        // and asks WindowServer to carry the item's window with the mouse.
+        // When WindowServer refuses ("no client initiated window drag trait
+        // gesture to activate for mouse", every app's window drags, on and
+        // off from 2026-10-19 13:15), the drag ends where that first event
+        // put the pointer: one eased step from the start, so every drop
+        // bounced. Landing that first event on the target drops it there
+        // (A/B live, 2026-10-19 23:23); a few 1pt moves keep it a drag.
+        let path: [CGPoint]
+        if jump {
+            path = [to] + (1...5).map { CGPoint(x: to.x + ($0.isMultiple(of: 2) ? 1 : -1), y: to.y) } + [to]
+        } else {
+            let distance = abs(to.x - from.x) + abs(to.y - from.y)
+            let steps = min(24, max(6, Int(distance / 40)))
+            path = (1...steps).map { step in
+                let t = CGFloat(step) / CGFloat(steps)
+                return CGPoint(x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t)
+            }
+        }
+        for point in path {
+            post(.leftMouseDragged, at: point)
             shield.reassert()
             try? await Task.sleep(for: .milliseconds(30))
         }
