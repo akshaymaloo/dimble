@@ -129,6 +129,9 @@ final class ExtrasManager {
     /// (#81), with the width each gave back, in the order they went.
     /// Runtime only: `apply` reads them as down until they come back.
     private var yielded: [(id: UUID, width: CGFloat)] = []
+    /// The latest extra back from making room, with the width it went out
+    /// at: `yieldRestoredAgain` takes it out again when it didn't fit.
+    private var lastRestored: (id: UUID, width: CGFloat)?
 
     init(appState: AppState) {
         self.appState = appState
@@ -691,8 +694,21 @@ final class ExtrasManager {
     func restoreYielded(room: CGFloat, failedRoom: CGFloat?) -> ItemID? {
         guard let index = ChevronTrap.restorable(widths: yielded.map(\.width), room: room, failedRoom: failedRoom),
               let spec = specs[yielded[index].id] else { return nil }
-        yielded.remove(at: index)
+        lastRestored = yielded.remove(at: index)
         PelmetLog.log("extras: \(spec.itemTitle) back, the chevron has room (\(Int(room))pt)")
+        applyCurrent()
+        return Self.itemID(for: spec)
+    }
+
+    /// Takes the extra that just came back out again: the bar had no room
+    /// for it after all (`room` was short). Its key, nil when it is no
+    /// longer up.
+    func yieldRestoredAgain(shortRoom room: CGFloat) -> ItemID? {
+        guard let restored = lastRestored, let spec = specs[restored.id], lastVisible[restored.id] == true,
+              !yielded.contains(where: { $0.id == restored.id }) else { return nil }
+        lastRestored = nil
+        yielded.append(restored)
+        PelmetLog.log("extras: \(spec.itemTitle) out again, \(Int(room))pt was short")
         applyCurrent()
         return Self.itemID(for: spec)
     }
