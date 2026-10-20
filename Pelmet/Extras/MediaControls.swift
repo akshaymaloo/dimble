@@ -125,6 +125,10 @@ final class ExtrasManager {
     /// attached invisibly for the length of an Apply pass so they have a
     /// slot to drag — see `attachForApply`.
     private var attachedForApply: Set<UUID> = []
+    /// Extras out of the bar to make room for the chevron behind Apple's «
+    /// (#81), with the width each gave back, in the order they went.
+    /// Runtime only: `apply` reads them as down until they come back.
+    private var yielded: [(id: UUID, width: CGFloat)] = []
 
     init(appState: AppState) {
         self.appState = appState
@@ -372,6 +376,7 @@ final class ExtrasManager {
         revealed: Set<PelmetCore.Section>,
         systemCameraPillVisible: Bool
     ) {
+        yielded.removeAll { specs[$0.id] == nil }
         for (id, item) in items {
             guard let spec = specs[id], !attachedForApply.contains(id) else { continue }
             let section = model.section(of: Self.itemID(for: spec))
@@ -505,6 +510,7 @@ final class ExtrasManager {
             case .shortcut, .userSwitching, .shortcutsMenu, .siri:
                 break
             }
+            if yielded.contains(where: { $0.id == id }) { visible = false }
             setVisible(visible, for: id, item: item)
             // A hidden glyph keeps its last frame and stops ticking.
             animators[id]?.paused = !visible
@@ -544,10 +550,12 @@ final class ExtrasManager {
     /// slot it remembers), gets dragged like any icon, and leaves again in
     /// `detachAfterApply`; its next real entry lands at the new slot. Only
     /// the extras the edits `touch` join: each one is a blank slot while it
-    /// is there.
+    /// is there. Never one out to make room for the chevron: back for the
+    /// pass, it crowded the bar it left (live test, 2026-10-19 20:29).
     func attachForApply(touched: (ItemID) -> Bool) -> [ItemID] {
         var attached: [ItemID] = []
-        for (id, item) in items where lastVisible[id] != true && !preattached.contains(id) {
+        for (id, item) in items where lastVisible[id] != true && !preattached.contains(id)
+            && !yielded.contains(where: { $0.id == id }) {
             guard let spec = specs[id], touched(Self.itemID(for: spec)) else { continue }
             StatusItemFader.attach(item, shownLength: Self.shownLength(for: spec))
             attachedForApply.insert(id)
@@ -632,6 +640,55 @@ final class ExtrasManager {
             shownAlpha: 1,
             stillCurrent: stillCurrent
         )
+    }
+
+    // MARK: Making room for the chevron (#81)
+
+    /// The extras out of the bar for the chevron, in the order they went.
+    var yieldedKeys: [ItemID] {
+        yielded.compactMap { specs[$0.id].map(Self.itemID(for:)) }
+    }
+
+    /// Takes the extra nearest the chevron out of the bar: one in Visible,
+    /// up on its section alone. Indicators keep their place (a camera that
+    /// is on, a counting timer), as does one brought out alone. Its key, nil
+    /// when none can go.
+    func yieldOne() -> ItemID? {
+        guard let appState else { return nil }
+        let model = appState.settings.sectionModel
+        let next = items.compactMap { id, item -> (id: UUID, frame: NSRect)? in
+            guard let spec = specs[id], lastVisible[id] == true, !shownAlone.contains(id),
+                  !yielded.contains(where: { $0.id == id }), spec.kind != .cameraMicIndicator,
+                  !(spec.kind == .timer && (pelmetTimer?.isActive ?? false)),
+                  model.section(of: Self.itemID(for: spec)) == .visible,
+                  let frame = item.button?.window?.frame, frame.width > 0 else { return nil }
+            return (id, frame)
+        }.min { $0.frame.minX < $1.frame.minX }
+        guard let next, let spec = specs[next.id] else { return nil }
+        yielded.append((next.id, next.frame.width))
+        PelmetLog.log("extras: \(spec.itemTitle) out to make room for the chevron (\(Int(next.frame.width))pt)")
+        applyCurrent()
+        return Self.itemID(for: spec)
+    }
+
+    /// Brings back the latest extra out of the bar that fits in `room`
+    /// (`ChevronTrap.restorable`). Its key, nil when none fits.
+    func restoreYielded(room: CGFloat, failedRoom: CGFloat?) -> ItemID? {
+        guard let index = ChevronTrap.restorable(widths: yielded.map(\.width), room: room, failedRoom: failedRoom),
+              let spec = specs[yielded[index].id] else { return nil }
+        yielded.remove(at: index)
+        PelmetLog.log("extras: \(spec.itemTitle) back, the chevron has room (\(Int(room))pt)")
+        applyCurrent()
+        return Self.itemID(for: spec)
+    }
+
+    /// No chevron left to make room for (its icon is off, the bar has no
+    /// notch to measure the room by): every extra comes back.
+    func restoreAllYielded() {
+        guard !yielded.isEmpty else { return }
+        yielded.removeAll()
+        PelmetLog.log("extras: back from making room for the chevron")
+        applyCurrent()
     }
 
     private func applyCurrent() {

@@ -574,7 +574,16 @@ enum ApplyPass {
             if chevronX.map({ min(x, target) <= $0 }) ?? true { leftOfChevron = true }
         }
         var snap = await engine.snapshot()
-        for move in moves {
+        // Drags in a row that didn't land while the bar has a «: on a bar
+        // that full the agent bounces them all (11 drags, 24s of the
+        // pointer and a shuffled bar, live test 2026-10-19 20:29).
+        var misses = 0
+        for (index, move) in moves.enumerated() {
+            if misses >= AppTiming.applyOverflowMissLimit {
+                PelmetLog.log("apply: \(misses) drags in a row didn't land with the « on the bar — stopping, \(moves.count - index) move(s) left")
+                report.failed.append(contentsOf: moves[index...].map(\.item))
+                break
+            }
             snap = await engine.snapshot()
             appState.updateSnapshot(snap)
             var frames = primaryFrames(snap, appState: appState)
@@ -638,9 +647,11 @@ enum ApplyPass {
             let finalX = frames[move.item]?.midX ?? -1
             PelmetLog.log("apply: \(move.item.rawValue) landed at x=\(finalX) verified=\(landed)")
             if landed {
+                misses = 0
                 report.applied.append(move.item)
                 continue
             }
+            misses = OverflowToggle.isExpanded() != nil ? misses + 1 : 0
             // Both drags landed back at the start: the item swallowed them
             // (OpenClip, 2026-09-20 18:54, two passes). Same bounce budget as
             // placement; once marked immovable it is a bound, not a failure —

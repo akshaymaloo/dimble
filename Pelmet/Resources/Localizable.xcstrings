@@ -12529,6 +12529,64 @@
         }
       }
     },
+    "Made room for the chevron": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Platz für den Pfeil geschaffen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se hizo sitio para el chevrón"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Place faite pour le chevron"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fatto spazio per la freccia"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "シェブロンのためにスペースを空けました"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "화살표를 위한 공간을 만들었습니다"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Espaço liberado para a seta"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Место для стрелки освобождено"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已为箭头腾出空间"
+          }
+        }
+      }
+    },
     "Media": {
       "localizations": {
         "de": {
@@ -25691,6 +25749,64 @@
           "stringUnit": {
             "state": "translated",
             "value": "菜单栏已满：%lld 个图标在有空间之前会留在 macOS 的 « 后面。Dimble 不会移动它们。"
+          }
+        }
+      }
+    },
+    "Your menu bar is full: Dimble took some of its own icons out so the chevron stays on the bar. They come back when there's room.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deine Menüleiste ist voll: Dimble hat einige eigene Symbole herausgenommen, damit der Pfeil in der Leiste bleibt. Sie kommen zurück, sobald wieder Platz ist."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu barra de menús está llena: Dimble quitó algunos de sus propios iconos para que el chevrón siga en la barra. Vuelven cuando haya sitio."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre barre des menus est pleine : Dimble a retiré certaines de ses propres icônes pour que le chevron reste dans la barre. Elles reviennent dès qu’il y a de la place."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La barra dei menu è piena: Dimble ha tolto alcune delle sue icone perché la freccia resti nella barra. Tornano quando c’è spazio."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "メニューバーがいっぱいです：シェブロンをバーに残すため、Dimble が自分のアイコンをいくつか外しました。空きができると戻ります。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "메뉴 막대가 가득 찼습니다: 화살표가 막대에 남도록 Dimble이 자체 아이콘 일부를 뺐습니다. 공간이 생기면 돌아옵니다."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sua barra de menus está cheia: o Dimble tirou alguns dos próprios ícones para a seta continuar na barra. Eles voltam quando houver espaço."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Строка меню заполнена: Dimble убрал часть своих значков, чтобы стрелка осталась в строке. Они вернутся, когда появится место."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "菜单栏已满：Dimble 移走了自己的一些图标，让箭头留在菜单栏上。有空间时它们会回来。"
           }
         }
       }

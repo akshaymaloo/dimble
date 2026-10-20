@@ -174,6 +174,9 @@ enum AppTiming {
     /// this much quiet, bounded so a restless pointer still gets the
     /// shielded drag rather than a pass that never starts.
     static let applyIdleGap: TimeInterval = 1.5
+    /// Drags in a row that miss, with the « on the bar, before a pass
+    /// stops: each costs about 2s of the user's pointer (#81).
+    static let applyOverflowMissLimit = 2
     static let applyIdleMaxWait: TimeInterval = 8
     /// The same wait in a quiet pass, which goes on shielded after it.
     static let quietApplyIdleMaxWait: TimeInterval = 0.5

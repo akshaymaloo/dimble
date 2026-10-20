@@ -3989,6 +3989,16 @@ final class AppState {
     @ObservationIgnored private(set) var chevronTrapToggle: CGRect?
     @ObservationIgnored private var chevronTrapCheck: Task<Void, Never>?
     @ObservationIgnored private var chevronTrapRetry: Task<Void, Never>?
+    /// Own extras out of the bar so the chevron fits (`yieldForChevron`),
+    /// named by the editor's hint.
+    private(set) var chevronYielded: [ItemID] = []
+    @ObservationIgnored private var chevronYield: Task<Void, Never>?
+    @ObservationIgnored private var chevronYieldedAt: ContinuousClock.Instant?
+    /// The last extra's return, with the room it came back into: the
+    /// chevron behind the « again within 5s means that room was short.
+    @ObservationIgnored private var chevronRestore: (room: CGFloat, at: ContinuousClock.Instant)?
+    @ObservationIgnored private var failedRestoreRoom: CGFloat?
+    @ObservationIgnored private var chevronRestoreLater: Task<Void, Never>?
 
     /// Reads the chevron against the «, on each walk and each time the
     /// chevron's window changes occlusion. A trap holds 1s before it
@@ -4039,6 +4049,80 @@ final class AppState {
             ? "overflow: chevron behind the « (at x=\(Int(toggle?.minX ?? 0)))"
             : "overflow: chevron back on the bar")
         if let snapshot { noteOverflow(in: snapshot) }
+        if trapped {
+            if let restore = chevronRestore, ContinuousClock.now < restore.at + .seconds(5) {
+                failedRestoreRoom = restore.room
+            }
+            chevronRestore = nil
+            yieldForChevron()
+        } else {
+            restoreForChevronIfRoom()
+        }
+    }
+
+    /// The room left of the drawn chevron (`ChevronTrap.room`), nil off a
+    /// notched bar: there the frontmost app's menus set the room, which
+    /// can't be measured for an extra to come back, and the hint stays the
+    /// answer.
+    private func chevronRoom(_ frame: NSRect) -> CGFloat? {
+        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(NSPoint(x: frame.midX, y: frame.midY)) }),
+              let notch = screen.auxiliaryTopRightArea else { return nil }
+        return ChevronTrap.room(chevronMinX: frame.minX, notchMaxX: notch.minX)
+    }
+
+    /// Makes room for the chevron with Pelmet's own extras in Visible,
+    /// nearest it first, one at a time until it draws again: no clicks, no
+    /// drags. Each frees about 42pt on the built-in.
+    private func yieldForChevron() {
+        guard chevronYield == nil, let frame = chevronWindowFrame, chevronRoom(frame) != nil else { return }
+        chevronYield = Task { [weak self] in
+            while let self, self.chevronTrapped, self.statusItem?.windowOcclusionVisible == false,
+                  self.extras?.yieldOne() != nil {
+                self.chevronYieldedAt = .now
+                self.chevronYielded = self.extras?.yieldedKeys ?? []
+                // The ghost hide leaves layout at 0.7s (`StatusItemFader`),
+                // and the occlusion change reads the chevron back.
+                try? await Task.sleep(for: .seconds(1.2))
+            }
+            self?.chevronYield = nil
+        }
+    }
+
+    /// Brings an extra back once the chevron has room for it, one at a
+    /// time: on each walk (the bar changed), and 30s after the last went
+    /// out at the earliest, so a bar that flaps doesn't flap the extras.
+    private func restoreForChevronIfRoom() {
+        guard let extras else { return }
+        // An extra removed in Settings meanwhile has left the list.
+        if chevronYielded != extras.yieldedKeys { chevronYielded = extras.yieldedKeys }
+        guard !chevronYielded.isEmpty else { return }
+        func all() {
+            extras.restoreAllYielded()
+            chevronYielded = []
+        }
+        // No chevron to make room for.
+        guard settings.showStatusItem else { return all() }
+        guard let frame = chevronWindowFrame else { return }
+        // On a bar with no notch now (another display, the lid closed).
+        guard let room = chevronRoom(frame) else { return all() }
+        guard chevronYield == nil, !chevronTrapped, barAttached, picturePassSections == nil, overflowReadHold == nil,
+              !applying, currentRevealedSections.isEmpty, statusItem?.windowOcclusionVisible == true else { return }
+        // A full bar at rest has no walk to come back on.
+        let due = max(chevronYieldedAt.map { $0 + .seconds(30) } ?? .now, chevronRestore.map { $0.at + .seconds(2) } ?? .now)
+        guard ContinuousClock.now >= due else {
+            if chevronRestoreLater == nil {
+                chevronRestoreLater = Task { [weak self] in
+                    try? await Task.sleep(until: due, clock: .continuous)
+                    self?.chevronRestoreLater = nil
+                    self?.restoreForChevronIfRoom()
+                }
+            }
+            return
+        }
+        guard extras.restoreYielded(room: room, failedRoom: failedRestoreRoom) != nil else { return }
+        chevronRestore = (room, .now)
+        chevronYielded = extras.yieldedKeys
+        if !chevronYielded.isEmpty { restoreForChevronIfRoom() }
     }
 
     private func noteOverflow(in snap: EngineSnapshot) {
@@ -4185,6 +4269,7 @@ final class AppState {
         // shown before it is read (`unreadNow`).
         if snap.itemsAtRest, snap.takenAt > (lastRestWalkAt ?? .distantPast) { lastRestWalkAt = snap.takenAt }
         checkChevronTrap()
+        restoreForChevronIfRoom()
         noteOverflow(in: snap)
         let primary = ApplyPass.primaryFrames(snap, appState: self)
         let chevronMidX = pelmetChevronItem(in: snap).flatMap { primary[$0.id.sectionKey]?.midX }
