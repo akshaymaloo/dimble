@@ -80,11 +80,18 @@ enum OverflowToggle {
     /// the main thread, where the sweep's 200-odd hit-tests don't belong.
     /// Nil when the bar has none.
     nonisolated static func isExpanded() -> Bool? {
+        listedToggle()?.expanded
+    }
+
+    /// The « by its label only, nil when the bar has none. The sweep is for
+    /// a pass; a read on every walk or every missed drag stays to the label
+    /// (the sweep is about 230 AX hit-tests, review 2026-10-19).
+    nonisolated static func listedToggle() -> Toggle? {
         guard let agent = NSRunningApplication.runningApplications(withBundleIdentifier: PelmetBundle.agentID).first
         else { return nil }
         let app = AXUIElementCreateApplication(agent.processIdentifier)
         AXUIElementSetMessagingTimeout(app, 0.25)
-        return listed(in: app)?.expanded
+        return listed(in: app)
     }
 
     /// The agent lists the « with its extras. The sweep below stops 200pt
@@ -94,9 +101,14 @@ enum OverflowToggle {
         var barV: CFTypeRef?
         guard AXUIElementCopyAttributeValue(app, kAXExtrasMenuBarAttribute as CFString, &barV) == .success,
               let barV, CFGetTypeID(barV) == AXUIElementGetTypeID() else { return nil }
+        // A timeout set on the app element stays on it: the elements read
+        // from it take the default 6s each.
+        let bar = barV as! AXUIElement
+        AXUIElementSetMessagingTimeout(bar, 0.25)
         var kidsV: CFTypeRef?
-        AXUIElementCopyAttributeValue(barV as! AXUIElement, kAXChildrenAttribute as CFString, &kidsV)
+        AXUIElementCopyAttributeValue(bar, kAXChildrenAttribute as CFString, &kidsV)
         for kid in (kidsV as? [AXUIElement]) ?? [] {
+            AXUIElementSetMessagingTimeout(kid, 0.25)
             guard let expanded = state(of: kid) else { continue }
             return Toggle(element: kid, frame: currentFrame(of: kid) ?? .zero, expanded: expanded)
         }

@@ -574,9 +574,10 @@ enum ApplyPass {
             if chevronX.map({ min(x, target) <= $0 }) ?? true { leftOfChevron = true }
         }
         var snap = await engine.snapshot()
-        // Drags in a row that didn't land while the bar has a «: on a bar
-        // that full the agent bounces them all (11 drags, 24s of the
-        // pointer and a shuffled bar, live test 2026-10-19 20:29).
+        // Drags in a row that bounced (the icon ended where it started)
+        // while the bar has a «: on a bar that full the agent bounces them
+        // all (11 drags, 24s of the pointer and a shuffled bar, live test
+        // 2026-10-19 20:29). A drag that moved the icon at all resets it.
         var misses = 0
         for (index, move) in moves.enumerated() {
             if misses >= AppTiming.applyOverflowMissLimit {
@@ -651,7 +652,8 @@ enum ApplyPass {
                 report.applied.append(move.item)
                 continue
             }
-            misses = OverflowToggle.isExpanded() != nil ? misses + 1 : 0
+            let bounced = abs(finalX - frame.midX) < 0.5
+            misses = bounced && OverflowToggle.listedToggle() != nil ? misses + 1 : 0
             // Both drags landed back at the start: the item swallowed them
             // (OpenClip, 2026-09-20 18:54, two passes). Same bounce budget as
             // placement; once marked immovable it is a bound, not a failure —
