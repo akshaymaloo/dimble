@@ -2748,6 +2748,16 @@ final class AppState {
     private(set) var applying = false
     private(set) var applyReport: ApplyReport?
 
+    /// The editor owns the order (vault plan "Dimble editor owns the bar
+    /// order", 2026-10-20): every section's stored order is what the bar
+    /// should read. A drop writes its drawing there at once, so a pending
+    /// drawing is in it too.
+    var editorOrderTarget: OrderEdits {
+        var target = settings.orderEdits
+        target.order = settings.sectionModel.order
+        return target
+    }
+
     /// Moves the bar needs to match the editor as it stands: drawn edits
     /// plus any icon on the wrong side of the chevron (0 with nothing on
     /// screen to move).

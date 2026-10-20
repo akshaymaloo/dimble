@@ -46,6 +46,9 @@ final class SectionGrouper {
     private var passRunning = false
     private var lastState = ""
     private var lastWaiting: String?
+    private var lastDrift = ""
+    /// The pid behind each icon at the last look, to tell a relaunch.
+    private var driftPIDs: [ItemID: Int32] = [:]
     private var observers: [NSObjectProtocol] = []
     private var menuDepth = 0
     private var menuBeganAt: Date?
@@ -200,6 +203,7 @@ final class SectionGrouper {
             ApplyPass.sightings(for: appState, snapshot: snap), strays: Set(strays), ownMoves: ownMoves
         )
         ownMoves = []
+        noteDrift(appState, snap)
         for id in byHand where strays.contains(id) {
             PelmetLog.log("group: \(id.rawValue) moved by hand — left where it is")
         }
@@ -252,6 +256,33 @@ final class SectionGrouper {
         PelmetLog.log("group: pass applied=\(report.applied.count) failed=\(report.failed.count) skipped=\(report.skipped.count)")
         // Look again: a second attempt for what stayed, or "no strays".
         schedule(after: AppTiming.groupingDebounce)
+    }
+
+    /// M0 of the editor-owns-order plan: what a pass against the editor's
+    /// stored order would move right now, logged on change and never acted
+    /// on, to learn how often the bar drifts and why before anything drags
+    /// on its own. Remembered frames stand in for concealed icons, so
+    /// Always Hidden drift among Hidden reads only at a full reveal.
+    private func noteDrift(_ appState: AppState, _ snap: EngineSnapshot) {
+        let plan = ApplyPass.plan(for: appState, snapshot: snap, edits: appState.editorOrderTarget, remembered: true)
+        var pids: [ItemID: Int32] = [:]
+        for item in snap.items where item.pid > 0 { pids[item.id.sectionKey] = item.pid }
+        let live = Set(snap.items.filter { $0.frame != nil }.map(\.id.sectionKey))
+        let drawn = appState.settings.orderEdits
+        let moves = plan.moves.map { move -> String in
+            let id = move.item
+            var why = id.bundleID.map(PelmetBundle.ownIDs.contains) == true ? "own"
+                : MenuBarPolicy.systemItem(for: id) != nil ? "system" : "app"
+            if let then = driftPIDs[id], let now = pids[id], then != now { why += ", relaunched" }
+            if drawn.touches(id) { why += ", drawn" }
+            if !live.contains(id) { why += ", remembered" }
+            return "\(Self.names([id])) (\(why))"
+        }
+        driftPIDs.merge(pids) { _, now in now }
+        let line = moves.isEmpty ? "order: no drift" : "order: drift \(moves.count) move(s) — \(moves.joined(separator: "; "))"
+        guard line != lastDrift else { return }
+        lastDrift = line
+        PelmetLog.log(line)
     }
 
     private static func names(_ ids: [ItemID]) -> String {
