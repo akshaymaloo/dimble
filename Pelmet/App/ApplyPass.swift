@@ -143,18 +143,10 @@ enum ApplyPass {
             frames[key] = f
             if roster.section(of: key) == .alwaysHidden { rememberedAlwaysHidden.insert(key) }
         }
-        // Always Hidden is seen only in a full reveal, Hidden in every hover,
-        // and the chevron alone does not re-anchor one against the other: the
-        // separator remembered at launch, before Siri joined Hidden, read
-        // inside it and lit "Apply (1)" with nothing to do (2026-09-25). No
-        // reading sees across that line while Always Hidden is concealed, so
-        // its remembered icons keep their order, left of Hidden.
         let hiddenLeft = frames.filter { roster.section(of: $0.key) == .hidden }.map(\.value.minX).min()
-        let groupRight = rememberedAlwaysHidden.compactMap { frames[$0]?.maxX }.max()
-        if let hiddenLeft, let groupRight, groupRight > hiddenLeft {
-            for key in rememberedAlwaysHidden { frames[key] = frames[key]?.offsetBy(dx: hiddenLeft - groupRight, dy: 0) }
-        }
-        return frames
+        return FrameMemory.alwaysHiddenLeftOfHidden(
+            frames, alwaysHidden: rememberedAlwaysHidden, hiddenLeft: hiddenLeft, chevronMidX: chevronNow
+        )
     }
 
     /// The bar as `MovePlan` wants it: canonical keys, left to right, only
