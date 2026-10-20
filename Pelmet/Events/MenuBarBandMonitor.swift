@@ -470,10 +470,18 @@ final class MenuBarBandMonitor {
         // Apple's « open on hidden icons that didn't fit: it draws them left
         // of the notch, and the notch is off the band, so the way there read
         // as leaving the bar and they concealed under the pointer (#81, live
-        // test 2026-10-19).
-        if let appState, appState.isRevealed, appState.overflowTrappedCount > 0,
+        // test 2026-10-19). Held while the pointer crosses the notch only: a
+        // « left open must not hold the reveal once the pointer is off the
+        // bar, and its icons, drawn, no longer read as behind it.
+        if let appState, appState.isRevealed, pointerOnNotch(),
            OverflowToggle.isExpanded() == true { return .overflow }
         return nil
+    }
+
+    private func pointerOnNotch() -> Bool {
+        let location = NSEvent.mouseLocation
+        guard let geometry = screenGeometry(containing: location), let notch = geometry.notch else { return false }
+        return NSMouseInRect(location, geometry.band, false) && location.x > notch.minX && location.x < notch.maxX
     }
 
     /// Deliberately narrow: only visible, menu/popover-sized windows at
@@ -853,7 +861,14 @@ final class MenuBarBandMonitor {
         // put the « inside the zone: a hover there revealed every hidden icon
         // straight behind it (#81). The triggers stop short of it, a pointer
         // resting 1pt left of its frame on the way in still revealed.
-        if let toggle = appState?.chevronTrapToggle { return toggle.minX - 8 }
+        if let toggle = appState?.chevronTrapToggle {
+            // A global x: as a main-display x, the way `liveChevronMaxX`
+            // reads the chevron (review, 2026-10-19).
+            let x = toggle.minX - 8
+            guard let geometry = screenGeometry.first(where: { x >= $0.frame.minX && x < $0.frame.maxX }),
+                  let primary = screenGeometry.first else { return x }
+            return primary.frame.maxX - (geometry.frame.maxX - x)
+        }
         guard let appState, let items = appState.snapshot?.items,
               let primaryMaxX = NSScreen.screens.first?.frame.maxX else { return nil }
         let live = items.compactMap { item -> (id: ItemID, frame: CGRect)? in

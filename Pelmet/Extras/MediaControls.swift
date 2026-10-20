@@ -510,7 +510,11 @@ final class ExtrasManager {
             case .shortcut, .userSwitching, .shortcutsMenu, .siri:
                 break
             }
-            if yielded.contains(where: { $0.id == id }) { visible = false }
+            if let index = yielded.firstIndex(where: { $0.id == id }) {
+                // Its own rule brings it out (a timer started, a Focus came
+                // on): an indicator never stays out for the chevron.
+                if ruleForcesShow(spec) { yielded.remove(at: index) } else { visible = false }
+            }
             setVisible(visible, for: id, item: item)
             // A hidden glyph keeps its last frame and stops ticking.
             animators[id]?.paused = !visible
@@ -659,7 +663,7 @@ final class ExtrasManager {
         let next = items.compactMap { id, item -> (id: UUID, frame: NSRect)? in
             guard let spec = specs[id], lastVisible[id] == true, !shownAlone.contains(id),
                   !yielded.contains(where: { $0.id == id }), spec.kind != .cameraMicIndicator,
-                  !(spec.kind == .timer && (pelmetTimer?.isActive ?? false)),
+                  !ruleForcesShow(spec),
                   model.section(of: Self.itemID(for: spec)) == .visible,
                   let frame = item.button?.window?.frame, frame.width > 0 else { return nil }
             return (id, frame)
@@ -669,6 +673,17 @@ final class ExtrasManager {
         PelmetLog.log("extras: \(spec.itemTitle) out to make room for the chevron (\(Int(next.frame.width))pt)")
         applyCurrent()
         return Self.itemID(for: spec)
+    }
+
+    /// Out on its own rule whatever its section: a counting timer, a Focus
+    /// or a backup "when active". Such an extra never yields.
+    private func ruleForcesShow(_ spec: ExtraItemSpec) -> Bool {
+        switch spec.kind {
+        case .timer: return pelmetTimer?.isActive ?? false
+        case .focus: return spec.resolvedShowRule == .whenActive && focusStatus?.active != nil
+        case .timeMachine: return spec.resolvedShowRule == .whenActive && (timeMachine?.status.running ?? false)
+        default: return false
+        }
     }
 
     /// Brings back the latest extra out of the bar that fits in `room`

@@ -4024,14 +4024,19 @@ final class AppState {
             return
         }
         guard chevronTrapCheck == nil else { return }
+        // The « by its label: an occlusion that stays off (a full-screen
+        // app, an auto-hidden bar) re-reads it on every walk, and the sweep
+        // is about 230 AX hit-tests.
         chevronTrapCheck = Task { [weak self] in
-            var toggle = await Task.detached { OverflowToggle.find()?.frame }.value
+            var toggle = await Task.detached { OverflowToggle.listedToggle()?.frame }.value
             if self?.chevronTrapped == false, self?.chevronParked(on: toggle) == true {
                 try? await Task.sleep(for: .seconds(1))
-                toggle = await Task.detached { OverflowToggle.find()?.frame }.value
+                toggle = await Task.detached { OverflowToggle.listedToggle()?.frame }.value
             }
             guard let self, !Task.isCancelled else { return }
             self.chevronTrapCheck = nil
+            // A pass or a « hold that began during the hold reads again after it.
+            guard self.picturePassSections == nil, self.overflowReadHold == nil else { return self.checkChevronTrap() }
             self.setChevronTrapped(self.chevronParked(on: toggle), toggle: toggle)
         }
     }
@@ -4043,7 +4048,12 @@ final class AppState {
 
     private func setChevronTrapped(_ trapped: Bool, toggle: CGRect?) {
         chevronTrapToggle = trapped ? toggle : nil
-        guard trapped != chevronTrapped else { return }
+        // Still behind: a yield that couldn't run when the trap began (the
+        // chevron on a screen with no notch, no extra up yet) gets its turn.
+        guard trapped != chevronTrapped else {
+            if trapped { yieldForChevron() }
+            return
+        }
         chevronTrapped = trapped
         PelmetLog.log(trapped
             ? "overflow: chevron behind the « (at x=\(Int(toggle?.minX ?? 0)))"
@@ -4076,13 +4086,17 @@ final class AppState {
     private func yieldForChevron() {
         guard chevronYield == nil, let frame = chevronWindowFrame, chevronRoom(frame) != nil else { return }
         chevronYield = Task { [weak self] in
-            while let self, self.chevronTrapped, self.statusItem?.windowOcclusionVisible == false,
-                  self.extras?.yieldOne() != nil {
+            while let self, self.chevronTrapped, self.extras?.yieldOne() != nil {
                 self.chevronYieldedAt = .now
                 self.chevronYielded = self.extras?.yieldedKeys ?? []
-                // The ghost hide leaves layout at 0.7s (`StatusItemFader`),
-                // and the occlusion change reads the chevron back.
+                // The ghost hide leaves layout at 0.7s (`StatusItemFader`).
                 try? await Task.sleep(for: .seconds(1.2))
+                // The next only while the chevron is still parked on a listed
+                // «: occlusion alone also stays off on a locked screen, under
+                // a full-screen app or an auto-hidden bar, and the loop
+                // emptied Visible there (review, 2026-10-19).
+                let toggle = await Task.detached { OverflowToggle.listedToggle()?.frame }.value
+                guard self.chevronParked(on: toggle) else { break }
             }
             self?.chevronYield = nil
         }
@@ -4095,16 +4109,25 @@ final class AppState {
         guard let extras else { return }
         // An extra removed in Settings meanwhile has left the list.
         if chevronYielded != extras.yieldedKeys { chevronYielded = extras.yieldedKeys }
-        guard !chevronYielded.isEmpty else { return }
+        // A short room is learnt for the extras out now, never for good.
+        guard !chevronYielded.isEmpty else { failedRestoreRoom = nil; return }
         func all() {
             extras.restoreAllYielded()
             chevronYielded = []
+            failedRestoreRoom = nil
         }
         // No chevron to make room for.
         guard settings.showStatusItem else { return all() }
         guard let frame = chevronWindowFrame else { return }
-        // On a bar with no notch now (another display, the lid closed).
-        guard let room = chevronRoom(frame) else { return all() }
+        guard let room = chevronRoom(frame) else {
+            // The chevron on a screen with no notch (its bar follows the
+            // active display): nothing to measure there, and bringing them
+            // all back yielded them again at each switch (review,
+            // 2026-10-19). They wait for the notched bar, or come back once
+            // no notched screen is left (the lid closed).
+            if !NSScreen.screens.contains(where: { $0.auxiliaryTopRightArea != nil }) { all() }
+            return
+        }
         guard chevronYield == nil, !chevronTrapped, barAttached, picturePassSections == nil, overflowReadHold == nil,
               !applying, currentRevealedSections.isEmpty, statusItem?.windowOcclusionVisible == true else { return }
         // A full bar at rest has no walk to come back on.
