@@ -792,6 +792,7 @@ final class AppState {
         ) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.transitions.dropHeldBars("display change")
+                self?.chevronDisplaysChanged()
                 self?.scheduleChevronHostCheck("display change")
                 self?.scheduleAnchorCheck("display change")
             }
@@ -3994,11 +3995,23 @@ final class AppState {
     private(set) var chevronYielded: [ItemID] = []
     @ObservationIgnored private var chevronYield: Task<Void, Never>?
     @ObservationIgnored private var chevronYieldedAt: ContinuousClock.Instant?
-    /// The last extra's return, with the room it came back into: the
-    /// chevron behind the « again within 5s means that room was short.
-    @ObservationIgnored private var chevronRestore: (room: CGFloat, at: ContinuousClock.Instant)?
-    @ObservationIgnored private var failedRestoreRoom: CGFloat?
+    /// The last extra's return: the room it came back into, when, and
+    /// whether the bar is still to be read for it (`confirmChevronRestore`).
+    /// The chevron behind the « again within 5s means that room was short.
+    @ObservationIgnored private var chevronRestore: (room: CGFloat, at: ContinuousClock.Instant, unread: Bool)?
+    @ObservationIgnored private var shortRoom: ShortRoom?
     @ObservationIgnored private var chevronRestoreLater: Task<Void, Never>?
+    /// The bar read again after a return (`confirmChevronRestore`).
+    @ObservationIgnored private var chevronRestoreCheck: Task<Void, Never>?
+    /// The latest walk, for the room read (`chevronRoom`): a walk's trap and
+    /// return reads run before `snapshot` takes it, and read the room from
+    /// the walk before (room 60 from the chevron's old frame with 65 drawn,
+    /// no return, live test 2026-10-20 08:31:06).
+    @ObservationIgnored private var chevronRoomWalk: EngineSnapshot?
+    /// That walk's copies on every display's bar, by the walk's time: the
+    /// room on a bar other than the main display's (`chevronRoom`).
+    @ObservationIgnored private var chevronRoomCopies: (walk: Date, copies: [ItemID: [CGRect]])?
+    @ObservationIgnored private var chevronRoomCopiesFetch: Task<Void, Never>?
 
     /// Reads the chevron against the «, on each walk and each time the
     /// chevron's window changes occlusion. A trap holds 1s before it
@@ -4028,10 +4041,10 @@ final class AppState {
         // app, an auto-hidden bar) re-reads it on every walk, and the sweep
         // is about 230 AX hit-tests.
         chevronTrapCheck = Task { [weak self] in
-            var toggle = await Task.detached { OverflowToggle.listedToggle()?.frame }.value
+            var toggle = await self?.chevronBarToggle()
             if self?.chevronTrapped == false, self?.chevronParked(on: toggle) == true {
                 try? await Task.sleep(for: .seconds(1))
-                toggle = await Task.detached { OverflowToggle.listedToggle()?.frame }.value
+                toggle = await self?.chevronBarToggle()
             }
             guard let self, !Task.isCancelled else { return }
             self.chevronTrapCheck = nil
@@ -4060,33 +4073,112 @@ final class AppState {
             : "overflow: chevron back on the bar")
         if let snapshot { noteOverflow(in: snapshot) }
         if trapped {
-            if let restore = chevronRestore, ContinuousClock.now < restore.at + .seconds(5) {
-                failedRestoreRoom = restore.room
+            // The return just made pushed it behind: that extra goes first,
+            // and the room is learnt, from a bar at rest (a reveal fills the
+            // bar by itself).
+            var short: CGFloat?
+            if let restore = chevronRestore, ContinuousClock.now < restore.at + .seconds(5), chevronBarBusy == nil {
+                learnShortRoom(restore.room)
+                short = restore.room
             }
             chevronRestore = nil
-            yieldForChevron()
+            chevronRestoreCheck?.cancel()
+            chevronRestoreCheck = nil
+            yieldForChevron(shortRoom: short)
         } else {
             restoreForChevronIfRoom()
         }
     }
 
-    /// The room left of the drawn chevron (`ChevronTrap.room`), nil off a
-    /// notched bar: there the frontmost app's menus set the room, which
-    /// can't be measured for an extra to come back, and the hint stays the
-    /// answer.
-    private func chevronRoom(_ frame: NSRect) -> CGFloat? {
+    /// The chevron's display when it has a notch, with the notch's right
+    /// edge. Nil off a notched bar: there the frontmost app's menus set the
+    /// room, which can't be measured for an extra to come back, and the
+    /// hint stays the answer.
+    private func chevronNotchedBar(_ frame: NSRect) -> (screen: NSScreen, notchMaxX: CGFloat)? {
         guard let screen = NSScreen.screens.first(where: { $0.frame.contains(NSPoint(x: frame.midX, y: frame.midY)) }),
               let notch = screen.auxiliaryTopRightArea else { return nil }
-        return ChevronTrap.room(chevronMinX: frame.minX, notchMaxX: notch.minX)
+        return (screen, notch.minX)
+    }
+
+    /// The room left of the drawn chevron's bar (`ChevronTrap.room`), from
+    /// its left end (`ChevronTrap.leftEdge`): the icons `walk` reads drawn
+    /// on the chevron's display. The walk frames the main display's bar;
+    /// another display's is read from its `copies` there.
+    private func chevronRoom(_ frame: NSRect, on bar: (screen: NSScreen, notchMaxX: CGFloat), walk: EngineSnapshot,
+                             copies: [ItemID: [CGRect]]?) -> CGFloat {
+        // Only what the bar draws now (`drawnNow`, which leaves out an extra
+        // put away, its frame still read for 0.7s): the walk just after a
+        // conceal still lists hidden icons where they stood, and pulled the
+        // left end in to a room of 1 (review, 2026-10-20).
+        let drawn = drawnNow(in: walk)
+        let concealed = Set(walk.concealed.map(\.sectionKey))
+        let display = bar.screen.directDisplayID.map(CGDisplayBounds)
+        let frames = walk.items.compactMap { item -> CGRect? in
+            guard drawn(item.id), !concealed.contains(item.id.sectionKey) else { return nil }
+            if let copies {
+                return display.flatMap { display in copies[item.id].flatMap { MenuBarGeometry.copy(onDisplay: display, among: $0) } }
+            }
+            guard let f = item.frame, PlacementGeometry.isPrimary(f, screenMaxX: bar.screen.frame.maxX) else { return nil }
+            return f
+        }
+        let edge = ChevronTrap.leftEdge(chevronMinX: frame.minX, frames: frames, notchMaxX: bar.notchMaxX)
+        return ChevronTrap.room(leftEdge: edge, notchMaxX: bar.notchMaxX)
+    }
+
+    /// The icons `walk` reads drawn, Pelmet's own aside (its extras come and
+    /// go for the chevron): the bar a short room was learnt on (`ShortRoom`).
+    private func chevronBarKeys(_ walk: EngineSnapshot) -> Set<ItemID> {
+        let drawn = drawnNow(in: walk)
+        return Set(walk.items.compactMap { item in
+            item.id.bundleID.map(PelmetBundle.ownIDs.contains) != true && drawn(item.id) ? item.id.sectionKey : nil
+        })
+    }
+
+    private func learnShortRoom(_ room: CGFloat) {
+        shortRoom = ShortRoom(room: room, bar: (chevronRoomWalk ?? snapshot).map(chevronBarKeys) ?? [])
+    }
+
+    /// Another display arrangement is another bar: a room learnt on the old
+    /// one doesn't hold there.
+    private func chevronDisplaysChanged() {
+        chevronRoomCopies = nil
+        guard let short = shortRoom else { return }
+        shortRoom = nil
+        PelmetLog.log("extras: displays changed, \(Int(short.room))pt is read again")
+    }
+
+    /// The walk's copies for another display's bar, then the return again.
+    private func fetchChevronRoomCopies(for walk: Date) {
+        guard chevronRoomCopiesFetch == nil else { return }
+        chevronRoomCopiesFetch = Task { [weak self] in
+            guard let copies = await self?.engine.barCopies() else { return }
+            self?.chevronRoomCopiesFetch = nil
+            self?.chevronRoomCopies = (walk, copies)
+            self?.restoreForChevronIfRoom()
+        }
+    }
+
+    /// What has the bar besides its icons now, nil at rest: a pass, a «
+    /// hold, Apply placing, a reveal.
+    private var chevronBarBusy: String? {
+        if picturePassSections != nil { return "pass" }
+        if overflowReadHold != nil { return "« hold" }
+        if applying { return "placing" }
+        if !currentRevealedSections.isEmpty { return "revealed" }
+        return nil
     }
 
     /// Makes room for the chevron with Pelmet's own extras in Visible,
     /// nearest it first, one at a time until it draws again: no clicks, no
-    /// drags. Each frees about 42pt on the built-in.
-    private func yieldForChevron() {
-        guard chevronYield == nil, let frame = chevronWindowFrame, chevronRoom(frame) != nil else { return }
+    /// drags. Each frees about 42pt on the built-in. With `shortRoom`, the
+    /// extra that just came back into it goes first.
+    private func yieldForChevron(shortRoom: CGFloat? = nil) {
+        guard chevronYield == nil, let frame = chevronWindowFrame, chevronNotchedBar(frame) != nil else { return }
         chevronYield = Task { [weak self] in
-            while let self, self.chevronTrapped, self.extras?.yieldOne() != nil {
+            var shortRoom = shortRoom
+            while let self, self.chevronTrapped,
+                  (shortRoom.flatMap { self.extras?.yieldRestoredAgain(shortRoom: $0) } ?? self.extras?.yieldOne()) != nil {
+                shortRoom = nil
                 self.chevronYieldedAt = .now
                 self.chevronYielded = self.extras?.yieldedKeys ?? []
                 // The ghost hide leaves layout at 0.7s (`StatusItemFader`).
@@ -4095,7 +4187,7 @@ final class AppState {
                 // «: occlusion alone also stays off on a locked screen, under
                 // a full-screen app or an auto-hidden bar, and the loop
                 // emptied Visible there (review, 2026-10-19).
-                let toggle = await Task.detached { OverflowToggle.listedToggle()?.frame }.value
+                let toggle = await self.chevronBarToggle()
                 guard self.chevronParked(on: toggle) else { break }
             }
             self?.chevronYield = nil
@@ -4109,17 +4201,31 @@ final class AppState {
         guard let extras else { return }
         // An extra removed in Settings meanwhile has left the list.
         if chevronYielded != extras.yieldedKeys { chevronYielded = extras.yieldedKeys }
-        // A short room is learnt for the extras out now, never for good.
-        guard !chevronYielded.isEmpty else { failedRestoreRoom = nil; return }
         func all() {
             extras.restoreAllYielded()
             chevronYielded = []
-            failedRestoreRoom = nil
+            shortRoom = nil
+            chevronRestore = nil
+            chevronRestoreCheck?.cancel()
+            chevronRestoreCheck = nil
         }
         // No chevron to make room for.
         guard settings.showStatusItem else { return all() }
+        // A return whose read gave up on a busy bar is read on the next walk.
+        if let restore = chevronRestore, restore.unread, chevronRestoreCheck == nil {
+            return confirmChevronRestore(room: restore.room)
+        }
+        // A short room is learnt for the extras out now, never for good. Kept
+        // while the trap's yield is on its way: the trap learns the room
+        // first, and a walk before the yield ran read an empty list and
+        // forgot it, so the same return came back every 30s (review,
+        // 2026-10-20).
+        guard !chevronYielded.isEmpty else {
+            if chevronYield == nil { shortRoom = nil }
+            return
+        }
         guard let frame = chevronWindowFrame else { return }
-        guard let room = chevronRoom(frame) else {
+        guard let bar = chevronNotchedBar(frame) else {
             // The chevron on a screen with no notch (its bar follows the
             // active display): nothing to measure there, and bringing them
             // all back yielded them again at each switch (review,
@@ -4128,8 +4234,25 @@ final class AppState {
             if !NSScreen.screens.contains(where: { $0.auxiliaryTopRightArea != nil }) { all() }
             return
         }
-        guard chevronYield == nil, !chevronTrapped, barAttached, picturePassSections == nil, overflowReadHold == nil,
-              !applying, currentRevealedSections.isEmpty, statusItem?.windowOcclusionVisible == true else { return }
+        guard chevronYield == nil, chevronRestoreCheck == nil, !chevronTrapped, barAttached, chevronBarBusy == nil,
+              statusItem?.windowOcclusionVisible == true else { return }
+        // A walk mid-move reads icons on their way: the walk at rest after it
+        // decides (`updateSnapshot` takes it even when it reads the same).
+        guard let walk = chevronRoomWalk ?? snapshot, walk.itemsAtRest else { return }
+        var copies: [ItemID: [CGRect]]?
+        if bar.screen.directDisplayID != NSScreen.screens.first?.directDisplayID {
+            // The walk frames the main display's bar: a built-in that isn't
+            // the main display is read from the same walk's copies there.
+            guard let held = chevronRoomCopies, held.walk == walk.takenAt else {
+                return fetchChevronRoomCopies(for: walk.takenAt)
+            }
+            copies = held.copies
+        }
+        let room = chevronRoom(frame, on: bar, walk: walk, copies: copies)
+        if let short = shortRoom, !short.holds(on: chevronBarKeys(walk)) {
+            PelmetLog.log("extras: the bar changed, \(Int(short.room))pt is read again")
+            shortRoom = nil
+        }
         // A full bar at rest has no walk to come back on.
         let due = max(chevronYieldedAt.map { $0 + .seconds(30) } ?? .now, chevronRestore.map { $0.at + .seconds(2) } ?? .now)
         guard ContinuousClock.now >= due else {
@@ -4142,10 +4265,75 @@ final class AppState {
             }
             return
         }
-        guard extras.restoreYielded(room: room, failedRoom: failedRestoreRoom) != nil else { return }
-        chevronRestore = (room, .now)
+        guard extras.restoreYielded(room: room, failedRoom: shortRoom?.room) != nil else { return }
+        chevronRestore = (room, .now, true)
         chevronYielded = extras.yieldedKeys
-        if !chevronYielded.isEmpty { restoreForChevronIfRoom() }
+        confirmChevronRestore(room: room)
+    }
+
+    /// Reads the bar again once the agent has laid a return out
+    /// (`RestoreCheck`): a « read 1.2s after it and still there 1.2s later
+    /// means the extra didn't fit after all, wherever the agent put it
+    /// (behind the «, or pushing the chevron there; the trap read has that
+    /// one first). A return only runs with no « on the bar (`chevronRoom`
+    /// counts an icon parked on one), so a « that stays is this return's.
+    /// The extra goes out again and the room it failed at is learnt
+    /// (`ShortRoom`), so it can't flap. Reads count only with the bar at
+    /// rest: a return while audio plays places MediaControls (`applying`
+    /// from 600ms), and a hover reveal or an item press has a bar of its
+    /// own. A read dropped then left the « and the extra behind it, as at
+    /// 22:47:38 (review, 2026-10-20). Busy for 30s, the next walk reads it.
+    /// The next return waits for the read.
+    private func confirmChevronRestore(room: CGFloat) {
+        chevronRestoreCheck = Task { [weak self] in
+            var check = RestoreCheck()
+            var waited = false
+            for _ in 0..<25 {
+                try? await Task.sleep(for: .seconds(1.2))
+                guard let self, !Task.isCancelled else { return }
+                if let busy = self.chevronBarBusy {
+                    if !waited { PelmetLog.log("extras: the return's read waits, the bar is busy (\(busy))") }
+                    waited = true
+                    continue
+                }
+                let toggle = await self.chevronBarToggle()
+                // Busy meanwhile: the read is the busy bar's.
+                guard !Task.isCancelled else { return }
+                guard self.chevronBarBusy == nil else { continue }
+                switch check.read(toggleOnBar: toggle != nil) {
+                case nil:
+                    continue
+                case .fits:
+                    self.chevronRestoreCheck = nil
+                    self.chevronRestore?.unread = false
+                    if waited { PelmetLog.log("extras: the return read at rest, no «") }
+                    self.restoreForChevronIfRoom()
+                case .short:
+                    self.chevronRestoreCheck = nil
+                    self.chevronRestore = nil
+                    self.learnShortRoom(room)
+                    guard let extras = self.extras, extras.yieldRestoredAgain(shortRoom: room) != nil else { return }
+                    self.chevronYieldedAt = .now
+                    self.chevronYielded = extras.yieldedKeys
+                }
+                return
+            }
+            self?.chevronRestoreCheck = nil
+            PelmetLog.log("extras: the return's read gave up, the bar was busy for 30s")
+        }
+    }
+
+    /// The « on the chevron's bar, by its label
+    /// (`OverflowToggle.listedToggles`): with a bar on each display, the
+    /// first the agent lists can be another display's (review,
+    /// 2026-10-20). Nil when that bar has none.
+    private func chevronBarToggle() async -> CGRect? {
+        let display = chevronWindowFrame.flatMap { frame in
+            NSScreen.screens.first { $0.frame.contains(NSPoint(x: frame.midX, y: frame.midY)) }
+        }?.directDisplayID.map(CGDisplayBounds)
+        let toggles = await Task.detached { OverflowToggle.listedToggles().map(\.frame) }.value
+        guard let display else { return toggles.first }
+        return toggles.first { MenuBarGeometry.isInBand($0, ofDisplay: display) }
     }
 
     private func noteOverflow(in snap: EngineSnapshot) {
@@ -4291,6 +4479,7 @@ final class AppState {
         // dropped below: it read the bar at rest all the same, and an extra
         // shown before it is read (`unreadNow`).
         if snap.itemsAtRest, snap.takenAt > (lastRestWalkAt ?? .distantPast) { lastRestWalkAt = snap.takenAt }
+        chevronRoomWalk = snap
         checkChevronTrap()
         restoreForChevronIfRoom()
         noteOverflow(in: snap)
