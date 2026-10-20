@@ -475,7 +475,19 @@ final class MenuBarBandMonitor {
         // bar, and its icons, drawn, no longer read as behind it.
         if let appState, appState.isRevealed, pointerOnNotch(),
            OverflowToggle.isExpanded() == true { return .overflow }
+        // A chevron click on a display that shows all icons opens Always
+        // Hidden there (#96): held while the pointer stays on that bar, as
+        // on a hiding one. `pointerInBand` never tracks such a display, it
+        // reveals nothing on hover (live, 2026-10-20: concealed 0.8s in).
+        if let appState, appState.isRevealed, pointerOnShowAllBar(appState) { return .band }
         return nil
+    }
+
+    private func pointerOnShowAllBar(_ appState: AppState) -> Bool {
+        let location = NSEvent.mouseLocation
+        guard let geometry = screenGeometry(containing: location) else { return false }
+        return appState.settings.behavior(forDisplayUUID: geometry.uuid) == .alwaysShowAll
+            && NSMouseInRect(location, geometry.band, false)
     }
 
     private func pointerOnNotch() -> Bool {
