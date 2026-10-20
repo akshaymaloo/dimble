@@ -89,4 +89,24 @@ import Testing
         #expect(memory.forget(allBut: hidden).isEmpty)
         #expect(memory.frames[snib] == frame(160) && memory.chevronMidX[snib] == 210)
     }
+
+    @Test func alwaysHiddenKeepsLeftOfHiddenButAStrayKeepsItsSide() {
+        let velja = ItemID.bundleKey("com.sindresorhus.Velja")
+        let battery = ItemID(rawValue: "status:com.apple.MenuBarAgent::com.apple.menuextra.battery")
+        // Velja remembered inside Hidden (left edge 100), Battery right of
+        // the chevron (midX 210): Velja moves left of Hidden, Battery stays.
+        let frames = [velja: frame(110), battery: frame(240), snib: frame(100)]
+        let out = FrameMemory.alwaysHiddenLeftOfHidden(
+            frames, alwaysHidden: [velja, battery], hiddenLeft: 100, chevronMidX: 210
+        )
+        #expect(out[velja] == frame(80))
+        #expect(out[battery] == frame(240))
+        #expect(out[snib] == frame(100))
+        // Battery alone set the group's right edge before: Velja went 140pt
+        // further left and Battery read in place.
+        let group = FrameMemory.alwaysHiddenLeftOfHidden(
+            frames, alwaysHidden: [velja, battery], hiddenLeft: 100, chevronMidX: nil
+        )
+        #expect(group[battery] == frame(100 - 20) && group[velja] == frame(110 - 160))
+    }
 }

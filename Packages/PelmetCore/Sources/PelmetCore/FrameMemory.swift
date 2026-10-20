@@ -55,4 +55,27 @@ public struct FrameMemory: Equatable, Sendable {
         awaitingRest.formUnion(stale)
         return stale
     }
+
+    /// Always Hidden is seen only in a full reveal, Hidden in every hover,
+    /// and the chevron alone does not re-anchor one against the other: the
+    /// separator remembered at launch, before Siri joined Hidden, read
+    /// inside it and lit "Apply (1)" with nothing to do (2026-09-25). No
+    /// reading sees across that line while Always Hidden is concealed, so
+    /// its remembered icons (`alwaysHidden`) keep their order, left of
+    /// Hidden's left edge. One remembered right of the chevron was seen
+    /// there, a stray, and keeps its side: shifted with the group, Battery
+    /// read in place at rest and was never grouped (2026-10-20).
+    public static func alwaysHiddenLeftOfHidden(
+        _ frames: [ItemID: CGRect], alwaysHidden: Set<ItemID>, hiddenLeft: CGFloat?, chevronMidX: CGFloat?
+    ) -> [ItemID: CGRect] {
+        let group = alwaysHidden.filter { key in
+            guard let chevronMidX, let frame = frames[key] else { return true }
+            return frame.midX < chevronMidX
+        }
+        guard let hiddenLeft, let groupRight = group.compactMap({ frames[$0]?.maxX }).max(),
+              groupRight > hiddenLeft else { return frames }
+        var shifted = frames
+        for key in group { shifted[key] = frames[key]?.offsetBy(dx: hiddenLeft - groupRight, dy: 0) }
+        return shifted
+    }
 }

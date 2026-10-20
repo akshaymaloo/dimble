@@ -7,7 +7,8 @@
 // of the chevron, the last roster section and the process behind it, and
 // from the change between two looks decides:
 //
-//   actionable  a stray that is newly seen, relaunched (new pid), or whose
+//   actionable  a stray that is newly seen, relaunched (new pid), out for
+//               the first time after only concealed looks, or whose
 //               section changed while its side did not (an editor drop:
 //               membership moved, nothing else did; a flip of Pelmet's
 //               own between the two looks is no change). Lasts while it
@@ -54,6 +55,10 @@ public struct StrayLedger: Equatable, Sendable {
         /// explained (or since a look last placed it).
         var unplacedSince: Date?
         var concealed = false
+        /// Concealed at every look since the first, on one side throughout:
+        /// no hand has reached it (a side change while concealed is a
+        /// frame a reveal no look saw remembered).
+        var onlyConcealed = false
     }
 
     private var records: [ItemID: Record] = [:]
@@ -111,7 +116,7 @@ public struct StrayLedger: Equatable, Sendable {
             guard let prev = records[s.id] else {
                 next[s.id] = Record(
                     side: s.side, section: s.section, pid: s.pid, standing: strays.contains(s.id) ? .actionable : .settled,
-                    concealed: s.concealed
+                    concealed: s.concealed, onlyConcealed: s.concealed
                 )
                 continue
             }
@@ -136,7 +141,15 @@ public struct StrayLedger: Equatable, Sendable {
             let leftTheLook = prev.side != nil && s.side == nil
             let backFromConcealed = prev.side == nil && prev.concealed
             let flipped = sideChanged && !leftTheLook && !backFromConcealed && !ownFlip
-            if relaunched {
+            // Met concealed and never out since: its first look out is its
+            // first look on the bar. Settled there, Battery in Always Hidden
+            // came out right of the chevron at every reveal and "nothing
+            // explains it" kept it there (2026-10-20). Only a look that
+            // places it, and no flip: from a remembered side, a hover's
+            // ⌘-drag is a hand's; off the primary bar, a hand can still
+            // drop it there (review, 2026-10-20).
+            let firstOut = prev.onlyConcealed && !s.concealed && s.side != nil && !flipped
+            if relaunched || firstOut {
                 standing = .actionable
             } else if sectionChanged {
                 standing = flipped ? .settled : .actionable
@@ -158,7 +171,7 @@ public struct StrayLedger: Equatable, Sendable {
             // drag hours later read as explained and was moved back. A
             // concealed icon can't be dragged: its window starts over, and
             // again at the first look after it (a reveal 30s on).
-            let explained = relaunched || (sectionChanged && !flipped)
+            let explained = relaunched || firstOut || (sectionChanged && !flipped)
             var unplacedSince: Date?
             if standing == .actionable {
                 let since = (explained || s.concealed || prev.concealed ? nil : prev.unplacedSince) ?? now
@@ -172,7 +185,7 @@ public struct StrayLedger: Equatable, Sendable {
             }
             next[s.id] = Record(
                 side: s.side, section: s.section, pid: s.pid ?? prev.pid, standing: standing, unplacedSince: unplacedSince,
-                concealed: s.concealed
+                concealed: s.concealed, onlyConcealed: prev.onlyConcealed && s.concealed && !sideChanged
             )
         }
         records = next

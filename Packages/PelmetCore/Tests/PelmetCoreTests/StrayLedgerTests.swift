@@ -218,4 +218,46 @@ import Testing
         ledger.observe([look(a, .right, .hidden)], strays: [a])
         #expect(ledger.actionable([a]).isEmpty)
     }
+
+    @Test func aStrayMetOnlyConcealedIsNewlySeenAtItsFirstReveal() {
+        // Battery in Always Hidden: concealed since launch, right of the
+        // chevron at the first reveal (2026-10-20). No hand reached it.
+        let hid = StrayLedger.Sighting(id: a, side: nil, section: .alwaysHidden, pid: 100, concealed: true)
+        var ledger = StrayLedger()
+        ledger.observe([hid])
+        ledger.observe([hid])
+        ledger.observe([look(a, .right, .alwaysHidden)], strays: [a])
+        #expect(ledger.actionable([a]) == [a])
+        // Concealed again, framed where the reveal saw it: still explained,
+        // for the grouper, which only moves from a concealed bar.
+        ledger.observe([.init(id: a, side: .right, section: .alwaysHidden, pid: 100, concealed: true)], strays: [a])
+        #expect(ledger.actionable([a]) == [a])
+        // Out in place once: a later wrong side is no first look.
+        var seen = StrayLedger()
+        seen.observe([hid])
+        seen.observe([look(a, .left, .alwaysHidden)])
+        seen.observe([hid])
+        seen.observe([look(a, .right, .alwaysHidden)], strays: [a])
+        #expect(seen.actionable([a]).isEmpty)
+        // Its side changed while concealed (a frame from a reveal no look
+        // saw, a hand drag in it maybe): left alone.
+        var unseen = StrayLedger()
+        unseen.observe([hid])
+        unseen.observe([.init(id: a, side: .right, section: .alwaysHidden, pid: 100, concealed: true)], strays: [a])
+        unseen.observe([look(a, .right, .alwaysHidden)], strays: [a])
+        #expect(unseen.actionable([a]).isEmpty)
+        // Remembered left while concealed, out on the right: a hover's
+        // ⌘-drag BarAdoption missed, by hand (review, 2026-10-20).
+        var dragged = StrayLedger()
+        dragged.observe([.init(id: a, side: .left, section: .hidden, pid: 100, concealed: true)])
+        dragged.observe([look(a, .right, .hidden)], strays: [a])
+        #expect(dragged.standing(of: a) == .byHand)
+        // Out with no place on the primary bar, then dropped on its wrong
+        // side: a hand from another display, left alone.
+        var away = StrayLedger()
+        away.observe([hid])
+        away.observe([look(a, nil, .alwaysHidden)])
+        away.observe([look(a, .right, .alwaysHidden)], strays: [a])
+        #expect(away.actionable([a]).isEmpty)
+    }
 }
