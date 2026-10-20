@@ -1015,6 +1015,15 @@ final class AppState {
     // MARK: - Intents (UI + monitors call these)
 
     func toggle(reason: RevealReason, sections: Set<PelmetCore.Section> = [.hidden]) {
+        // A chevron click on a display that shows all icons opens Always
+        // Hidden there, in that display's "Reveal in" (#96). A plain toggle
+        // asked for nothing when anchored, and closed the icons that display
+        // shows when the pointer's display decided.
+        if RevealRouting.clickWidensToAlwaysHidden(reason, sections: sections, behavior: pointerDisplayBehavior) {
+            PelmetLog.log("toggle(\(reason)) on a display that shows all icons — Always Hidden too")
+            toggleAll(reason: reason)
+            return
+        }
         if anchoredShowAllAsksNothing(sections, reason) { return }
         PerfTrace.markTrigger("\(reason)")
         // A click landing in the first moments of a hover reveal: the

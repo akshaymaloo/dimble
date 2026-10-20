@@ -133,4 +133,13 @@ import Testing
         let back = try JSONDecoder().decode([RevealTarget].self, from: JSONEncoder().encode(RevealTarget.allCases))
         #expect(back == RevealTarget.allCases)
     }
+
+    @Test func clickOnAShowAllDisplayWidensToAlwaysHidden() {
+        #expect(RevealRouting.clickWidensToAlwaysHidden(.statusItem, sections: [.hidden], behavior: .alwaysShowAll))
+        // A hiding display, a hover, or a reveal already asking for more: unchanged.
+        #expect(!RevealRouting.clickWidensToAlwaysHidden(.statusItem, sections: [.hidden], behavior: .collapse))
+        #expect(!RevealRouting.clickWidensToAlwaysHidden(.hover, sections: [.hidden], behavior: .alwaysShowAll))
+        #expect(!RevealRouting.clickWidensToAlwaysHidden(.hotkey, sections: [.hidden], behavior: .alwaysShowAll))
+        #expect(!RevealRouting.clickWidensToAlwaysHidden(.statusItem, sections: [.hidden, .alwaysHidden], behavior: .alwaysShowAll))
+    }
 }

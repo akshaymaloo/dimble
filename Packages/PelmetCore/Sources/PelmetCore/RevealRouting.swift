@@ -70,6 +70,15 @@ public enum RevealRouting {
         }
     }
 
+    /// A chevron click on a display that shows all icons (#96): its Hidden
+    /// icons are out already, so the click is for Always Hidden, the way a
+    /// ⌥-click is. A hover there stays quiet.
+    public static func clickWidensToAlwaysHidden(
+        _ reason: RevealReason, sections: Set<Section>, behavior: DisplayBehavior
+    ) -> Bool {
+        reason == .statusItem && sections == [.hidden] && behavior == .alwaysShowAll
+    }
+
     /// The display whose "Show hidden icons in" a reveal follows (#88), and
     /// where a panel for it opens: the one under the pointer, never macOS's
     /// active one (the bright bar, the last click's). A dimmed bar is still
