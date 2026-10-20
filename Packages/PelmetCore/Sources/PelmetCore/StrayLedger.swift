@@ -144,8 +144,11 @@ public struct StrayLedger: Equatable, Sendable {
             // Met concealed and never out since: its first look out is its
             // first look on the bar. Settled there, Battery in Always Hidden
             // came out right of the chevron at every reveal and "nothing
-            // explains it" kept it there (2026-10-20).
-            let firstOut = prev.onlyConcealed && !s.concealed
+            // explains it" kept it there (2026-10-20). Only a look that
+            // places it, and no flip: from a remembered side, a hover's
+            // ⌘-drag is a hand's; off the primary bar, a hand can still
+            // drop it there (review, 2026-10-20).
+            let firstOut = prev.onlyConcealed && !s.concealed && s.side != nil && !flipped
             if relaunched || firstOut {
                 standing = .actionable
             } else if sectionChanged {

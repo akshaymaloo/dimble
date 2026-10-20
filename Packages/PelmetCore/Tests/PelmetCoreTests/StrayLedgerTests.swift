@@ -246,5 +246,18 @@ import Testing
         unseen.observe([.init(id: a, side: .right, section: .alwaysHidden, pid: 100, concealed: true)], strays: [a])
         unseen.observe([look(a, .right, .alwaysHidden)], strays: [a])
         #expect(unseen.actionable([a]).isEmpty)
+        // Remembered left while concealed, out on the right: a hover's
+        // ⌘-drag BarAdoption missed, by hand (review, 2026-10-20).
+        var dragged = StrayLedger()
+        dragged.observe([.init(id: a, side: .left, section: .hidden, pid: 100, concealed: true)])
+        dragged.observe([look(a, .right, .hidden)], strays: [a])
+        #expect(dragged.standing(of: a) == .byHand)
+        // Out with no place on the primary bar, then dropped on its wrong
+        // side: a hand from another display, left alone.
+        var away = StrayLedger()
+        away.observe([hid])
+        away.observe([look(a, nil, .alwaysHidden)])
+        away.observe([look(a, .right, .alwaysHidden)], strays: [a])
+        #expect(away.actionable([a]).isEmpty)
     }
 }
