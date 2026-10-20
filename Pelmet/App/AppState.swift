@@ -2758,8 +2758,9 @@ final class AppState {
         return target
     }
 
-    /// Moves the bar needs to match the editor as it stands: drawn edits
-    /// plus any icon on the wrong side of the chevron (0 with nothing on
+    /// Moves the bar needs to match the editor as it stands: every
+    /// section's stored order (`editorOrderTarget`), so drawn edits, drift
+    /// and any icon on the wrong side of the chevron (0 with nothing on
     /// screen to move).
     var pendingMoveCount: Int {
         guard let snapshot else { return 0 }

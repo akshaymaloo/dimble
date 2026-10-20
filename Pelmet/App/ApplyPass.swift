@@ -264,9 +264,13 @@ enum ApplyPass {
         // the end of Hidden in the editor re-hosted at the far right and
         // Apply skipped it as an anchor, 2026-09-20 20:19).
         let own = Set<ItemID>()
+        // The whole bar against the editor's stored order, every section
+        // (the editor owns the order, 2026-10-20): drift since the last drag
+        // is a move like a drawing. Drawn only, Wi-Fi among Hidden and the
+        // Always Hidden separator right of the « were nobody's to move.
         return MovePlan.compute(
             bar: facts.bar,
-            edits: edits ?? appState.settings.orderEdits,
+            edits: edits ?? appState.editorOrderTarget,
             roster: facts.roster,
             chevron: facts.chevron,
             pinned: facts.pinned,
