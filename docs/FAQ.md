@@ -102,9 +102,8 @@ and its tile says so until it's in place.
 **After updating, Apply shows a pending change I didn't make.**
 0.2.x stored an order for each section and moved icons to match it. 0.3.0 only
 records where your icons are. If the stored order differs from what's on
-screen, it shows up once as a pending edit. Apply (or your next pause) puts
-that order back. To keep an icon where it sits, drag it to that spot in the
-editor.
+screen, it shows up once as a pending edit. Press Apply to put that order
+back, or leave it and your next pause keeps the bar as it stands.
 
 **My bar is full and an icon sits behind macOS's «. Can Pelmet move it?**
 Apply opens the « for an icon drawn behind it, moves it, and closes the «
