@@ -1316,11 +1316,11 @@ private struct DisplayRow: View {
             }
         }
         .detail {
-            // Hiding's own option, under the display while it hides (#88):
-            // a display that shows all icons has nothing to reveal.
-            if behavior == .collapse, uuid != nil {
+            // The display's own "Show hidden icons in" (#88). One that shows
+            // all icons keeps it: its chevron click opens Always Hidden (#96).
+            if uuid != nil {
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text("Reveal in")
+                    Text("Show hidden icons in")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     PelmetMenuPicker(selection: revealIn, options: [

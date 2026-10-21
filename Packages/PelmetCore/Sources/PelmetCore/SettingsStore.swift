@@ -496,8 +496,8 @@ public struct SettingsStore: Codable, Equatable, Sendable {
     }
 
     /// Where a reveal decided on this display shows the hidden icons: its own
-    /// choice while it hides icons, else the Panel tab's. A display that
-    /// shows all icons keeps its entry for when it hides them again.
+    /// choice, else the Panel tab's. On a display that shows all icons it is
+    /// where a chevron click opens Always Hidden (#96).
     public func revealTarget(forDisplayUUID uuid: String?) -> RevealTarget {
         ownRevealTarget(forDisplayUUID: uuid) ?? hiddenIconsIn
     }
@@ -509,9 +509,9 @@ public struct SettingsStore: Codable, Equatable, Sendable {
             || displayRevealTargets.keys.contains { ownRevealTarget(forDisplayUUID: $0)?.panelLayout != nil }
     }
 
-    /// The display's own "Show hidden icons in", when it has one that applies.
+    /// The display's own "Show hidden icons in", when it has one.
     public func ownRevealTarget(forDisplayUUID uuid: String?) -> RevealTarget? {
-        guard let uuid, behavior(forDisplayUUID: uuid) == .collapse else { return nil }
+        guard let uuid else { return nil }
         return displayRevealTargets[uuid]
     }
 

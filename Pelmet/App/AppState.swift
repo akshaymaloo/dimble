@@ -1016,7 +1016,7 @@ final class AppState {
 
     func toggle(reason: RevealReason, sections: Set<PelmetCore.Section> = [.hidden]) {
         // A chevron click on a display that shows all icons opens Always
-        // Hidden there, in that display's "Reveal in" (#96). A plain toggle
+        // Hidden there, in that display's "Show hidden icons in" (#96). A plain toggle
         // asked for nothing when anchored, and closed the icons that display
         // shows when the pointer's display decided.
         if RevealRouting.clickWidensToAlwaysHidden(reason, sections: sections, behavior: pointerDisplayBehavior) {

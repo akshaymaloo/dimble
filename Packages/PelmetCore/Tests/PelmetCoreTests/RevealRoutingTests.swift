@@ -40,8 +40,8 @@ import Testing
     }
 
     // #88: each display can pick its own "Show hidden icons in"; the rest
-    // follow the Panel tab. A display that shows all icons never reveals, so
-    // its entry waits for it to hide them again.
+    // follow the Panel tab. A display that shows all icons keeps its own:
+    // a chevron click there opens Always Hidden in it (#96).
     @Test func eachDisplayFollowsItsOwnChoiceOrThePanelTab() {
         var settings = SettingsStore()
         settings.hiddenIconsIn = .panel
@@ -54,10 +54,11 @@ import Testing
         #expect(RevealRouting.destination(for: .hover, target: settings.revealTarget(forDisplayUUID: "LG")) == .bar)
         #expect(RevealRouting.destination(for: .hover, target: settings.revealTarget(forDisplayUUID: "Built-in")) == .panel)
         settings.displayOverrides["LG"] = .alwaysShowAll
-        #expect(settings.revealTarget(forDisplayUUID: "LG") == .panel)
-        #expect(settings.ownRevealTarget(forDisplayUUID: "LG") == nil)
-        settings.displayOverrides["LG"] = .collapse
         #expect(settings.revealTarget(forDisplayUUID: "LG") == .menuBar)
+        #expect(settings.ownRevealTarget(forDisplayUUID: "LG") == .menuBar)
+        settings.displayOverrides["BenQ"] = .alwaysShowAll
+        settings.displayRevealTargets["BenQ"] = nil
+        #expect(settings.revealTarget(forDisplayUUID: "BenQ") == .panel)
     }
 
     private func deciding(
