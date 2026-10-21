@@ -336,6 +336,41 @@ enum ApplyPass {
         /// separator re-host, no idle extras attached, no « expanded; the
         /// bar is revealed only when a move touches a concealed icon.
         case strays(Set<ItemID>)
+        /// The editor owns the order (M3, `SectionGrouper`'s keeper): only
+        /// the given icons, drifted from the editor's stored order, move to
+        /// their stored slots. Like `strays`: no separator re-host, no idle
+        /// extras, no « expanded, and the bar is revealed only when a move
+        /// touches a concealed section.
+        case drift(Set<ItemID>)
+
+        /// A pass Pelmet starts on its own: it waits for an idle user and
+        /// abandons on any input, never the shielded drag Apply gets.
+        var isAutomatic: Bool {
+            switch self {
+            case .strays, .drift: return true
+            case .wholeBar, .ownItem: return false
+            }
+        }
+    }
+
+    /// The whole-bar plan against the stored order with every icon but
+    /// `allowed` as an anchor, the way `strayPlan` plans: a filtered-out
+    /// mover would have stayed a move's bound, and the drag aimed between a
+    /// stray right of the « and an icon far left of it (review, 2026-10-20).
+    static func driftPlan(
+        for appState: AppState, snapshot snap: EngineSnapshot, allowing allowed: Set<ItemID>, remembered: Bool = false
+    ) -> MovePlan.Plan {
+        let facts = barFacts(for: appState, snapshot: snap, remembered: remembered)
+        var plan = MovePlan.compute(
+            bar: facts.bar,
+            edits: appState.editorOrderTarget,
+            roster: facts.roster,
+            chevron: facts.chevron,
+            pinned: facts.pinned,
+            ownItems: Set(facts.bar).subtracting(allowed)
+        )
+        plan.skipped = plan.skipped.filter { allowed.contains($0.0) }
+        return plan
     }
 
     /// Runs the whole pass. The caller owns `applying` and the report.
@@ -378,6 +413,13 @@ enum ApplyPass {
                     || plan(for: appState, snapshot: snap, remembered: true, strays: allowed).moves.contains { move in
                         [move.item, move.after, move.before].compactMap { $0 }.contains { roster.section(of: $0) != .visible }
                     }
+            }
+        case .drift(let allowed):
+            if wholeReveal, let snap = appState.snapshot {
+                let roster = appState.settings.sectionModel.roster
+                revealedForPass = driftPlan(for: appState, snapshot: snap, allowing: allowed, remembered: true).moves.contains { move in
+                    [move.item, move.after, move.before].compactMap { $0 }.contains { roster.section(of: $0) != .visible }
+                }
             }
         case .ownItem:
             break
@@ -439,6 +481,9 @@ enum ApplyPass {
         case .strays(let allowed):
             planFor = { self.plan(for: appState, snapshot: $0, strays: allowed) }
             trappedFor = { _ in [] }
+        case .drift(let allowed):
+            planFor = { self.driftPlan(for: appState, snapshot: $0, allowing: allowed) }
+            trappedFor = { _ in [] }
         case .ownItem(let own):
             // The item's section as the editor draws it counts as the edit,
             // so the plan puts the newcomer between its roster neighbours;
@@ -483,6 +528,11 @@ enum ApplyPass {
                 }
             }
         }
+        if case .drift = scope {
+            for move in plan.moves {
+                PelmetLog.log("order: \(move.item.rawValue) → its stored slot (after \(move.after?.rawValue ?? "-"), before \(move.before?.rawValue ?? "-"))")
+            }
+        }
         // Icons behind the « that a drawn edit names: the pass expands the
         // « (one shielded click), which gives them frames left of the
         // notch (probed 2026-09-20, drags across the notch land first try),
@@ -492,13 +542,17 @@ enum ApplyPass {
         dropAbsentSkips(&report, snap: snap, scope: scope)
         guard !plan.moves.isEmpty || !trappedForPass.isEmpty else { return report }
 
-        if case .strays = scope {
+        if scope.isAutomatic {
             // The reveal above took over a second: idle then is not idle now.
             // A busy user means no pass at all (never the shielded drag a
             // busy pointer gets from Apply after its 8s wait): the reveal is
             // closed again by the defer above and the budget stays unspent.
             guard secondsSinceAnyInput() >= AppTiming.applyIdleGap else {
-                PelmetLog.log("group: pass abandoned — input")
+                if case .drift = scope {
+                    PelmetLog.log("order: pass abandoned — input")
+                } else {
+                    PelmetLog.log("group: pass abandoned — input")
+                }
                 report.abandoned = true
                 return report
             }

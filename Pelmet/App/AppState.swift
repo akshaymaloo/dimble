@@ -2881,6 +2881,9 @@ final class AppState {
 
     /// Apply pass: separators drawn in another section move host now.
     func rehostSeparatorsForApply() -> Bool { separators?.rehostToModel() ?? false }
+    /// A separator is hosted for another section than the editor's: only
+    /// Apply re-hosts it, so the order keeper leaves separators alone.
+    var separatorsNeedRehost: Bool { separators?.needsRehost ?? false }
 
     /// The Apply button: reveal what needs measuring, plan, drag each move
     /// through the one shielded door, verify, report. Failed moves keep the
@@ -3063,13 +3066,13 @@ final class AppState {
             || (session[kCGSessionOnConsoleKey as String] as? Bool) == false
     }
 
-    /// One pass for `allowed` (the strays Pelmet can explain), through the
-    /// Apply door. nil when an Apply pass already has the bar. Never touches
-    /// `orderEdits` or the button's report: what the user drew stays pending
-    /// for the button. The drags make the dragged icon's app frontmost (only
-    /// Settings is refocused by the pass), so whoever had focus gets it back.
-    func runGroupingPass(allowing allowed: Set<ItemID>) async -> ApplyReport? {
-        guard !applying else { return nil }
+    /// One automatic pass (`.strays` for the strays Pelmet can explain,
+    /// `.drift` for the keeper's), through the Apply door. nil when an Apply
+    /// pass already has the bar. Never touches the button's report. The
+    /// drags make the dragged icon's app frontmost (only Settings is
+    /// refocused by the pass), so whoever had focus gets it back.
+    func runGroupingPass(_ scope: ApplyPass.Scope) async -> ApplyReport? {
+        guard scope.isAutomatic, !applying else { return nil }
         applying = true
         // The walk at rest skips its prune while the pass holds the bar
         // (restoreFocus runs up to ~550ms), and it is the only one after a
@@ -3077,7 +3080,7 @@ final class AppState {
         // transition with Apply lit (review, 2026-10-13).
         defer { applying = false; pruneSettledOrderEdits() }
         let front = NSWorkspace.shared.frontmostApplication
-        let report = await ApplyPass.run(appState: self, scope: .strays(allowed))
+        let report = await ApplyPass.run(appState: self, scope: scope)
         if !report.applied.isEmpty { await engine.writeOrderHint() }
         satisfyDrawnEdits(for: report.applied)
         if let front, !report.abandoned, front.processIdentifier != ProcessInfo.processInfo.processIdentifier {
@@ -4772,8 +4775,17 @@ final class AppState {
             // The editor's drawing outranks the bar until Apply. The
             // periodic pass reconciled the hidden order from the bar
             // between two drops and every tile jumped back (2026-09-20 17:28).
+            // Not in the section of a named drag: that drag moved the one
+            // icon (M2), and the drawing takes it too, or the order keeper
+            // dragged it back to its drawn slot (review, 2026-10-20).
+            let draggedSection = draggedID.map { result.model.section(of: $0.sectionKey) }
             for section in settings.orderEdits.order.keys {
-                model.order[section] = settings.sectionModel.order[section]
+                guard section == draggedSection, let order = model.order[section] else {
+                    model.order[section] = settings.sectionModel.order[section]
+                    continue
+                }
+                let drawn = Set(settings.orderEdits.order[section] ?? [])
+                settings.orderEdits.order[section] = order.filter(drawn.contains)
             }
             settings.sectionModel = model
             settings.save()

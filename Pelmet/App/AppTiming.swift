@@ -200,6 +200,15 @@ enum AppTiming {
     static let groupingMaxWait: Duration = .seconds(6)
     /// An NSMenu fades for a beat after its tracking ends.
     static let groupingMenuHold: TimeInterval = 1
+    /// The editor owns the order (M3): drift must read the same for this
+    /// long before the keeper moves it, so an app relaunching or a bar
+    /// still reflowing is not chased mid-flight.
+    static let driftSettle: Duration = .seconds(10)
+    /// …and passes are this far apart: an app that keeps re-placing its
+    /// icon can't start a drag storm. Two tries per icon and stored order
+    /// bound it too (M0 on Gab's bar, 2026-10-20: drift changed 5 times in
+    /// 2 hours).
+    static let driftCooldown: Duration = .seconds(120)
     /// How long the Apply button keeps its number over a raw count of 0
     /// while order edits are pending (`ApplyCountHold`). The dips measured
     /// 100–550ms before a walk read them back; a reveal's lasted 126ms
