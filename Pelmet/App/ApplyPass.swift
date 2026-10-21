@@ -155,6 +155,12 @@ enum ApplyPass {
         frames.sorted { $0.value.minX < $1.value.minX }.map(\.key)
     }
 
+    /// Icons on the bar their section's stored order doesn't list yet.
+    private static func unlisted(in facts: BarFacts, appState: AppState) -> Set<ItemID> {
+        let order = appState.settings.sectionModel.order
+        return Set(facts.bar.filter { $0 != facts.chevron && order[facts.roster.section(of: $0)]?.contains($0) != true })
+    }
+
     /// What both the plan and the stray check read off the bar.
     private struct BarFacts {
         let bar: [ItemID]
@@ -248,7 +254,7 @@ enum ApplyPass {
     /// stray the editor drew lands in its drawn slot.
     static func plan(
         for appState: AppState, snapshot snap: EngineSnapshot, edits: OrderEdits? = nil,
-        remembered: Bool = false, strays allowed: Set<ItemID>? = nil
+        remembered: Bool = false, strays allowed: Set<ItemID>? = nil, anchorUnlisted: Bool = false
     ) -> MovePlan.Plan {
         let facts = barFacts(for: appState, snapshot: snap, remembered: remembered)
         if let allowed {
@@ -263,10 +269,18 @@ enum ApplyPass {
         // icon: registration never places an own item (a separator moved to
         // the end of Hidden in the editor re-hosted at the far right and
         // Apply skipped it as an anchor, 2026-09-20 20:19).
-        let own = Set<ItemID>()
+        var own = Set<ItemID>()
+        // The keeper's view (M4): an icon its section's order doesn't list
+        // has no stored slot, so it holds still and nothing listed is moved
+        // around it (review, 2026-10-20).
+        if anchorUnlisted { own = unlisted(in: facts, appState: appState) }
+        // The whole bar against the editor's stored order, every section
+        // (the editor owns the order, 2026-10-20): drift since the last drag
+        // is a move like a drawing. Drawn only, Wi-Fi among Hidden and the
+        // Always Hidden separator right of the « were nobody's to move.
         return MovePlan.compute(
             bar: facts.bar,
-            edits: edits ?? appState.settings.orderEdits,
+            edits: edits ?? appState.editorOrderTarget,
             roster: facts.roster,
             chevron: facts.chevron,
             pinned: facts.pinned,
@@ -332,6 +346,45 @@ enum ApplyPass {
         /// separator re-host, no idle extras attached, no « expanded; the
         /// bar is revealed only when a move touches a concealed icon.
         case strays(Set<ItemID>)
+        /// The editor owns the order (M3, `SectionGrouper`'s keeper): only
+        /// the given icons, drifted from the editor's stored order, move to
+        /// their stored slots. Like `strays`: no separator re-host, no idle
+        /// extras, no « expanded, and the bar is revealed only when a move
+        /// touches a concealed section.
+        case drift(Set<ItemID>)
+        /// M5 of the same plan: no drag at all. The bar is revealed (when a
+        /// concealable section is due) and the live read is folded into the
+        /// given sections' stored order once (`AppState.seedOrderFromBar`).
+        case seedOrder(Set<PelmetCore.Section>)
+
+        /// A pass Pelmet starts on its own: it waits for an idle user and
+        /// abandons on any input, never the shielded drag Apply gets.
+        var isAutomatic: Bool {
+            switch self {
+            case .strays, .drift, .seedOrder: return true
+            case .wholeBar, .ownItem: return false
+            }
+        }
+    }
+
+    /// The whole-bar plan against the stored order with every icon but
+    /// `allowed` as an anchor, the way `strayPlan` plans: a filtered-out
+    /// mover would have stayed a move's bound, and the drag aimed between a
+    /// stray right of the « and an icon far left of it (review, 2026-10-20).
+    static func driftPlan(
+        for appState: AppState, snapshot snap: EngineSnapshot, allowing allowed: Set<ItemID>, remembered: Bool = false
+    ) -> MovePlan.Plan {
+        let facts = barFacts(for: appState, snapshot: snap, remembered: remembered)
+        var plan = MovePlan.compute(
+            bar: facts.bar,
+            edits: appState.editorOrderTarget,
+            roster: facts.roster,
+            chevron: facts.chevron,
+            pinned: facts.pinned,
+            ownItems: Set(facts.bar).subtracting(allowed).union(unlisted(in: facts, appState: appState))
+        )
+        plan.skipped = plan.skipped.filter { allowed.contains($0.0) }
+        return plan
     }
 
     /// Runs the whole pass. The caller owns `applying` and the report.
@@ -375,6 +428,15 @@ enum ApplyPass {
                         [move.item, move.after, move.before].compactMap { $0 }.contains { roster.section(of: $0) != .visible }
                     }
             }
+        case .drift(let allowed):
+            if wholeReveal, let snap = appState.snapshot {
+                let roster = appState.settings.sectionModel.roster
+                revealedForPass = driftPlan(for: appState, snapshot: snap, allowing: allowed, remembered: true).moves.contains { move in
+                    [move.item, move.after, move.before].compactMap { $0 }.contains { roster.section(of: $0) != .visible }
+                }
+            }
+        case .seedOrder(let sections):
+            revealedForPass = wholeReveal && sections.contains { $0 != .visible }
         case .ownItem:
             break
         }
@@ -418,6 +480,24 @@ enum ApplyPass {
 
         var snap = await engine.snapshot()
         appState.updateSnapshot(snap)
+        // The keeper's passes read the bar live, the only read the stored
+        // order may take: newcomers concealed since they came are listed
+        // here (M4), and a seed pass is this read and nothing else (M5).
+        if case .seedOrder(let sections) = scope {
+            // A fresh walk, at rest: the cached one can be mid-reveal.
+            for _ in 0..<10 {
+                snap = await engine.freshSnapshot()
+                if snap.itemsAtRest { break }
+                try? await Task.sleep(for: AppTiming.postDragSettleFloor)
+            }
+            appState.updateSnapshot(snap)
+            appState.slotUnlistedIcons(snap, skipping: Set(strays(for: appState, snapshot: snap, remembered: false)))
+            appState.seedOrderFromBar(sections, snap: snap)
+            return report
+        }
+        if case .drift = scope {
+            appState.slotUnlistedIcons(snap, skipping: Set(strays(for: appState, snapshot: snap, remembered: false)))
+        }
         // The plan for this scope, re-run on a fresh snapshot after the «
         // expands — the own-item scope must keep its filter there too, or
         // the replan is a whole-bar plan (the new separator behind the «
@@ -435,6 +515,11 @@ enum ApplyPass {
         case .strays(let allowed):
             planFor = { self.plan(for: appState, snapshot: $0, strays: allowed) }
             trappedFor = { _ in [] }
+        case .drift(let allowed):
+            planFor = { self.driftPlan(for: appState, snapshot: $0, allowing: allowed) }
+            trappedFor = { _ in [] }
+        case .seedOrder:
+            return report
         case .ownItem(let own):
             // The item's section as the editor draws it counts as the edit,
             // so the plan puts the newcomer between its roster neighbours;
@@ -479,6 +564,11 @@ enum ApplyPass {
                 }
             }
         }
+        if case .drift = scope {
+            for move in plan.moves {
+                PelmetLog.log("order: \(move.item.rawValue) → its stored slot (after \(move.after?.rawValue ?? "-"), before \(move.before?.rawValue ?? "-"))")
+            }
+        }
         // Icons behind the « that a drawn edit names: the pass expands the
         // « (one shielded click), which gives them frames left of the
         // notch (probed 2026-09-20, drags across the notch land first try),
@@ -488,13 +578,17 @@ enum ApplyPass {
         dropAbsentSkips(&report, snap: snap, scope: scope)
         guard !plan.moves.isEmpty || !trappedForPass.isEmpty else { return report }
 
-        if case .strays = scope {
+        if scope.isAutomatic {
             // The reveal above took over a second: idle then is not idle now.
             // A busy user means no pass at all (never the shielded drag a
             // busy pointer gets from Apply after its 8s wait): the reveal is
             // closed again by the defer above and the budget stays unspent.
             guard secondsSinceAnyInput() >= AppTiming.applyIdleGap else {
-                PelmetLog.log("group: pass abandoned — input")
+                if case .drift = scope {
+                    PelmetLog.log("order: pass abandoned — input")
+                } else {
+                    PelmetLog.log("group: pass abandoned — input")
+                }
                 report.abandoned = true
                 return report
             }

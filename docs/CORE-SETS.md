@@ -18,8 +18,8 @@ What we verified before choosing this (2026-09-20, live, instrumented):
 ## Principles
 
 1. **Membership is the product.** Shown, hidden, always hidden. Changing membership never moves an item.
-2. **The bar's physical order is the truth.** Pelmet reads it, never stores it. Stored state is membership plus pending edits.
-3. **Synthetic drags happen in exactly one place**, on explicit user intent (Apply), never in the background, never on hover, reveal, conceal, boot, relaunch or new-item arrival.
+2. **The editor owns the order** (since 0.3.3-beta.5). Each section's stored order (`SectionModel.order`) is what the bar should read. An editor drop writes it at once, a ⌘-drag on the bar moves that icon in it, and a new icon is listed where it lands. Anything else that changes the bar (macOS re-placing an icon, a relaunch, a re-hosted separator) is drift. Until then the bar's physical order was the truth and stored state was membership plus pending edits.
+3. **Synthetic drags go through one door**: Apply, and the keeper behind "Keep sections grouped" (strays first, then drift), with the pointer idle, the cursor hidden and input suppressed. Never on hover, reveal, conceal, boot or new-item arrival.
 4. **Own items move through the same door.** Extras, replicas, launchers and separators are dragged by Apply like any icon; only the chevron anchors. Registration does not place: a fresh registration under the same tag lands at the slot MenuBarAgent remembers in RAM, and the plist (`TrailingItemPreferredPositions`) is read only at an agent restart (probed 2026-09-20 — rank and trailing-inset values both ignored). `writeOrderHint` still seeds a Pelmet relaunch.
 5. **No covers for walks.** There are no walks. A cover survives only if we choose to mask the system's reveal animation.
 
@@ -34,7 +34,7 @@ What we verified before choosing this (2026-09-20, live, instrumented):
 
 **Reveal / conceal.** Assertion off / assertion on. Nothing else. A revealed item reappears where it lives, animated by the system. No drift correction, no rescues, no adoption windows, no « clicks, no zone-only rules.
 
-**Editor.** Shows the real bar order (AX read) per section. Dragging an item **between sections** changes membership and takes effect immediately; the icon keeps its physical spot and is marked "not in place" until Apply or the grouped option relocates it. Dragging **within a section** records an `OrderEdit` and lights the Apply button. Nothing in the bar moves until Apply.
+**Editor.** Shows each section's stored order. Dragging an item **between sections** changes membership and takes effect immediately; the icon keeps its physical spot and is marked "not in place" until Apply or the grouped option relocates it. Dragging **within a section** writes the stored order and lights the Apply button; with "Keep sections grouped" on, the keeper moves it once the pointer has been idle (below).
 
 **Apply.** One visible button, replaces Tidy bar order. Shows the pending count. Runs one `ApplyPass`:
 1. Reads the bar, builds the `MovePlan`.
@@ -49,11 +49,13 @@ Grouping is part of the same pass (the Tidy checkbox was folded in, Gab 2026-09-
 
 *Shipped 2026-10-07 (#80, `SectionGrouper`, `MovePlan.strayPlan`, `ApplyPass.Scope.strays`).* No Settings toggle; `defaults write app.fif7y.Pelmet pelmet.keepSectionsGrouped -bool false` turns it off. A stray is moved only when Pelmet can explain it (`StrayLedger`): the icon is newly seen, or its section changed while its side did not. An icon that changed side by hand (a user ⌘-drag adoption could not read, a drop on a side display) is left where it is until its section changes again. An editor drop lands in its drawn slot and satisfies that edit; a stray with no drawing goes to the chevron end. Budget: 2 attempts per item and section, reset only by a section change. Gates: any-input idle, no open pop-up menu from any app, no overflow, no other relay or pass; a pass abandons on input after its reveal and spends nothing. Pinned system icons (Sound, Wi-Fi…) are never strays: they stay where macOS keeps them.
 
+*Since 0.3.3-beta.5 it also keeps the order* (`SectionGrouper.keepOrder`, `ApplyPass.Scope.drift`). With no stray to move, icons that drifted from their section's stored order go back to their stored slots through the same door. The drift must read the same for 10 s, passes are 2 min apart (an abandoned one too), and each icon gets 2 tries per stored order before Apply's count takes it. The plan anchors every icon it may not move. Pelmet's own extras are left alone (placed when they show), separators too while one waits for a re-host. Concealed icons are read from their remembered frames, so drift in a hidden section is seen once it has been revealed since launch.
+
 **Live items** (camera/mic indicator, Now Playing, Timer, Focus, recording pill, AirDrop, VPN): appear where the agent puts them, `RosterRule` decides visibility, nothing moves. The collateral tracker stays (which system extras hide with which assertion), the placement side of it goes.
 
 **Own items.** Moved by `ApplyPass`: a whole-bar pass attaches idle extras at alpha 0 so they have a slot, re-hosts separators onto their drawn section's helper first, then drags. An extra entering the bar (camera on, audio starting, a launcher's app starting) runs a one-item pass (`ApplyPass.Scope.ownItem`) among the items on screen, no reveal; entering a concealed section it waits for the next reveal settle. The chevron is the one anchor and moves only by the user's own ⌘-drag.
 
-**New items.** Land where the agent puts them. `RosterRule` assigns a section, assertion applies it. The editor shows them in place with a "new" mark. No placement, no order-front routing.
+**New items.** Land where the agent puts them. `RosterRule` assigns a section, assertion applies it. The editor shows them in place with a "new" mark. No placement, no order-front routing: the first live look that finds one on its section's side lists it in the stored order between its live neighbours there (`SectionModel.slotUnlisted`), so it is never drift; the keeper leaves an unlisted icon alone until then. One on the wrong side of the « is a stray and is listed where the grouper drops it.
 
 **Boot and relaunch.** Read bar, apply roster, done. Helper hosts still wait for their items before the first assertion (helper race fix stays). No boot picture, no adoption walk.
 
@@ -64,6 +66,8 @@ Grouping is part of the same pass (the Tidy checkbox was folded in, Gab 2026-09-
 **Other managers running.** Nothing to fight over except the assertion. Detect a foreign assertion (restriction monitor is open) and show the existing "another manager" notice; no retries.
 
 **Upgrade.** Existing users keep their physical bar as-is. Stored order becomes a one-time `OrderEdits` seed shown as pending, so the first Apply reproduces their old grouped bar if they want it. Nothing moves on its own.
+
+At 0.3.3-beta.5 the stored order became the target, and it could lag the bar. The first drift the keeper sees runs a seed pass instead of a move (`ApplyPass.Scope.seedOrder`): it reveals the bar, reads it live, and every section not seeded yet takes its stored order from it (`SectionModel.foldBarOrder`, once, `pelmet.seededOrderFromBar`). A section with a drawing waiting for Apply keeps the drawing. Remembered frames never write the stored order.
 
 ## Survive / delete map (done 2026-09-20, M3)
 

@@ -376,10 +376,18 @@ public enum BarAdoption {
         }
         for (section, order) in model.order {
             var newOrder = order.filter { model.section(of: $0) == section }
-            let liveSlots = newOrder.indices.filter { liveX[newOrder[$0]] != nil }
-            let sortedLive = liveSlots.map { newOrder[$0] }
-                .sorted { liveX[$0, default: .infinity] < liveX[$1, default: .infinity] }
-            for (offset, slot) in liveSlots.enumerated() { newOrder[slot] = sortedLive[offset] }
+            // The editor owns the order (2026-10-20): a drag Pelmet named
+            // moves that icon alone, below. The others keep their stored
+            // slots, so what drifted since (Wi-Fi among Hidden, a relaunch
+            // macOS put elsewhere) stays drift for Apply instead of being
+            // written into the editor. An unnamed drag still folds the bar
+            // in: the bar is all there is of the person's move.
+            if draggedID == nil {
+                let liveSlots = newOrder.indices.filter { liveX[newOrder[$0]] != nil }
+                let sortedLive = liveSlots.map { newOrder[$0] }
+                    .sorted { liveX[$0, default: .infinity] < liveX[$1, default: .infinity] }
+                for (offset, slot) in liveSlots.enumerated() { newOrder[slot] = sortedLive[offset] }
+            }
             // The icon the user ⌘-dragged goes where they dropped it among
             // all its neighbours. Re-sorted among the others only, a drag
             // past one of Pelmet's own items changed no order, nothing was

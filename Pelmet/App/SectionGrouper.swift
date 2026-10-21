@@ -18,9 +18,22 @@
 // escape hatch is the `pelmet.keepSectionsGrouped` bool (false = no
 // synthetic drag outside Apply).
 //
+// The editor owns the order (vault plan "Dimble editor owns the bar order",
+// 2026-10-20): with no stray left, the keeper (`keepOrder`, M3) puts icons
+// that drifted from the editor's stored order back in their stored slots,
+// through the same door (`ApplyPass.Scope.drift`). It waits for the drift to
+// settle, keeps passes apart, and gives each icon two tries per stored order
+// before leaving it to Apply. Pelmet's own extras come and go and are placed
+// when they show, so of its own items only separators are kept. A newcomer
+// the stored order doesn't list is listed where it sits first (M4,
+// `AppState.slotUnlistedIcons`, live frames only), and the first drift
+// after the update is read live into the stored order instead of moved (M5,
+// `ApplyPass.Scope.seedOrder`).
+//
 // Logging: a state is logged once per change (`group: no strays`,
-// `group: N stray(s) …`, `group: waiting — <why>`), so a blocked pass is
-// never silent and a quiet bar is not noisy.
+// `group: N stray(s) …`, `group: waiting — <why>`, `order: drift …`,
+// `order: waiting — <why>`), so a blocked pass is never silent and a quiet
+// bar is not noisy.
 
 import AppKit
 import PelmetCore
@@ -46,6 +59,16 @@ final class SectionGrouper {
     private var passRunning = false
     private var lastState = ""
     private var lastWaiting: String?
+    private var lastDrift = ""
+    /// The pid behind each icon at the last look, to tell a relaunch.
+    private var driftPIDs: [ItemID: Int32] = [:]
+    /// The keeper's tries, kept per stored order: a new drawing starts over.
+    private var driftBudget = StrayBudget()
+    private var driftTarget: [Section: [ItemID]]?
+    /// The drift the keeper is waiting out, and since when it read the same.
+    private var driftSeen: (ids: Set<ItemID>, since: ContinuousClock.Instant)?
+    private var lastDriftPass: ContinuousClock.Instant?
+    private var lastDriftWaiting: String?
     private var observers: [NSObjectProtocol] = []
     private var menuDepth = 0
     private var menuBeganAt: Date?
@@ -98,7 +121,7 @@ final class SectionGrouper {
     /// The display woke or the screen unlocked: a pass waiting on either
     /// looks again.
     private func awoke(_ why: String) {
-        guard let waiting = lastWaiting else { return }
+        guard let waiting = lastWaiting ?? lastDriftWaiting else { return }
         PelmetLog.log("group: \(why) — looking again (was waiting: \(waiting))")
         noteChange()
     }
@@ -200,6 +223,12 @@ final class SectionGrouper {
             ApplyPass.sightings(for: appState, snapshot: snap), strays: Set(strays), ownMoves: ownMoves
         )
         ownMoves = []
+        // A newcomer is listed where it sits (M4) before the order is read:
+        // never drift.
+        appState.slotUnlistedIcons(snap, skipping: Set(strays))
+        // A stray is grouped above or left where the user put it, never
+        // kept to its stored slot from here.
+        let drift = noteDrift(appState, snap).filter { !strays.contains($0) }
         for id in byHand where strays.contains(id) {
             PelmetLog.log("group: \(id.rawValue) moved by hand — left where it is")
         }
@@ -210,6 +239,7 @@ final class SectionGrouper {
         guard !strays.isEmpty else {
             lastWaiting = nil
             note("group: no strays")
+            await keepOrder(appState, drift: drift)
             return
         }
         let ready = verdict.ready
@@ -220,6 +250,7 @@ final class SectionGrouper {
             let exhausted = Set(verdict.exhausted)
             let why = strays.map { "\($0.rawValue) \(ledger.whyNotMoved($0, exhausted: exhausted))" }.joined(separator: "; ")
             note("group: \(strays.count) stray(s) [\(Self.names(strays))] — none to move: \(why)")
+            await keepOrder(appState, drift: drift)
             return
         }
         note("group: \(ready.count) stray(s) [\(Self.names(ready))]")
@@ -237,9 +268,11 @@ final class SectionGrouper {
         lastWaiting = nil
         PelmetLog.log("group: relocating [\(Self.names(ready))] (attempt \(budget.used(ready[0], roster: roster) + 1)/\(budget.limit))")
         lastState = ""
+        // The bar moves under the drift being waited out: it settles anew.
+        driftSeen = nil
         passRunning = true
         ownMoves = Set(ready)
-        let report = await appState.runGroupingPass(allowing: Set(ready))
+        let report = await appState.runGroupingPass(.strays(Set(ready)))
         passRunning = false
         guard let report, !report.abandoned else {
             // Nothing was dragged (an Apply pass has the bar, or the user
@@ -251,6 +284,137 @@ final class SectionGrouper {
         budget.spend(ready, roster: roster)
         PelmetLog.log("group: pass applied=\(report.applied.count) failed=\(report.failed.count) skipped=\(report.skipped.count)")
         // Look again: a second attempt for what stayed, or "no strays".
+        schedule(after: AppTiming.groupingDebounce)
+    }
+
+    /// What a pass against the editor's stored order would move right now
+    /// (M0 of the editor-owns-order plan), logged on change with why each
+    /// icon is off: the keeper acts on it. Remembered frames stand in for
+    /// concealed icons, so Always Hidden drift among Hidden reads only at a
+    /// full reveal.
+    private func noteDrift(_ appState: AppState, _ snap: EngineSnapshot) -> [ItemID] {
+        let plan = ApplyPass.plan(for: appState, snapshot: snap, edits: appState.editorOrderTarget, remembered: true, anchorUnlisted: true)
+        var pids: [ItemID: Int32] = [:]
+        for item in snap.items where item.pid > 0 { pids[item.id.sectionKey] = item.pid }
+        let live = Set(snap.items.filter { $0.frame != nil }.map(\.id.sectionKey))
+        let drawn = appState.settings.orderEdits
+        let moves = plan.moves.map { move -> String in
+            let id = move.item
+            var why = id.bundleID.map(PelmetBundle.ownIDs.contains) == true ? "own"
+                : MenuBarPolicy.systemItem(for: id) != nil ? "system" : "app"
+            if let then = driftPIDs[id], let now = pids[id], then != now { why += ", relaunched" }
+            if drawn.touches(id) { why += ", drawn" }
+            if !live.contains(id) { why += ", remembered" }
+            return "\(Self.names([id])) (\(why))"
+        }
+        driftPIDs.merge(pids) { _, now in now }
+        let line = moves.isEmpty ? "order: no drift" : "order: drift \(moves.count) move(s) — \(moves.joined(separator: "; "))"
+        if line != lastDrift {
+            lastDrift = line
+            PelmetLog.log(line)
+        }
+        return plan.moves.map(\.item)
+    }
+
+    /// M3, the keeper: drift from the stored order goes back to its stored
+    /// slots through the grouper's door. The drift must read the same for
+    /// `driftSettle` first, passes are `driftCooldown` apart, and an icon
+    /// gets `driftBudget.limit` tries per stored order before it is left to
+    /// Apply's count. A pass that finds nothing to move once the bar is out
+    /// (a remembered frame that was stale) spends its try all the same, so a
+    /// false reading can't reveal the bar again and again.
+    private func keepOrder(_ appState: AppState, drift: [ItemID]) async {
+        let model = appState.settings.sectionModel
+        if model.order != driftTarget {
+            // A newcomer slotted in (M4) is no new target for the icons
+            // already listed: two fresh tries each per new app was two more
+            // reveals for an icon WindowServer won't let move (review).
+            let grew = driftTarget.map { old in
+                old.allSatisfy { section, before in
+                    (model.order[section] ?? []).filter(Set(before).contains) == before
+                }
+            } ?? false
+            if !grew { driftBudget = StrayBudget() }
+            driftTarget = model.order
+        }
+        // A separator drawn into another section moves with its host, which
+        // only Apply re-hosts: dragged first, it would sit left of the «
+        // still hosted for Visible and show collapsed.
+        let rehostPending = appState.separatorsNeedRehost
+        // An icon its section's order doesn't list yet has no stored slot:
+        // it waits to be listed where it sits (M4), never dragged.
+        let candidates = drift.filter { id in
+            guard model.order[model.section(of: id)]?.contains(id) == true else { return false }
+            guard id.bundleID.map(PelmetBundle.ownIDs.contains) == true else { return true }
+            return id.isPelmetSeparator && !rehostPending
+        }
+        let verdict = driftBudget.check(candidates, roster: model.roster)
+        if !verdict.newlyExhausted.isEmpty {
+            PelmetLog.log("order: giving up on [\(Self.names(verdict.newlyExhausted))] after \(driftBudget.limit) attempts — left to Apply")
+        }
+        let ready = verdict.ready
+        guard !ready.isEmpty else {
+            driftSeen = nil
+            lastDriftWaiting = nil
+            return
+        }
+        let now = ContinuousClock.now
+        guard let seen = driftSeen, seen.ids == Set(ready) else {
+            driftSeen = (Set(ready), now)
+            schedule(after: AppTiming.driftSettle)
+            return
+        }
+        let steady = seen.since.duration(to: now)
+        guard steady >= AppTiming.driftSettle else {
+            schedule(after: AppTiming.driftSettle - steady)
+            return
+        }
+        if let last = lastDriftPass, last.duration(to: now) < AppTiming.driftCooldown {
+            schedule(after: AppTiming.driftCooldown - last.duration(to: now))
+            return
+        }
+        if let gate = appState.groupingGate() {
+            if lastDriftWaiting != gate.why {
+                lastDriftWaiting = gate.why
+                PelmetLog.log("order: waiting — \(gate.why)")
+            }
+            if gate.transient { schedule(after: AppTiming.groupingDebounce) }
+            return
+        }
+        lastDriftWaiting = nil
+        // M5: the first drift in a section not yet taken from the bar is the
+        // bar the user had. A seed pass reads it live into the stored order
+        // of every such section, and nothing moves.
+        let unseeded = appState.unseededOrderSections
+        if ready.contains(where: { unseeded.contains(model.section(of: $0)) }) {
+            PelmetLog.log("order: seeding [\(unseeded.map(\.rawValue).sorted().joined(separator: ", "))] from the bar — drift [\(Self.names(ready))] not moved")
+            passRunning = true
+            let report = await appState.runGroupingPass(.seedOrder(unseeded))
+            passRunning = false
+            // Like a pass: its reveal holds the cooldown.
+            if report != nil { lastDriftPass = .now }
+            driftSeen = nil
+            schedule(after: AppTiming.groupingDebounce)
+            return
+        }
+        PelmetLog.log("order: keeping [\(Self.names(ready))] (attempt \(driftBudget.used(ready[0], roster: model.roster) + 1)/\(driftBudget.limit))")
+        passRunning = true
+        ownMoves = Set(ready)
+        let report = await appState.runGroupingPass(.drift(Set(ready)))
+        passRunning = false
+        guard let report, !report.abandoned else {
+            ownMoves = []
+            // Abandoned after its reveal (input during the wait): the
+            // cooldown holds, or a user pausing every 2s saw the bar open
+            // and shut on every pause (review, 2026-10-20).
+            if report != nil { lastDriftPass = .now }
+            schedule(after: AppTiming.groupingDebounce)
+            return
+        }
+        lastDriftPass = .now
+        driftSeen = nil
+        driftBudget.spend(ready, roster: model.roster)
+        PelmetLog.log("order: pass applied=\(report.applied.count) failed=\(report.failed.count) skipped=\(report.skipped.count)")
         schedule(after: AppTiming.groupingDebounce)
     }
 
