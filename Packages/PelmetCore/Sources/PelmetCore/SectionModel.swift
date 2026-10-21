@@ -130,9 +130,10 @@ public struct SectionModel: Codable, Equatable, Sendable {
             assignments[key] = home
             routed.append(key)
         }
-        // Front of the order: macOS spawns new icons at the far LEFT of the
-        // status area, so the model mirrors where they physically land.
-        order[newItemsDestination, default: []].insert(contentsOf: routed, at: 0)
+        // No slot yet: the icon is listed where it first sits on the bar
+        // (`slotUnlisted`, M4 of the editor-owns-order plan). Put at the
+        // front, one macOS placed elsewhere was drift the order keeper
+        // dragged to the front.
         return true
     }
 

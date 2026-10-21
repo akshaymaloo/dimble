@@ -2885,6 +2885,113 @@ final class AppState {
     /// Apply re-hosts it, so the order keeper leaves separators alone.
     var separatorsNeedRehost: Bool { separators?.needsRehost ?? false }
 
+    /// The primary bar as live frames read it, for what writes the stored
+    /// order (M4, M5). Never a remembered frame: a stale or phantom one
+    /// written there is kept for good, and the keeper drags the bar to it
+    /// (review, 2026-10-20). A walk at rest only. Nothing behind the «,
+    /// nothing out on its own beside the chevron, nothing just concealed
+    /// (still listed on a phantom frame), no own extra leaving a concealed
+    /// section.
+    private func liveBarForOrder(_ snap: EngineSnapshot) -> [ItemID] {
+        guard snap.itemsAtRest else { return [] }
+        let roster = settings.sectionModel.roster
+        let revealed = revealedSectionsForExtras
+        let away = ApplyPass.trapped(snap, appState: self)
+            .union(snap.shownAlone.map(\.sectionKey))
+            .union(snap.concealed.map(\.sectionKey))
+        let frames = ApplyPass.primaryFrames(snap, appState: self).filter { key, _ in
+            guard !away.contains(key) else { return false }
+            guard MenuBarPolicy.isPelmetExtraID(key) else { return true }
+            let section = roster.section(of: key)
+            return section == .visible || revealed.contains(section)
+        }
+        return ApplyPass.barOrder(frames)
+    }
+
+    /// M4 of the editor-owns-order plan: an icon its section's stored order
+    /// doesn't list yet (a new app's) is listed where it sits among live
+    /// neighbours, so the order keeper never drags a newcomer. One that is
+    /// concealed waits for a reveal (the keeper leaves unlisted icons
+    /// alone meanwhile). Strays wait for the grouper to bring them over,
+    /// and own items are enrolled where they are made.
+    @discardableResult
+    func slotUnlistedIcons(_ snap: EngineSnapshot, skipping strays: Set<ItemID>) -> [ItemID] {
+        let bar = liveBarForOrder(snap)
+        let exempt = Set(bar.filter { id in
+            strays.contains(id) || !MenuBarPolicy.isSectionManageable(id)
+                || id.bundleID.map(PelmetBundle.ownIDs.contains) == true
+        })
+        var model = settings.sectionModel
+        let chevron = pelmetChevronItem(in: snap)?.id.sectionKey
+        let slotted = model.slotUnlisted(bar: bar, chevron: chevron, exempt: exempt)
+        guard !slotted.isEmpty else { return [] }
+        settings.sectionModel = model
+        settings.save()
+        PelmetLog.log("order: slotted [\(slotted.map(\.rawValue).joined(separator: ", "))] where they landed")
+        return slotted
+    }
+
+    private static let seededOrderKey = "pelmet.seededOrderFromBar"
+    private static let seedPassLimit = 2
+    private var seedPasses = 0
+
+    /// Sections whose stored order hasn't been taken from the bar since the
+    /// editor came to own the order (M5).
+    var unseededOrderSections: Set<PelmetCore.Section> {
+        let stored = UserDefaults.standard.stringArray(forKey: Self.seededOrderKey) ?? []
+        return Set(PelmetCore.Section.allCases).subtracting(stored.compactMap(PelmetCore.Section.init(rawValue:)))
+    }
+
+    /// M5 of the editor-owns-order plan: until this update the bar's order
+    /// was the truth and the stored one could lag it, so the first drift
+    /// the keeper sees is the bar the user had, not drift. The keeper's
+    /// seed pass (`ApplyPass.Scope.seedOrder`) reveals the bar and hands
+    /// the live snapshot here: each section's stored order takes the bar's
+    /// (`foldBarOrder`), once. Every section seen is marked, drifted or
+    /// not, or one that matched at the update would lose its order to its
+    /// first real drift days later. A section the read missed (a walk not
+    /// at rest, a member still concealed: the reveal didn't take) waits for
+    /// the next seed pass, and is marked as it is after `seedPassLimit`
+    /// passes in a launch, or every cooldown would reveal the bar again
+    /// (review). A section with a drawing waiting for Apply is the user's
+    /// target already: marked, not seeded.
+    func seedOrderFromBar(_ sections: Set<PelmetCore.Section>, snap: EngineSnapshot) {
+        seedPasses += 1
+        let bar = liveBarForOrder(snap)
+        let roster = settings.sectionModel.roster
+        let concealed = Set(snap.concealed.map(\.sectionKey))
+        var model = settings.sectionModel
+        var changed = false
+        var read = Set<PelmetCore.Section>()
+        for section in PelmetCore.Section.allCases where sections.contains(section) {
+            let hiddenStill = concealed.filter { roster.section(of: $0) == section }.count
+            guard snap.itemsAtRest, hiddenStill == 0 else {
+                let why = snap.itemsAtRest ? "\(hiddenStill) icon(s) concealed" : "bar not at rest"
+                if seedPasses < Self.seedPassLimit {
+                    PelmetLog.log("order: \(section.rawValue) not read (\(why)) — seeded at the next look")
+                    continue
+                }
+                PelmetLog.log("order: \(section.rawValue) not read (\(why)) after \(seedPasses) looks — kept as stored")
+                read.insert(section)
+                continue
+            }
+            read.insert(section)
+            if settings.orderEdits.order[section] != nil {
+                PelmetLog.log("order: \(section.rawValue) has a drawing — not seeded")
+            } else {
+                let folded = model.foldBarOrder(of: section, bar: bar)
+                changed = changed || folded
+                PelmetLog.log("order: seeded \(section.rawValue) from the bar\(folded ? "" : " (already in order)")")
+            }
+        }
+        let marked = Set(PelmetCore.Section.allCases).subtracting(unseededOrderSections).union(read)
+        UserDefaults.standard.set(marked.map(\.rawValue).sorted(), forKey: Self.seededOrderKey)
+        if changed {
+            settings.sectionModel = model
+            settings.save()
+        }
+    }
+
     /// The Apply button: reveal what needs measuring, plan, drag each move
     /// through the one shielded door, verify, report. Failed moves keep the
     /// edits pending so the button offers Retry.

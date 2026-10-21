@@ -29,8 +29,8 @@ import Testing
         let changed = model.registerObservedItems([figma, id("com.herd.app")])
         #expect(changed)
         #expect(model.section(of: figma) == .hidden)
-        // Canonical key, front of the order — new icons spawn at the far left.
-        #expect(model.order[.hidden]?.first == key("com.figma.Desktop"))
+        // No slot yet: it takes the one where it sits (`slotUnlisted`).
+        #expect(model.order[.hidden] == [key("com.herd.app")])
         #expect(model.knownBundles.contains("com.figma.Desktop"))
     }
 
@@ -41,7 +41,7 @@ import Testing
         ])
         #expect(changed)
         #expect(model.assignments == [key("com.figma.Desktop"): .hidden])
-        #expect(model.order[.hidden] == [key("com.figma.Desktop")])
+        #expect(model.order[.hidden] == nil)
     }
 
     @Test func visibleDestinationLeavesNewItemUnassigned() {
