@@ -3346,47 +3346,6 @@ final class AppState {
         PelmetLog.log("apply: \(dropped) pending edit(s) for removed own item(s) dropped")
     }
 
-    /// Drops the pending edits; the editor goes back to drawing the bar's
-    /// real order for those sections.
-    func discardOrderEdits() {
-        guard !applying else { return }
-        var model = settings.sectionModel
-        // Discard is a reset of the drawing: every edited section goes back
-        // to the order it had before its first edit (reading the bar could
-        // not serve a concealed section, and put a returning icon at the
-        // end instead of its old slot, 2026-09-21), and every
-        // between-section drop goes back to its section — a separator drawn
-        // elsewhere returns to the one hosting it (Apply moves hosts).
-        for (section, order) in settings.orderEdits.previousOrder {
-            model.order[section] = order
-        }
-        for (key, origin) in settings.orderEdits.previousSection {
-            if origin == .visible {
-                model.assignments.removeValue(forKey: key)
-            } else {
-                model.assignments[key] = origin
-            }
-        }
-        // A separator created in this edit set was never in the bar's
-        // order: it goes, tile and item alike.
-        let created = settings.orderEdits.created
-        if !created.isEmpty {
-            settings.separators.removeAll { created.contains(SeparatorManager.itemID(for: $0).sectionKey) }
-            for key in created {
-                model.assignments.removeValue(forKey: key)
-                for section in model.order.keys { model.order[section]?.removeAll { $0 == key } }
-            }
-            PelmetLog.log("editor: \(created.count) created separator(s) discarded")
-        }
-        settings.sectionModel = model
-        settings.orderEdits = OrderEdits()
-        applyReport = nil
-        settings.save()
-        separators?.sync(with: settings.separators)
-        PelmetLog.log("apply: edits discarded")
-        Task { await engine.setModel(model) }
-    }
-
     /// The icon's physical side disagrees with its section (an editor drop
     /// between sections hides it at once but leaves it where it was): the
     /// tile says so until Apply relocates it. Needs the chevron

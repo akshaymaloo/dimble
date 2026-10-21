@@ -11,7 +11,9 @@ import SwiftUI
 /// Sits on the pane's title row (the settings shell places it). Sets core
 /// (docs/CORE-SETS.md M1): the editor is a drawing; this is the one door
 /// through which the bar moves. Shows the pending move count (drawn edits
-/// plus icons on the wrong side of the chevron) and Discard beside it.
+/// plus icons on the wrong side of the chevron). No Discard since
+/// 0.3.3-beta.5: the keeper applies a drawing on its own at the next pause,
+/// so an editor mistake is undone by dragging it back.
 struct ApplyBarButton: View {
     @Environment(AppState.self) private var appState
 
@@ -43,11 +45,6 @@ struct ApplyBarButton: View {
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
-            }
-            if !appState.settings.orderEdits.isEmpty, !appState.applying {
-                Button("Discard") { appState.discardOrderEdits() }
-                    .font(.callout)
-                    .help("Forget the pending order changes; the editor shows the bar as it is")
             }
             // Same chip family as General's permission row (de-box, tinted
             // capsule). Only there while there is something to apply (or a

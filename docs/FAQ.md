@@ -92,18 +92,19 @@ App launchers work for any app, not only problem ones — a launcher parked in
 a hidden section is a tidy way to reach an app you use now and then.
 
 **Why doesn't the bar change when I move an icon in the editor?**
-Since 0.3.0 the editor is a drawing. Reorder icons, move them between
-sections, add separators: nothing moves in the bar until you press Apply,
-which lays the whole bar out in one pass and reports what it did next to the
-button. Discard puts the drawing back to what the bar shows. An icon dragged to
-another section hides with that section at once but stays where it sits until
-Apply moves it; its tile says so.
+The editor is a drawing the bar follows. Reorder icons or move them between
+sections, then press Apply. It lays the whole bar out in one pass and reports
+what it did next to the button. Or leave it, and Dimble does it the next time
+you pause. A new separator waits for Apply. If you change your mind, drag the
+icon back. An icon dragged to another section hides with that section at once,
+and its tile says so until it's in place.
 
 **After updating, Apply shows a pending change I didn't make.**
 0.2.x stored an order for each section and moved icons to match it. 0.3.0 only
-records where your icons are. If the stored order differs from what is on
-screen, it shows up once as a pending edit: Apply reproduces it, Discard keeps
-the bar as it stands.
+records where your icons are. If the stored order differs from what's on
+screen, it shows up once as a pending edit. Apply (or your next pause) puts
+that order back. To keep an icon where it sits, drag it to that spot in the
+editor.
 
 **My bar is full and an icon sits behind macOS's «. Can Pelmet move it?**
 Apply opens the « for an icon drawn behind it, moves it, and closes the «

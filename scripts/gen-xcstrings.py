@@ -143,18 +143,6 @@ T = {
     "Apply (%lld)": dict(de="Anwenden (%lld)", fr="Appliquer (%lld)", es="Aplicar (%lld)", it="Applica (%lld)", pt="Aplicar (%lld)", ja="適用 (%lld)", zh="应用 (%lld)", ko="적용 (%lld)", ru="Применить (%lld)"),
     "Applying…": dict(de="Wird angewendet …", fr="Application…", es="Aplicando…", it="Applicazione…", pt="Aplicando…", ja="適用中…", zh="正在应用…", ko="적용 중…", ru="Применение…"),
     "Retry": dict(de="Erneut versuchen", fr="Réessayer", es="Reintentar", it="Riprova", pt="Tentar novamente", ja="再試行", zh="重试", ko="다시 시도", ru="Повторить"),
-    "Discard": dict(de="Verwerfen", fr="Annuler", es="Descartar", it="Annulla", pt="Descartar", ja="破棄", zh="放弃", ko="취소", ru="Отменить"),
-
-    "Forget the pending order changes; the editor shows the bar as it is": dict(
-        de="Ausstehende Reihenfolge-Änderungen verwerfen; der Editor zeigt die Leiste wie sie ist",
-        fr="Oublier les changements d’ordre en attente ; l’éditeur montre la barre telle quelle",
-        es="Olvidar los cambios de orden pendientes; el editor muestra la barra tal cual",
-        it="Scarta le modifiche d’ordine in sospeso; l’editor mostra la barra com’è",
-        pt="Esquecer as alterações de ordem pendentes; o editor mostra a barra como está",
-        ja="保留中の並び替えを破棄し、エディタは現在のバーをそのまま表示します",
-        zh="放弃待应用的顺序更改；编辑器按当前菜单栏显示",
-        ko="대기 중인 순서 변경을 잊고 편집기는 현재 막대를 그대로 표시합니다",
-        ru="Забыть ожидающие изменения порядка; редактор показывает строку как есть"),
     "Move the bar to match the editor: your order, and every icon on its section's side of the chevron. Each icon is dragged once with the cursor hidden; nothing moves until you press this.": dict(
         de="Leiste an den Editor angleichen: deine Reihenfolge, und jedes Symbol auf der Seite des Chevrons, die seiner Sektion entspricht. Jedes Symbol wird einmal bei verstecktem Cursor gezogen; nichts bewegt sich, bevor du hier klickst.",
         fr="Aligner la barre sur l’éditeur : votre ordre, et chaque icône du côté du chevron qui correspond à sa section. Chaque icône est glissée une fois, curseur masqué ; rien ne bouge avant ce clic.",

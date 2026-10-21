@@ -35,9 +35,9 @@ Three sections, one rule: **Visible** is always there, **Hidden** comes back
 on a hover or a click, and **Always Hidden** only appears when you ask for it
 (double-click or ⌥-click the chevron). Arrange them in the layout editor
 (real app-icon previews, drag-and-drop ordering): the editor is a drawing
-the bar follows, and **Apply** lays the bar out to match it in one pass, or
-**Discard** puts the drawing back. Or skip the window entirely and ⌘-drag
-icons across the chevron right in the menu bar. Dimble records that move in
+the bar follows, and **Apply** lays the bar out to match it in one pass. Or
+skip the window entirely and ⌘-drag icons across the chevron right in the
+menu bar. Dimble records that move in
 the editor and leaves the rest where they are. And when macOS or an app
 shifts an icon out of that order, Dimble puts it back on its own the next
 time you pause.

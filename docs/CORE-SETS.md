@@ -27,7 +27,7 @@ What we verified before choosing this (2026-09-20, live, instrumented):
 
 - `Roster` — the three membership sets keyed by canonical `sectionKey`. Replaces the positional half of `SectionModel`. Canonicalization rules (bundle keys for Apple hosts, unmanaged agents, host strays) carry over unchanged.
 - `RosterRule` — default membership for items Pelmet hasn't met: new apps hidden by default, system hosts unmanaged, replica collateral rules, extras show rules. Absorbs `MenuBarPolicy`'s membership half. `MenuBarPolicy` keeps only classification (what is an Apple host, what lives in CoreServices).
-- `OrderEdits` — pending order changes from the editor: per section, the order the user drew, plus a `tidy` flag. Cleared by Apply or Discard. Persisted so a quit doesn't lose them.
+- `OrderEdits` — pending order changes from the editor: per section, the order the user drew, plus a `tidy` flag. Cleared by Apply, or once the bar matches it (Discard went in 0.3.3-beta.5: the keeper applies a drawing at the next pause, and a mistake is dragged back). Persisted so a quit doesn't lose them.
 - `MovePlan` — pure function `(bar order read from AX, OrderEdits) -> [Move]`. A `Move` is one item and one target neighbour. Minimal move count, neighbour math reused from `PlacementGeometry`. Fixture-tested against today's known bar shapes (overflow, notch, multi-display, pinned Apple hosts).
 
 ## Behaviours
@@ -82,7 +82,7 @@ At 0.3.3-beta.5 the stored order became the target, and it could lag the bar. Th
 | Core/BarAdoption.swift | KEPT (was "delete"): `reconcile` is the surviving half — membership read from the bar after a user ⌘-drag; `chevronDragged` adopts crossed items |
 | App/TransitionCoordinator.swift, StatusItem/ConcealGhostOverlay.swift | KEPT whole (cover decision above; the picture lifecycle feeds the cover) |
 | StatusItem/SeparatorManager.swift, HelperHosts.swift | keep; hosts follow the drawn section at Apply (`hostedSection`); overflow force-show gone |
-| Settings/MenuBarTab.swift | Apply button (count, Retry, Discard) on the title row; Tidy button and the editor reveal gone; overflow note stays |
+| Settings/MenuBarTab.swift | Apply button (count, Retry; Discard removed in 0.3.3-beta.5) on the title row; Tidy button and the editor reveal gone; overflow note stays |
 | Core/SectionModel.swift, MenuBarPolicy.swift, RehideStateMachine.swift, CollateralTracker.swift | keep |
 | Engine/AgentBarEngine.swift, ItemMover.swift, ConvergePlan.swift | keep; `ItemMover` is used only by `ApplyPass` |
 | Engine/AgentPositionStore/AgentPositions.swift | keep: the own-item hint writer (`writeOrderHint`) still seeds fresh registrations |

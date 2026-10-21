@@ -8005,64 +8005,6 @@
         }
       }
     },
-    "Discard": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verwerfen"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Descartar"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Annuler"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Annulla"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "破棄"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "취소"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Descartar"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Отменить"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "放弃"
-          }
-        }
-      }
-    },
     "Dismiss": {
       "localizations": {
         "de": {
@@ -9683,64 +9625,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "清除记录"
-          }
-        }
-      }
-    },
-    "Forget the pending order changes; the editor shows the bar as it is": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ausstehende Reihenfolge-Änderungen verwerfen; der Editor zeigt die Leiste wie sie ist"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Olvidar los cambios de orden pendientes; el editor muestra la barra tal cual"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Oublier les changements d’ordre en attente ; l’éditeur montre la barre telle quelle"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Scarta le modifiche d’ordine in sospeso; l’editor mostra la barra com’è"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "保留中の並び替えを破棄し、エディタは現在のバーをそのまま表示します"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "대기 중인 순서 변경을 잊고 편집기는 현재 막대를 그대로 표시합니다"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Esquecer as alterações de ordem pendentes; o editor mostra a barra como está"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Забыть ожидающие изменения порядка; редактор показывает строку как есть"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "放弃待应用的顺序更改；编辑器按当前菜单栏显示"
           }
         }
       }
