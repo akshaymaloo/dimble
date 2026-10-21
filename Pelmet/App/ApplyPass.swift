@@ -278,7 +278,7 @@ enum ApplyPass {
         // (the editor owns the order, 2026-10-20): drift since the last drag
         // is a move like a drawing. Drawn only, Wi-Fi among Hidden and the
         // Always Hidden separator right of the « were nobody's to move.
-        return MovePlan.compute(
+        var plan = MovePlan.compute(
             bar: facts.bar,
             edits: edits ?? appState.editorOrderTarget,
             roster: facts.roster,
@@ -286,6 +286,15 @@ enum ApplyPass {
             pinned: facts.pinned,
             ownItems: own
         )
+        // The stored order lists every icon, so the plan skips every one it
+        // has no frame for. Only a drawn one is something Apply didn't do:
+        // two concealed Always Hidden icons nobody drew left "2 not moved"
+        // up with nothing to retry (2026-10-20).
+        if edits == nil {
+            let drawn = Set(appState.settings.orderEdits.order.values.joined())
+            plan.skipped.removeAll { !drawn.contains($0.0) }
+        }
+        return plan
     }
 
     /// Seconds since the last physical pointer event (public CGEventSource

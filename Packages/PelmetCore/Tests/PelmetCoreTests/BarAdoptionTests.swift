@@ -310,6 +310,34 @@ struct BarAdoptionTests {
         #expect(result?.model.assignments.isEmpty == true)
     }
 
+    @Test func draggedLeftOfTheChevronOverAConcealedHiddenAdoptsIntoHidden() {
+        // No cluster on the bar to tell Hidden from Always Hidden: the side
+        // of the chevron is the gesture (Siri, 2026-10-20).
+        let result = BarAdoption.reconcile(
+            items: [(id: velja, minX: 760), (id: chevron, minX: 1000)],
+            model: SectionModel(),
+            previousZones: [:],
+            pelmetBundleID: pelmet,
+            draggedID: velja
+        )
+        #expect(result?.changed == true)
+        #expect(result?.model.assignments[velja.sectionKey] == .hidden)
+    }
+
+    @Test func draggedAlwaysHiddenIconStaysWhenNothingIsMeasured() {
+        var model = SectionModel()
+        model.assignments[velja.sectionKey] = .alwaysHidden
+        let result = BarAdoption.reconcile(
+            items: [(id: velja, minX: 760), (id: chevron, minX: 1000)],
+            model: model,
+            previousZones: [:],
+            pelmetBundleID: pelmet,
+            draggedID: velja
+        )
+        #expect(result?.changed == false)
+        #expect(result?.model.assignments[velja.sectionKey] == .alwaysHidden)
+    }
+
     /// A non-dragged zone change adopts on the second agreeing pass.
     func twoPasses(items: [(id: ItemID, minX: CGFloat?)], model: SectionModel, previousZones: [String: Section]) -> BarAdoption.Result? {
         let first = BarAdoption.reconcile(items: items, model: model, previousZones: previousZones, pelmetBundleID: pelmet)

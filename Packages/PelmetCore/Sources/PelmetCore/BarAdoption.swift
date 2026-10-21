@@ -320,7 +320,12 @@ public enum BarAdoption {
                 // it reads "between the clusters") NEVER earns a baseline, so
                 // the zone-change rule alone could never move the leftmost
                 // hidden item into Always Hidden (Sconce, 2026-09-05).
-                guard confident else { continue }
+                // Left of the chevron with neither cluster measured (Hidden
+                // concealed under the drop) the section is a guess, the side
+                // is not: Hidden, the one a collapsed bar lets you drop into.
+                // Refused, Siri stayed Visible and Apply dragged it back
+                // across the « (first ⌘-drag after launch, 2026-10-20).
+                guard confident || concealableSide == true else { continue }
             } else if chevronDragged {
                 // A reading on the far side of a boundary the user just
                 // moved is the change itself; no baseline needed. Which
