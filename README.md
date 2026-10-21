@@ -34,25 +34,27 @@ no account, no analytics.
 Three sections, one rule: **Visible** is always there, **Hidden** comes back
 on a hover or a click, and **Always Hidden** only appears when you ask for it
 (double-click or ⌥-click the chevron). Arrange them in the layout editor
-(real app-icon previews, drag-and-drop ordering): the editor is a drawing,
-and **Apply** lays the bar out to match it in one pass, or **Discard** puts
-the drawing back. Or skip the window entirely and ⌘-drag icons across the
-chevron right in the menu bar. Dimble records the move and never moves an
-icon on its own.
+(real app-icon previews, drag-and-drop ordering): the editor is a drawing
+the bar follows, and **Apply** lays the bar out to match it in one pass, or
+**Discard** puts the drawing back. Or skip the window entirely and ⌘-drag
+icons across the chevron right in the menu bar. Dimble records that move in
+the editor and leaves the rest where they are. And when macOS or an app
+shifts an icon out of that order, Dimble puts it back on its own the next
+time you pause.
 
 <p align="center">
   <img src="https://dimble.fif7y.com/assets/apply-loop.gif" alt="The layout editor under the menu bar: Spotify is dragged from Hidden to Visible, nothing moves in the bar, Apply lights up, one press and Spotify appears in the bar" width="640"><br>
-  <sub>The layout editor is a drawing. Drag icons between Visible, Hidden and Always&nbsp;Hidden; nothing moves in the bar until you press Apply.</sub>
+  <sub>The layout editor is a drawing the bar follows. Drag Spotify to Visible and nothing moves yet. Press Apply and it's there. Or leave it, and Dimble does it the next time you pause.</sub>
 </p>
 
 Apply reveals what it needs, lays the whole bar out in one pass with the
 pointer hidden for a moment, and reports what it did next to the button. On a
 full bar it opens macOS's own « for an icon drawn behind it, moves it, and
 closes the « again. A "New items" tile shows where icons Dimble has never seen
-will land. Upgrading from 0.2.x keeps your bar as it is: if the stored order
-differs from the screen, it shows up once as a pending edit. And a pending
-update shows as a banner on every Settings pane, with a daily reminder until
-you install it.
+will land. Updating leaves your bar alone. The first time Dimble sees a
+section out of order, it takes that section's order from the bar instead of
+moving anything. And a pending update shows as a banner on every Settings
+pane, with a daily reminder until you install it.
 
 System icons hide too. Sound, Battery and friends behave like any
 other icon. The few macOS protects (Clock, Control Center) are shown
