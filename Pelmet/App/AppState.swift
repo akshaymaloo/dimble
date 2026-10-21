@@ -1088,6 +1088,28 @@ final class AppState {
     /// include it instead of closing: the key asked for more, not less.
     func toggleAll(reason: RevealReason) {
         let all: Set<PelmetCore.Section> = [.hidden, .alwaysHidden]
+        // Off the anchor (no Screen Recording), a display that shows all
+        // icons has its Hidden out as the policy's own bar reveal (#96). A
+        // click there that follows a panel or a row takes that reveal down
+        // and opens there: widening the bar ignored the setting until a
+        // third click. Closing Always Hidden goes back to the policy's
+        // reveal, not to an empty bar.
+        if !transitions.anchored, pointerDisplayBehavior == .alwaysShowAll, revealPresenter === barPresenter,
+           case .revealed(let current, let by) = rehide.state {
+            let target = revealDecision(for: reason).target
+            if by == .displayPolicy, !current.contains(.alwaysHidden),
+               RevealRouting.destination(for: reason, target: target) == .panel {
+                PelmetLog.log("toggleAll(\(reason)) off the anchor — the policy's bar goes, \(target.rawValue) opens")
+                concealNow()
+                reveal(all, reason: reason)
+                return
+            }
+            if current.contains(.alwaysHidden), current.contains(.hidden) {
+                dispatch(rehide.handle(.narrowRequested([.hidden], .displayPolicy)))
+                PelmetLog.log("toggleAll(\(reason)) off the anchor — narrowed to the policy's reveal, state=\(rehide.state)")
+                return
+            }
+        }
         let showing: Set<PelmetCore.Section>? = {
             switch rehide.state {
             case .revealed(let sections, _): sections
@@ -2137,6 +2159,24 @@ final class AppState {
             reveal([.hidden], reason: .displayPolicy)
         } else {
             concealNow()
+        }
+    }
+
+    /// The panel closed with the pointer on a display that shows all icons,
+    /// off the anchor: its Hidden comes back out on the bar, the policy's
+    /// own reveal (#96). Nothing else brings it back before the next display
+    /// crossing. Deferred, since this runs inside `dispatch`.
+    private func restoreShowAllPolicyAfterPanel() {
+        guard !transitions.anchored, pointerDisplayBehavior == .alwaysShowAll else { return }
+        Task { @MainActor [weak self] in
+            guard let self, !self.transitions.anchored, self.pointerDisplayBehavior == .alwaysShowAll else { return }
+            switch self.rehide.state {
+            case .concealed, .transitioning(target: .conceal, queued: nil):
+                PelmetLog.log("displays: panel closed on a display that shows all icons — back to the policy's reveal")
+                self.reveal([.hidden], reason: .displayPolicy)
+            default:
+                break
+            }
         }
     }
 
@@ -3576,6 +3616,7 @@ final class AppState {
                 } else {
                     transitions.performConceal(trace: trace, releasing: items)
                 }
+                if shown === panelPresenter { restoreShowAllPolicyAfterPanel() }
             case .armTimer(let deadline):
                 rehideDeferLogged = false
                 scheduleRehideTimer(at: deadline)
@@ -3643,8 +3684,10 @@ final class AppState {
     /// (`TransitionCoordinator.anchored`, #88).
     var revealAnchored: Bool {
         // The pictures need Screen Recording: without it the pointer's
-        // display decides, as before.
+        // display decides, as before. `pelmet.debug.noAnchor` takes that
+        // path with the permission granted (#96).
         screenRecordingGranted
+            && !UserDefaults.standard.bool(forKey: "pelmet.debug.noAnchor")
             && settings.anchorsReveal(connectedDisplayUUIDs: NSScreen.screens.map(\.displayUUIDString))
     }
 
