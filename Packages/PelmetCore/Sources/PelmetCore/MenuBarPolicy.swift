@@ -210,6 +210,14 @@ public enum MenuBarPolicy {
         return systemItem(for: id) != nil
     }
 
+    /// The system's icon that no section holds: the recording pill (#42), a
+    /// CoreServices agent's, a menuextra off the allowlist. Pelmet never
+    /// hides it, so a held picture leaves it in sight, and never moves it,
+    /// so it is no stray wherever macOS puts it.
+    public static func isSectionlessSystemIcon(_ id: ItemID) -> Bool {
+        isUnmanagedAppleBundle(id.bundleID) && systemItem(for: id) == nil
+    }
+
     /// The engine can bring this item out on its own (`reveal(items:)`): an
     /// app's icon, an Apple host's, a system item on the allowlist. Its whole
     /// bundle comes with it, since hiding is per bundle. Pelmet's own items

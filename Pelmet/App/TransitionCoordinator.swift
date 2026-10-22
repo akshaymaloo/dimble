@@ -343,6 +343,19 @@ final class TransitionCoordinator {
     /// that narrowed — the chevron moved left, settled after the reveal or
     /// under a capture indicator — trims the covers off it.
     private var heldShownRun: ClosedRange<CGFloat>?
+    /// The icons that run leaves in sight (`heldHoles`).
+    private var heldShownHoles: [ClosedRange<CGFloat>] = []
+    /// The recording pill on its way to Visible (`AppState.adoptRecordingPill`):
+    /// held under the picture where it registered, not cut out of it, so it
+    /// shows once, where it lands (Gab, 2026-10-22: the cut, then the move,
+    /// was one show too many). A pill that stays put gets its hole after.
+    var placingSectionless = false {
+        didSet { if placingSectionless != oldValue { refreshHeld("recording pill \(placingSectionless ? "to place" : "placed")") } }
+    }
+    /// Held pictures take clicks; the pill's drag starts under one.
+    var heldPassClicks = false {
+        didSet { for cover in held.values { cover.passClicks(heldPassClicks) } }
+    }
     /// An anchored press lifted this display's picture for its click.
     private(set) var pressUnheld: CGDirectDisplayID?
     /// The bare run per display, kept so a cover goes back up without a
@@ -1110,7 +1123,8 @@ final class TransitionCoordinator {
         return items.reduce(nil as CGRect?) { run, item in
             guard item.id != AppState.chevronItemID, let frame = item.frame, frame.maxX <= chevronMinX + 1,
                   MenuBarGeometry.isInPrimaryBand(frame, primaryMaxX: primaryMaxX),
-                  out.contains(appState.settings.sectionModel.section(of: item.id)) else { return run }
+                  out.contains(appState.settings.sectionModel.section(of: item.id))
+                    || placingSectionless && MenuBarPolicy.isSectionlessSystemIcon(item.id) else { return run }
             return run.map { $0.union(frame) } ?? frame
         }
     }
@@ -1167,6 +1181,7 @@ final class TransitionCoordinator {
             }
             held = [:]
             heldShownRun = nil
+            heldShownHoles = []
             return
         }
         for id in heldDisplays.subtracting(displays) {
@@ -1180,8 +1195,11 @@ final class TransitionCoordinator {
             heldPicturesBackdrop = heldBackdrop(wantedRun)
         }
         guard let run = heldPicturesRun, let shown = heldShown(for: wantedRun) else { return }
+        let holes = heldHoles(in: shown)
         // Up already over pictures that still serve: nothing to do.
-        let wanted = displays.filter { held[$0]?.isUp != true || heldPictures[$0] == nil || heldShownRun != shown }
+        let wanted = displays.filter {
+            held[$0]?.isUp != true || heldPictures[$0] == nil || heldShownRun != shown || heldShownHoles != holes
+        }
         // A cover raised before the anchor (a bar reveal's 10-minute hold)
         // stays for as long as the anchor does.
         if anchored { for (_, cover) in held { cover.keepUp(for: AppTiming.anchoredBarCeiling) } }
@@ -1218,22 +1236,58 @@ final class TransitionCoordinator {
             source = "a capture of the bare bar"
         }
         heldShownRun = shown
+        heldShownHoles = holes
+        let pieces = Self.heldPieces(of: shown, holes: holes)
         for id in wanted where heldWant.contains(id) {
-            guard let kept = heldPictures[id],
-                  let picture = shown == run ? kept : ConcealGhostOverlay.cropped([kept], toPrimaryX: shown).first
-            else { continue }
+            guard let kept = heldPictures[id] else { continue }
+            let pictures = shown == run && holes.isEmpty
+                ? [kept] : pieces.compactMap { ConcealGhostOverlay.cropped([kept], toPrimaryX: $0).first }
             let entering: Bool = { if case .pop = enter { return false } else { return held[id]?.isUp != true } }()
             guard let cover = ConcealGhostOverlay.begin(
-                from: [picture], safety: anchored ? AppTiming.anchoredBarCeiling : AppTiming.heldBarCeiling,
+                from: pictures, safety: anchored ? AppTiming.anchoredBarCeiling : AppTiming.heldBarCeiling,
                 startHidden: entering, holdsBar: true
             ) else { continue }
             if entering { cover.animate(enter, entering: true) }
+            if heldPassClicks { cover.passClicks(true) }
             // Replaced in place: the new picture is up before the old goes.
             held.removeValue(forKey: id)?.dismiss()
             held[id] = cover
         }
         let edges = "strip \(lastConcealedStripRect.map { "\(Int($0.minX))..\(Int($0.maxX))" } ?? "-"), live \(liveHiddenRun.map { "\(Int($0.minX))..\(Int($0.maxX))" } ?? "-"), chevron \(primaryChevronMinX.map { "\(Int($0))" } ?? "-")"
-        PelmetLog.log("held: display(s) \(wanted.sorted()) kept concealed — run \(Int(shown.lowerBound))..\(Int(shown.upperBound)) of \(Int(run.lowerBound))..\(Int(run.upperBound)) from \(source) (\(edges))")
+        let inSight = holes.isEmpty ? "" : ", in sight \(holes.map { "\(Int($0.lowerBound))..\(Int($0.upperBound))" }.joined(separator: " "))"
+        PelmetLog.log("held: display(s) \(wanted.sorted()) kept concealed — run \(Int(shown.lowerBound))..\(Int(shown.upperBound)) of \(Int(run.lowerBound))..\(Int(run.upperBound)) from \(source) (\(edges))\(inSight)")
+    }
+
+    /// What a held picture leaves out of its run: the icons no section
+    /// holds. Nothing hides them, so neither may a picture of the bare bar:
+    /// the recording pill came up at x 1337 under the held run 1016..1565,
+    /// and only quitting Dimble showed it (2026-10-22). Live frames only,
+    /// the native «'s phantoms left out (`ApplyPass.primaryFrames`), from a
+    /// walk at rest: one 160ms after the launch swap cut a hole at
+    /// 1570..1587, mid-reflow, over whatever slid past.
+    private func heldHoles(in shown: ClosedRange<CGFloat>) -> [ClosedRange<CGFloat>] {
+        guard !placingSectionless, let appState, let snap = appState.snapshot else { return [] }
+        guard snap.itemsAtRest else { return heldShownHoles.filter { $0.overlaps(shown) } }
+        return ApplyPass.primaryFrames(snap, appState: appState)
+            .filter { MenuBarPolicy.isSectionlessSystemIcon($0.key) }
+            .map { $0.value.minX.rounded()...$0.value.maxX.rounded() }
+            .filter { $0.overlaps(shown) }
+            .sorted { $0.lowerBound < $1.lowerBound }
+    }
+
+    /// `shown` less the holes, as spans `cropped` pads back out to the
+    /// hole's edges: the icons either side of one stay covered.
+    private static func heldPieces(of shown: ClosedRange<CGFloat>, holes: [ClosedRange<CGFloat>]) -> [ClosedRange<CGFloat>] {
+        let pad = ConcealGhostOverlay.capturePadding
+        var pieces: [ClosedRange<CGFloat>] = []
+        var left = shown.lowerBound
+        for hole in holes {
+            let right = min(hole.lowerBound - pad, shown.upperBound)
+            if right - left > 8 { pieces.append(left...right) }
+            left = max(left, hole.upperBound + pad)
+        }
+        if shown.upperBound - left > 8 { pieces.append(left...shown.upperBound) }
+        return pieces
     }
 
     private static func lift(_ cover: ConcealGhostOverlay.GhostSet, _ move: AnimationRecipe.Move) {
@@ -1271,6 +1325,7 @@ final class TransitionCoordinator {
         heldDropEpoch &+= 1
         heldWant = []
         heldShownRun = nil
+        heldShownHoles = []
         // Kept pictures sit at the old geometry even with none up.
         heldPictures = [:]
         heldPicturesRun = nil
@@ -1292,9 +1347,11 @@ final class TransitionCoordinator {
         let want = appState.barsKeptConcealed
         guard !want.isEmpty || !held.isEmpty else { return }
         let stale = heldRunNow.map { !heldPicturesServe($0) } ?? true
-        let moved = !stale && heldRunNow.flatMap(heldShown(for:)) != heldShownRun
-        guard stale || moved || want != heldDisplays else { return }
-        PelmetLog.log("held: \(stale ? "retake" : moved ? "trim" : "re-hold") — \(why)")
+        let shownNow = stale ? nil : heldRunNow.flatMap(heldShown(for:))
+        let moved = !stale && shownNow != heldShownRun
+        let holed = !stale && !moved && (shownNow.map(heldHoles(in:)) ?? []) != heldShownHoles
+        guard stale || moved || holed || want != heldDisplays else { return }
+        PelmetLog.log("held: \(stale ? "retake" : moved ? "trim" : holed ? "holes" : "re-hold") — \(why)")
         // One at a time: a burst of item moves is one hold, then one more
         // with what the burst left.
         guard refreshInFlight == nil else { refreshAgain = true; return }

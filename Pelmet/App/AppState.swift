@@ -522,7 +522,83 @@ final class AppState {
         }
         readAppleMenuBarSwitches()
         observeRunningApplications()
+        if let capture = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == MenuBarPolicy.screenCaptureUIID }) {
+            watchRecordingPill(capture)
+        }
         watchChevronHosting()
+    }
+
+    /// The Stop Recording pill registers under the assertion and parks, and
+    /// comes and goes with no walk (`RecordingPill`): adopt it as the
+    /// recording starts, walk the bar as it shows or leaves.
+    private func watchRecordingPill(_ capture: NSRunningApplication) {
+        recordingPill.onRecordingStarted = { [weak self] in
+            guard let self else { return }
+            PelmetLog.log("recording: started, adopting the pill")
+            Task { await self.adoptRecordingPill() }
+        }
+        recordingPill.onIconsChanged = { [weak self] count in
+            PelmetLog.log("recording: pill \(count > 0 ? "up" : "gone"), walking")
+            Task {
+                _ = await self?.engine.freshSnapshot()
+                // The walk at the stop can land mid-teardown and still list it.
+                guard count == 0 else { return }
+                try? await Task.sleep(for: .seconds(1))
+                _ = await self?.engine.freshSnapshot()
+            }
+        }
+        recordingPill.onEnded = { [weak self] in
+            PelmetLog.log("recording: screencaptureui quit, walking")
+            Task { _ = await self?.engine.freshSnapshot() }
+        }
+        recordingPill.follow(capture)
+    }
+
+    private let recordingPill = RecordingPill()
+
+    /// The pill registers at the far left of the bar, every recording, and
+    /// no section holds it: it goes to the chevron end of Visible once, as
+    /// soon as it settles and the user's hands are off (2026-10-22), and a
+    /// held picture keeps it out of sight until it lands. One drag per
+    /// recording, no budget; off with "keep sections grouped", where it
+    /// stays put and in sight.
+    private func adoptRecordingPill() async {
+        let placing = SectionGrouper.isOn
+        transitions.placingSectionless = placing
+        defer { transitions.placingSectionless = false }
+        guard await coveringAdoption({ await engine.openAdoptionWindow(for: MenuBarPolicy.screenCaptureUIID) }) else { return }
+        updateSnapshot(await engine.snapshot())
+        if placing { await placeRecordingPill() }
+    }
+
+    private func placeRecordingPill() async {
+        let deadline = ContinuousClock.now + .seconds(10)
+        var waiting = "no walk at rest"
+        while ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(300))
+            let snap = await engine.freshSnapshot()
+            let pill = Set(ApplyPass.primaryFrames(snap, appState: self).keys.filter {
+                $0.bundleID == MenuBarPolicy.screenCaptureUIID
+            })
+            guard snap.itemsAtRest else { waiting = "no walk at rest"; continue }
+            guard !pill.isEmpty else { waiting = "no pill on the bar"; continue }
+            // The agent keeps the slot it was dragged to (its trailing
+            // positions, 2026-10-22): from the second recording on it comes
+            // up there.
+            guard !ApplyPass.plan(for: self, snapshot: snap, strays: pill).moves.isEmpty else {
+                PelmetLog.log("recording: pill already in Visible")
+                return
+            }
+            guard ApplyPass.secondsSinceAnyInput() >= AppTiming.applyIdleGap else { waiting = "input"; continue }
+            updateSnapshot(snap)
+            transitions.heldPassClicks = true
+            let report = await runGroupingPass(.strays(pill))
+            transitions.heldPassClicks = false
+            guard let report, !report.abandoned else { waiting = "input"; continue }
+            PelmetLog.log("recording: pill \(report.applied.isEmpty ? "not moved" : "moved to Visible")")
+            return
+        }
+        PelmetLog.log("recording: pill left where it is — 10s with \(waiting)")
     }
 
     /// One walk a second after the last time System Settings lost focus:
@@ -619,6 +695,9 @@ final class AppState {
             // list.
             let now = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
             Task { [engine = self?.engine] in await engine?.setRunningBundles(now) }
+            if let capture = (change.newValue ?? []).first(where: { $0.bundleIdentifier == MenuBarPolicy.screenCaptureUIID }) {
+                Task { @MainActor [weak self] in self?.watchRecordingPill(capture) }
+            }
             let quit = before.subtracting(now)
             if !quit.isEmpty { Task { @MainActor [weak self] in self?.appsQuit(quit) } }
             let appeared = (change.newValue ?? [])

@@ -170,10 +170,15 @@ enum ApplyPass {
     }
 
     private static func barFacts(
-        for appState: AppState, snapshot snap: EngineSnapshot, remembered: Bool
+        for appState: AppState, snapshot snap: EngineSnapshot, remembered: Bool, naming named: Set<ItemID> = []
     ) -> BarFacts {
         let frames = remembered ? rememberedFrames(snap, appState: appState) : primaryFrames(snap, appState: appState)
-        let bar = barOrder(frames)
+        // An icon no section holds is in no order, and no side is wrong for
+        // it: the recording pill up left of the chevron was dragged twice as
+        // a Visible stray (2026-10-22 09:13), and once moved past the
+        // chevron it lit Apply for the icon it sat before. Only a pass that
+        // names it sees it (`AppState.placeRecordingPill`).
+        let bar = barOrder(frames).filter { !MenuBarPolicy.isSectionlessSystemIcon($0) || named.contains($0) }
         let chevron = appState.pelmetChevronItem(in: snap)?.id.sectionKey
         // The trailing system cluster only pins while it IS the cluster:
         // right of the chevron. A system item the user parked left of it
@@ -256,7 +261,7 @@ enum ApplyPass {
         for appState: AppState, snapshot snap: EngineSnapshot, edits: OrderEdits? = nil,
         remembered: Bool = false, strays allowed: Set<ItemID>? = nil, anchorUnlisted: Bool = false
     ) -> MovePlan.Plan {
-        let facts = barFacts(for: appState, snapshot: snap, remembered: remembered)
+        let facts = barFacts(for: appState, snapshot: snap, remembered: remembered, naming: allowed ?? [])
         if let allowed {
             return MovePlan.strayPlan(
                 bar: facts.bar, roster: facts.roster, chevron: facts.chevron,

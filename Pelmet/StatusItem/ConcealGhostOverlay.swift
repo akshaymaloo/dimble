@@ -89,6 +89,8 @@ final class ConcealGhostOverlay {
         func dismiss() { for overlay in overlays { overlay.dismiss() } }
         /// Keeps the safety fade at least `seconds` from now.
         func keepUp(for seconds: TimeInterval) { for overlay in overlays { overlay.keepUp(for: seconds) } }
+        /// A held bar takes clicks; `true` lets them reach the bar beneath.
+        func passClicks(_ through: Bool) { for overlay in overlays { overlay.passClicks(through) } }
         func fadeOut(duration: CFTimeInterval = ConcealGhostOverlay.dismissDuration, slide: Bool = false) {
             for overlay in overlays { overlay.fadeOut(duration: duration, slide: slide) }
         }
@@ -897,6 +899,10 @@ final class ConcealGhostOverlay {
     func keepUp(for seconds: TimeInterval) {
         let end = Date().addingTimeInterval(seconds)
         if end > safetyEnd { safetyEnd = end }
+    }
+
+    func passClicks(_ through: Bool) {
+        window.ignoresMouseEvents = through || countsAsStrip
     }
 
     /// One decrement per overlay, however it ends.

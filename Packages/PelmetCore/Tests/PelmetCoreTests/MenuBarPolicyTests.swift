@@ -152,6 +152,18 @@ struct MenuBarPolicyTests {
 
     // The hosts whose items are the system's stay on the SystemItem path:
     // the agent's menuextras, the input menu, Control Center.
+    // No section holds the recording pill: never a stray, never under a
+    // held picture (2026-10-22). Sound has a section, an app has one.
+    @Test func sectionlessSystemIconsAreTheUnmanagedOffAllowlist() {
+        #expect(MenuBarPolicy.isSectionlessSystemIcon(.bundleKey(MenuBarPolicy.screenCaptureUIID)))
+        #expect(MenuBarPolicy.isSectionlessSystemIcon(.status(bundle: MenuBarPolicy.screenCaptureUIID, title: "Item-0")))
+        #expect(MenuBarPolicy.isSectionlessSystemIcon(menuExtra("audiovideo")))
+        #expect(!MenuBarPolicy.isSectionlessSystemIcon(menuExtra("sound")))
+        #expect(!MenuBarPolicy.isSectionlessSystemIcon(menuExtra("clock")))
+        #expect(!MenuBarPolicy.isSectionlessSystemIcon(.status(bundle: "com.apple.weather.menu", title: "Weather")))
+        #expect(!MenuBarPolicy.isSectionlessSystemIcon(.status(bundle: "com.example.App", title: "Item-0")))
+    }
+
     @Test func systemItemHostsAreNotBundleHideable() {
         #expect(!MenuBarPolicy.isBundleHideableAppleHost(PelmetBundle.agentID))
         #expect(!MenuBarPolicy.isBundleHideableAppleHost(PelmetBundle.textInputAgentID))
