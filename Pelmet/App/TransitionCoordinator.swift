@@ -1102,13 +1102,15 @@ final class TransitionCoordinator {
     /// (the strip seeded at boot ended 85pt short of it, and the first
     /// reveal showed the last icons on a held bar: live test, 2026-10-19).
     /// The crop pads by `capturePadding` and lands on that edge, short of
-    /// the chevron's glyph even shifted. Anchored, the hidden items are out
-    /// and read live.
+    /// the chevron's glyph even shifted. Never past it either: a strip taken
+    /// with the chevron at 1605 held the bar to 1591 once Camera & Mic and
+    /// Media Controls pushed it to 1537, and the picture hid the chevron
+    /// (2026-10-23). Anchored, the hidden items are out and read live.
     private var heldRunNow: ClosedRange<CGFloat>? {
         var strip = lastConcealedStripRect
         if anchored, let live = liveHiddenRun { strip = strip.map { $0.union(live) } ?? live }
         guard let strip else { return nil }
-        let right = max(strip.maxX, primaryChevronMinX ?? strip.maxX) - ConcealGhostOverlay.capturePadding
+        let right = (primaryChevronMinX ?? strip.maxX) - ConcealGhostOverlay.capturePadding
         let left = min(strip.minX, widestStripMinX ?? strip.minX) - 16
         return right - left > 8 ? left...right : nil
     }
