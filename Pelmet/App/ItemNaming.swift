@@ -32,6 +32,7 @@ enum ItemNaming {
         case .timeMachine: return String(localized: "Time Machine")
         case .siri: return String(localized: "Siri")
         case .focus: return String(localized: "Focus")
+        case .quickNote: return String(localized: "Quick Note")
         default: break
         }
         // SystemUIServer's extras enumerate as one item titled with every

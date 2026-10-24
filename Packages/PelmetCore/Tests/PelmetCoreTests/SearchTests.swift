@@ -491,6 +491,7 @@ private func ids(_ matches: [SearchMatch]) -> [String] {
         #expect(Synonyms.keywords(title: "Clock").contains("date"))
         #expect(Synonyms.keywords(title: "Screen Mirroring").contains("airplay"))
         #expect(Synonyms.keywords(title: "Time Machine").contains("backup"))
+        #expect(Synonyms.keywords(title: "Quick Note").contains("note"))
         #expect(Synonyms.keywords(title: "Notification Center").contains("nc"))
         #expect(Synonyms.keywords(title: "Fast User Switching").contains("account"))
         #expect(Synonyms.keywords(title: "Display").contains("brightness"))

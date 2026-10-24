@@ -46,6 +46,8 @@ public enum Synonyms {
               keywords: ["search"]),
         Entry(names: ["siri"], bundles: ["com.apple.siri", "menuextra.siri"],
               keywords: ["assistant"]),
+        Entry(names: ["quicknote"], bundles: ["quicknote"],
+              keywords: ["quick note", "note"]),
         Entry(names: ["screenmirroring", "airplay"],
               bundles: ["menuextra.airplay", "menuextra.screenmirroring", "airplayuiagent"],
               keywords: ["airplay", "mirror"]),

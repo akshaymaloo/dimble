@@ -510,7 +510,7 @@ final class ExtrasManager {
                 }
                 updateFocusGlyph(item, spec: spec)
                 lastFocusActive = active
-            case .shortcut, .userSwitching, .shortcutsMenu, .siri:
+            case .shortcut, .userSwitching, .shortcutsMenu, .siri, .quickNote:
                 break
             }
             if let index = yielded.firstIndex(where: { $0.id == id }) {
@@ -590,7 +590,7 @@ final class ExtrasManager {
         for (id, item) in items {
             guard let spec = specs[id], lastVisible[id] != true else { continue }
             switch spec.kind {
-            case .airdrop, .shortcut, .userSwitching, .shortcutsMenu, .siri: break
+            case .airdrop, .shortcut, .userSwitching, .shortcutsMenu, .siri, .quickNote: break
             case .timer:
                 // Counting: already in the bar on its own.
                 guard !(pelmetTimer?.isActive ?? false) else { continue }
@@ -811,6 +811,7 @@ final class ExtrasManager {
         case .timeMachine: ExtraGlyph.timeMachineSymbol
         case .siri: "siri"
         case .focus: "moon.fill"
+        case .quickNote: "note.text"
         }
     }
 
@@ -1047,7 +1048,7 @@ final class ExtrasManager {
         case .timer: updateTimerGlyph(item, spec: spec)
         case .timeMachine: updateTimeMachineGlyph(item, spec: spec)
         case .focus: updateFocusGlyph(item, spec: spec)
-        case .shortcut, .appLauncher, .userSwitching, .shortcutsMenu, .siri: break
+        case .shortcut, .appLauncher, .userSwitching, .shortcutsMenu, .siri, .quickNote: break
         }
     }
 
@@ -1229,7 +1230,7 @@ final class ExtrasManager {
             return rightClick ? .onBar : .nothing
         case .cameraMicIndicator:
             return rightClick ? .nothing : .live
-        case .airdrop, .shortcut:
+        case .airdrop, .shortcut, .quickNote:
             return .nothing
         case .timer:
             return pelmetTimer?.state == .done && !rightClick ? .nothing : .onBar
@@ -1282,6 +1283,8 @@ final class ExtrasManager {
             }
         case .airdrop:
             openAirDrop()
+        case .quickNote:
+            QuickNote.open()
         case .shortcut:
             if let name = spec.shortcutName {
                 runShortcut(named: name)

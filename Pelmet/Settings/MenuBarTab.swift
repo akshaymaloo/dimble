@@ -1070,6 +1070,11 @@ private struct PelmetItemsStrip: View {
                     isOn: hasKind(.siri)
                 ) { toggleKind(.siri, on: $0) }
                 PelmetItemRow(
+                    symbol: "note.text", title: "Quick Note",
+                    caption: "Start a Quick Note in a click.",
+                    isOn: hasKind(.quickNote)
+                ) { toggleKind(.quickNote, on: $0) }
+                PelmetItemRow(
                     symbol: "timer", title: "Timer",
                     caption: "A countdown that stays in view and rings when it ends.",
                     isOn: hasKind(.timer)

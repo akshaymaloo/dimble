@@ -710,7 +710,7 @@ struct SettingToggleRow: View {
     }
 }
 
-/// Seven glyphs for the menu bar icon, drawn at bar size. Picking one repaints
+/// Eight glyphs for the menu bar icon, drawn at bar size. Picking one repaints
 /// the live status item through settingsChanged().
 struct StatusIconPicker: View {
     @Binding var selection: StatusIconStyle
@@ -745,6 +745,7 @@ extension StatusIconStyle {
         case .grid: "Grid"
         case .panel: "Panel"
         case .dot: "Dot"
+        case .smallDot: "Small Dot"
         }
     }
 }

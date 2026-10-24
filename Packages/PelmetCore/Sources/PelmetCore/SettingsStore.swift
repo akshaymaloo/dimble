@@ -190,6 +190,11 @@ public enum ExtraKind: String, Codable, CaseIterable, Sendable {
     /// log with the mode's name and symbol in the clear (probed 2026-09-16),
     /// so a Pelmet-drawn twin can follow along.
     case focus
+    /// Quick Note. Apple's icon is Notes' Control Center control
+    /// (`QuickNoteControl`), which every hide assertion takes off the bar
+    /// whatever the allowlist names (#99). A Pelmet-drawn twin posts the
+    /// user's own Quick Note shortcut (symbolic hotkey 190).
+    case quickNote
 }
 
 /// When an activity-driven item sits in the bar — System Settings' "Always
@@ -247,11 +252,11 @@ public enum ExtraStyle: String, Codable, CaseIterable, Sendable {
 extension ExtraKind {
     /// The kinds that stand in for a collateral-hidden system extra
     /// (Now Playing, the camera pill and SharePlay, AirDrop, Focus, the
-    /// Clock timer, fast user switching, the Shortcuts control). Siri and
-    /// Time Machine replace SystemUIServer items, which hide by the
-    /// allowlist like any app.
+    /// Clock timer, fast user switching, the Shortcuts control, Quick Note's
+    /// Notes control). Siri and Time Machine replace SystemUIServer items,
+    /// which hide by the allowlist like any app.
     public static let collateralReplicas: Set<ExtraKind> = [
-        .mediaControls, .cameraMicIndicator, .airdrop, .focus, .timer, .userSwitching, .shortcutsMenu,
+        .mediaControls, .cameraMicIndicator, .airdrop, .focus, .timer, .userSwitching, .shortcutsMenu, .quickNote,
     ]
 }
 
@@ -311,6 +316,7 @@ public struct ExtraItemSpec: Codable, Equatable, Identifiable, Sendable {
         case .timeMachine: "Pelmet.TimeMachine"
         case .siri: "Pelmet.Siri"
         case .focus: "Pelmet.Focus"
+        case .quickNote: "Pelmet.QuickNote"
         }
     }
 }
@@ -321,7 +327,7 @@ public struct ExtraItemSpec: Codable, Equatable, Identifiable, Sendable {
 /// Glyph for Pelmet's own menu bar icon. Each style has a concealed and a
 /// revealed face so the icon keeps pointing at what a click will do.
 public enum StatusIconStyle: String, Codable, CaseIterable, Sendable, Identifiable {
-    case chevron, arrow, eye, dots, grid, panel, dot
+    case chevron, arrow, eye, dots, grid, panel, dot, smallDot
 
     public var id: String { rawValue }
 
@@ -334,14 +340,19 @@ public enum StatusIconStyle: String, Codable, CaseIterable, Sendable, Identifiab
         case .dots: "ellipsis"
         case .grid: "square.grid.2x2"
         case .panel: revealed ? "rectangle.righthalf.inset.filled" : "rectangle.lefthalf.inset.filled"
-        case .dot: revealed ? "circlebadge" : "circlebadge.fill"
+        case .dot, .smallDot: revealed ? "circlebadge" : "circlebadge.fill"
         }
     }
 
     /// Symbol point size when the style draws smaller than the bar's
-    /// default 13. The dot at 13 read too big next to the chevron (#62).
+    /// default 13. The dot at 13 read too big next to the chevron (#62); the
+    /// small one is half its width, 3.5pt against 6.5pt (#98).
     public var symbolPointSize: Double? {
-        self == .dot ? 9 : nil
+        switch self {
+        case .dot: 9
+        case .smallDot: 5
+        default: nil
+        }
     }
 }
 
