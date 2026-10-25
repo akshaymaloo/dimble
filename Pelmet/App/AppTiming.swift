@@ -99,6 +99,14 @@ enum AppTiming {
     /// activation, Space switch): a Space switch animates ~0.5s. A mouse-up
     /// is checked at once — the window is already where the drag left it.
     static let backdropSettle: TimeInterval = 0.6
+    /// A held picture's backdrop check waits this long after the last
+    /// signal: a click's check ran before the clicked app raised its window,
+    /// and the activation's check `backdropSettle` on retook every held bar
+    /// again (77 of 427 retakes within 2s of the one before, log to
+    /// 2026-10-25). Longer than `backdropSettle`, so that check lands inside
+    /// the wait and restarts it: at 0.3s a Stage Manager switch still filmed
+    /// twice, 0.63s apart (live, 3 displays, 2026-10-25).
+    static let heldBackdropSettle: TimeInterval = backdropSettle + 0.1
     /// Style signatures (2026-09-08): the agent's own reveal slide is ~300ms
     /// and its conceal fade ~150–230ms; these sit clearly apart from both.
     /// Fade: the empty-bar cover's crossfade on reveal, the opaque strip's

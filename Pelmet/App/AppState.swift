@@ -3741,6 +3741,14 @@ final class AppState {
     /// all. A reveal on the display itself lifts its own. Apply and the
     /// editor keep every bar.
     var barsKeptConcealed: Set<CGDirectDisplayID> {
+        var windows: [[String: Any]]?
+        return barsKeptConcealed(windows: &windows)
+    }
+
+    /// `windows`: the on-screen list, read once for every display's bar
+    /// when one needs it and handed back for the caller's own reads. Read
+    /// per display, a click on an anchored Mac read it three times.
+    func barsKeptConcealed(windows: inout [[String: Any]]?) -> Set<CGDirectDisplayID> {
         var revealedOn: CGDirectDisplayID?
         if let decision = revealDecision, decision.target == .menuBar {
             guard decision.holdsOthers else { return [] }
@@ -3748,13 +3756,16 @@ final class AppState {
         } else if !transitions.anchored {
             return []
         }
-        return Set(NSScreen.screens.compactMap { screen -> CGDirectDisplayID? in
-            guard let id = screen.directDisplayID, id != revealedOn, id != transitions.pressUnheld,
-                  settings.behavior(forDisplayUUID: screen.displayUUIDString) == .collapse,
-                  // A bar auto-hidden or under a full-screen app draws
-                  // nothing to keep concealed.
-                  GlassPanel.drawnBarHeight(of: screen, fresh: true) != nil else { return nil }
-            return id
+        let hiding = NSScreen.screens.filter { screen in
+            guard let id = screen.directDisplayID, id != revealedOn, id != transitions.pressUnheld else { return false }
+            return settings.behavior(forDisplayUUID: screen.displayUUIDString) == .collapse
+        }
+        guard !hiding.isEmpty else { return [] }
+        if windows == nil { windows = ConcealGhostOverlay.onScreenWindows() }
+        return Set(hiding.compactMap { screen -> CGDirectDisplayID? in
+            // A bar auto-hidden or under a full-screen app draws nothing
+            // to keep concealed.
+            GlassPanel.drawnBarHeight(of: screen, fresh: true, in: windows) != nil ? screen.directDisplayID : nil
         })
     }
 

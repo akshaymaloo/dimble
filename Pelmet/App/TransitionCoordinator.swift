@@ -64,7 +64,20 @@ final class TransitionCoordinator {
         guard let self else { return }
         backdropMayHaveChanged()
         // Anchored, also a bar back from full screen with nothing held.
-        if anchored || !held.isEmpty { refreshHeld("backdrop") }
+        if anchored || !held.isEmpty { refreshHeldOnceSettled() }
+    }
+    private var heldSettle: Task<Void, Never>?
+
+    /// The held pictures, retaken once the backdrop has held still for
+    /// `heldBackdropSettle`: each retake films every held bar (~250ms).
+    private func refreshHeldOnceSettled() {
+        heldSettle?.cancel()
+        heldSettle = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(AppTiming.heldBackdropSettle))
+            guard let self, !Task.isCancelled else { return }
+            heldSettle = nil
+            refreshHeld("backdrop")
+        }
     }
     /// `ConcealGhostOverlay.backdropSignature` at the time each picture was taken.
     private var revealCoverBackdrop: [Int] = []
@@ -1142,8 +1155,9 @@ final class TransitionCoordinator {
             .first { MenuBarGeometry.isInPrimaryBand($0, primaryMaxX: primaryMaxX) }?.minX
     }
 
-    private func heldBackdrop(_ run: ClosedRange<CGFloat>) -> [Int] {
-        ConcealGhostOverlay.backdropSignature(of: CGRect(x: run.lowerBound, y: 0, width: run.upperBound - run.lowerBound, height: 1))
+    private func heldBackdrop(_ run: ClosedRange<CGFloat>, in windows: [[String: Any]]?) -> [Int] {
+        ConcealGhostOverlay.backdropSignature(
+            of: CGRect(x: run.lowerBound, y: 0, width: run.upperBound - run.lowerBound, height: 1), in: windows)
             + ConcealGhostOverlay.surfaceSignature()
     }
 
@@ -1157,10 +1171,10 @@ final class TransitionCoordinator {
         return right - left > 8 ? left...right : nil
     }
 
-    private func heldPicturesServe(_ run: ClosedRange<CGFloat>) -> Bool {
+    private func heldPicturesServe(_ run: ClosedRange<CGFloat>, in windows: [[String: Any]]?) -> Bool {
         guard let kept = heldPicturesRun else { return false }
         return kept.lowerBound <= run.lowerBound + 16 && kept.upperBound >= run.upperBound - 1
-            && heldPicturesBackdrop == heldBackdrop(kept)
+            && heldPicturesBackdrop == heldBackdrop(kept, in: windows)
     }
 
     /// Keep exactly `displays` looking concealed. The ones up stay; the
@@ -1191,10 +1205,11 @@ final class TransitionCoordinator {
             Self.lift(cover, lift)
             PelmetLog.log("held: lifted \(cover.ids) on display \(id)")
         }
-        if !heldPicturesServe(wantedRun) {
+        let windows = ConcealGhostOverlay.onScreenWindows()
+        if !heldPicturesServe(wantedRun, in: windows) {
             heldPictures = [:]
             heldPicturesRun = wantedRun
-            heldPicturesBackdrop = heldBackdrop(wantedRun)
+            heldPicturesBackdrop = heldBackdrop(wantedRun, in: windows)
         }
         guard let run = heldPicturesRun, let shown = heldShown(for: wantedRun) else { return }
         let holes = heldHoles(in: shown)
@@ -1346,9 +1361,12 @@ final class TransitionCoordinator {
         // hidden icons showed as the pass cover lifted). The pass re-holds
         // before its cover lifts, and its end refreshes.
         guard let appState, !passInFlight else { return }
-        let want = appState.barsKeptConcealed
+        // One read of the window list for every bar and the backdrop.
+        var windows: [[String: Any]]?
+        let want = appState.barsKeptConcealed(windows: &windows)
         guard !want.isEmpty || !held.isEmpty else { return }
-        let stale = heldRunNow.map { !heldPicturesServe($0) } ?? true
+        if windows == nil { windows = ConcealGhostOverlay.onScreenWindows() }
+        let stale = heldRunNow.map { !heldPicturesServe($0, in: windows) } ?? true
         let shownNow = stale ? nil : heldRunNow.flatMap(heldShown(for:))
         let moved = !stale && shownNow != heldShownRun
         let holed = !stale && !moved && (shownNow.map(heldHoles(in:)) ?? []) != heldShownHoles

@@ -182,8 +182,9 @@ class GlassPanel: NSPanel {
     /// The Window Server's bar window (layer 24) whose top is the display's,
     /// nil on a display with no bar drawn (Displays have separate Spaces
     /// off, an app full screen). `fresh` reads it again: a full-screen app
-    /// takes the bar away with no screens change.
-    static func drawnBarHeight(of screen: NSScreen, fresh: Bool = false) -> CGFloat? {
+    /// takes the bar away with no screens change. `windows`: the on-screen
+    /// list already read, for a caller asking about every display at once.
+    static func drawnBarHeight(of screen: NSScreen, fresh: Bool = false, in windows: [[String: Any]]? = nil) -> CGFloat? {
         guard let id = screen.directDisplayID else { return nil }
         let now = CACurrentMediaTime()
         let display = CGDisplayBounds(id)
@@ -197,7 +198,7 @@ class GlassPanel: NSPanel {
             }
         }
         var height: CGFloat?
-        if let list = ConcealGhostOverlay.onScreenWindows() {
+        if let list = windows ?? ConcealGhostOverlay.onScreenWindows() {
             let barLevel = Int(CGWindowLevelForKey(.mainMenuWindow))
             for w in list where (w[kCGWindowLayer as String] as? Int) == barLevel && (w[kCGWindowOwnerName as String] as? String) == "Window Server" {
                 // A bar is 20pt at the least: a thinner strip there is not one.
