@@ -86,6 +86,9 @@ final class PanelPresenter: RevealPresenter {
     private var openedAtBar = false
     /// A display unplugged or rearranged while it is open.
     private var screenObserver: NSObjectProtocol?
+    /// Windows built again because the window server had the panel off the
+    /// active Space (#100).
+    private var spaceRebuilds = 0
     /// Held like a menu until the pointer is on the panel: opened from the
     /// keyboard, or reshaped by its column grip (a drag let go past the
     /// edge, or a reset that shrinks the panel from under the pointer,
@@ -381,6 +384,12 @@ final class PanelPresenter: RevealPresenter {
         hosting.sizingOptions = []
         let window = KeyableGlassPanel(content: hosting, cornerRadius: Self.cornerRadius)
         window.alphaValue = 0
+        // Dev: `pelmet.debug.panelOneSpace` keeps the first window to one
+        // Space, to check the rebuild in `show` (#100): open the panel once,
+        // switch Space, open it there.
+        if spaceRebuilds == 0, UserDefaults.standard.bool(forKey: "pelmet.debug.panelOneSpace") {
+            window.collectionBehavior.remove(.canJoinAllSpaces)
+        }
         // A display unplugged, the lid closed, a scale changed: place it
         // again (on another display if its own is gone).
         screenObserver = NotificationCenter.default.addObserver(
@@ -424,7 +433,28 @@ final class PanelPresenter: RevealPresenter {
     }
 
     private func show(takeKey: Bool, fadeIn: Bool) {
-        guard let window else { return }
+        guard var window else { return }
+        present(window, fadeIn: fadeIn)
+        // The window joins every Space, yet one Mac had the panel open on
+        // one Space only (#100, not seen on 27.2): ordered in off the active
+        // Space, it is built again, once per show.
+        if !window.isOnActiveSpace, let rebuilt = rebuildOffSpace(window) {
+            window = rebuilt
+            present(window, fadeIn: fadeIn)
+            PelmetLog.log("panel: built again, \(window.isOnActiveSpace ? "on" : "still off") the active Space")
+        }
+        // Keys only for a panel opened on purpose: a hover passing by must
+        // not take the typing from the app in front.
+        if takeKey {
+            disarmTyping()
+            window.makeKey()
+            installKeyMonitor()
+        } else {
+            armTyping()
+        }
+    }
+
+    private func present(_ window: KeyableGlassPanel, fadeIn: Bool) {
         window.ignoresMouseEvents = false
         // Dev: `pelmet.debug.panelAppearance` light or dark checks the other
         // mode without changing the Mac's. Read at each open.
@@ -447,15 +477,39 @@ final class PanelPresenter: RevealPresenter {
             window.alphaValue = 1
             window.orderFrontRegardless()
         }
-        // Keys only for a panel opened on purpose: a hover passing by must
-        // not take the typing from the app in front.
-        if takeKey {
-            disarmTyping()
-            window.makeKey()
-            installKeyMonitor()
-        } else {
-            armTyping()
-        }
+    }
+
+    /// Logs where the window server has `old`, then drops it for a new
+    /// window with the same content and place.
+    private func rebuildOffSpace(_ old: KeyableGlassPanel) -> KeyableGlassPanel? {
+        PelmetLog.log("panel: window \(old.windowNumber) off the active Space (\(Self.spaces(of: old)), behavior \(old.collectionBehavior.rawValue)), building it again")
+        old.orderOut(nil)
+        if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
+        screenObserver = nil
+        window = nil
+        hosting = nil
+        spaceRebuilds += 1
+        refresh()
+        return window
+    }
+
+    /// The Spaces the window server has `window` on, and the active one, for
+    /// the log (private CGS, resolved via dlsym like the mover's).
+    private static func spaces(of window: NSWindow) -> String {
+        typealias Connection = @convention(c) () -> Int32
+        typealias Active = @convention(c) (Int32) -> UInt64
+        typealias Spaces = @convention(c) (Int32, Int32, CFArray) -> Unmanaged<CFArray>?
+        let rtldDefault = UnsafeMutableRawPointer(bitPattern: -2)
+        guard let connectionSym = dlsym(rtldDefault, "CGSMainConnectionID"),
+              let activeSym = dlsym(rtldDefault, "CGSGetActiveSpace"),
+              let spacesSym = dlsym(rtldDefault, "SLSCopySpacesForWindows") ?? dlsym(rtldDefault, "CGSCopySpacesForWindows")
+        else { return "Spaces unreadable" }
+        let cid = unsafeBitCast(connectionSym, to: Connection.self)()
+        let active = unsafeBitCast(activeSym, to: Active.self)(cid)
+        // 7: every Space the window is on, shown or not.
+        let on = unsafeBitCast(spacesSym, to: Spaces.self)(cid, 7, [window.windowNumber] as CFArray)?
+            .takeRetainedValue() as? [Int] ?? []
+        return "on \(on.isEmpty ? "no Space" : on.map(String.init).joined(separator: ", ")), active \(active)"
     }
 
     private func close() {
