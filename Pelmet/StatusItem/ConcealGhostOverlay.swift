@@ -883,8 +883,11 @@ final class ConcealGhostOverlay {
         armSafety(after: safety)
     }
 
+    /// Checks at least once a minute: the timer holds the cover, and a held
+    /// bar's safety runs up to a day (`anchoredBarCeiling`), so a cover
+    /// lifted early kept its window and picture until then.
     private func armSafety(after delay: TimeInterval) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + min(delay, 60)) { [self] in
             guard !finished else { return }
             let left = safetyEnd.timeIntervalSinceNow
             if left > 0.01 {
