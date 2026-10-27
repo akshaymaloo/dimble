@@ -461,15 +461,27 @@ final class TransitionCoordinator {
         }
     }
 
+    /// When the Live Activities item asked for the reveal it starts to let
+    /// the assertion go too (#106). Set right after the request, so the
+    /// reveal's own task (which runs later) is the one that takes it; a
+    /// conceal first, or no reveal within a moment, and it's dropped.
+    var liftRequestedAt: Date?
+
+    private func takeLiftRequest() -> Bool {
+        defer { liftRequestedAt = nil }
+        return liftRequestedAt.map { Date().timeIntervalSince($0) < 3 } ?? false
+    }
+
     func performReveal(_ sections: Set<PelmetCore.Section>, trace: PerfTrace) {
         passWaiterArrived()
         Task {
             guard let appState else { return }
+            let lifting = takeLiftRequest()
             await awaitPicturePass()
             await awaitPreviousLift()
             await anchorTask?.value
             if anchored {
-                await performAnchoredReveal(sections, trace: trace)
+                await performAnchoredReveal(sections, lifting: lifting, trace: trace)
                 return
             }
             let style = appState.settings.revealAnimation
@@ -560,8 +572,8 @@ final class TransitionCoordinator {
                 await appState.preattachOwnItems(revealing: sections)
                 trace.mark("preattach")
             }
-            PelmetLog.log("effect reveal \(sections) → engine (anim=\(style.rawValue), cover=\(cover != nil), finished=\(finished != nil))")
-            await engine.reveal(sections)
+            PelmetLog.log("effect reveal \(sections) → engine (anim=\(style.rawValue), cover=\(cover != nil), finished=\(finished != nil)\(lifting ? ", lifting" : ""))")
+            await engine.reveal(sections, liftingAssertion: lifting)
             trace.mark("engine")
             trace.note(await engine.lastConvergeTiming)
             let settled = await engine.snapshot()
@@ -630,6 +642,7 @@ final class TransitionCoordinator {
     /// `released`: icons Show in Menu Bar had out on their own. They go back
     /// in the same swap, and the hold they put on the idle picture ends here.
     func performConceal(trace: PerfTrace, releasing released: Set<ItemID> = []) {
+        liftRequestedAt = nil
         Task {
             guard let appState else { return }
             await awaitPreviousLift()
@@ -1472,16 +1485,16 @@ final class TransitionCoordinator {
     /// Anchored: Hidden is out on every bar already, under the hiding
     /// displays' pictures. The deciding display's picture lifts — the
     /// icons are beneath it — and only Always Hidden takes the engine.
-    private func performAnchoredReveal(_ sections: Set<PelmetCore.Section>, trace: PerfTrace) async {
+    private func performAnchoredReveal(_ sections: Set<PelmetCore.Section>, lifting: Bool, trace: PerfTrace) async {
         guard let appState else { return }
         let recipe = AnimationRecipe.recipe(for: appState.settings.revealAnimation)
         lastRevealedSections = sections
-        if !sections.isSubset(of: anchoredSections) {
+        if !sections.isSubset(of: anchoredSections) || lifting {
             anchoredSections.formUnion(sections)
             // The held pictures reach the widest strip: Always Hidden lands
             // under them on every bar that keeps concealed.
             await hold(appState.barsKeptConcealed)
-            await engine.reveal(anchoredSections)
+            await engine.reveal(anchoredSections, liftingAssertion: lifting)
             trace.mark("engine")
             trace.note(await engine.lastConvergeTiming)
             appState.updateSnapshot(await engine.snapshot())

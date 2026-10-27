@@ -2020,6 +2020,36 @@ final class AppState {
         }
     }
 
+    /// The Live Activities item was clicked (#106): the bar comes out with
+    /// the assertion let go, the only bar MenuBarAgent shows the pills on,
+    /// live and clickable, and goes back the way any reveal does (the
+    /// pointer leaves, the delay runs out, a click elsewhere). A blink like
+    /// the camera relay's can't do it: the pill is the thing to see, not a
+    /// panel that outlives the re-acquire. Every section comes out, Always
+    /// Hidden too: with any assertion held the pills stay gone, so nothing
+    /// can stay hidden while they show. Through the bar's own reveal, so it
+    /// moves the way a ⌥-click does. A click while it is up puts it back.
+    func liftHideForLiveActivities() {
+        let all: Set<PelmetCore.Section> = [.hidden, .alwaysHidden]
+        Task { @MainActor in
+            if await engine.isLifted {
+                PelmetLog.log("liveactivity: click with the bar lifted — concealing")
+                concealNow()
+                return
+            }
+            if isRevealed, !panelShowsReveal, currentRevealedSections.isSuperset(of: all) {
+                // Out already: no reveal is coming to carry the lift.
+                PelmetLog.log("liveactivity: lift — the bar is out, the assertion goes")
+                await engine.reveal([], liftingAssertion: true)
+                return
+            }
+            PelmetLog.log("liveactivity: lift — everything out with the assertion down")
+            reveal(all, reason: .itemInBar)
+            // After the request: the reveal's task, which runs later, takes it.
+            transitions.liftRequestedAt = Date()
+        }
+    }
+
     /// Set while the Camera & mic relay has the assertion down: Apple's
     /// pill is back on the bar for that moment, and Pelmet's item must not
     /// step aside for it (a reflow under the cover, and again after).

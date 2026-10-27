@@ -105,6 +105,9 @@ public actor AgentBarEngine: MenuBarEngine {
     /// collateral-hidden extras (Now Playing, camera pill, AirDrop, Focus)
     /// consistently gone, so the bar never reflows around them.
     private var steadyExtras = SettingsDefaults.hideSystemExtras
+    /// A reveal that let the assertion go too (`reveal(_:liftingAssertion:)`,
+    /// #106), until the conceal or narrow after it.
+    private var lifted = false
     private var assertion: AssessmentAssertion?
     /// The allowlist/concealable pair the active assertion was built with.
     /// Converging to an equivalent state is a NO-OP — without this,
@@ -234,10 +237,36 @@ public actor AgentBarEngine: MenuBarEngine {
         await converge()
     }
 
+    /// `reveal` that also lets the assertion go, whatever stays assigned
+    /// where (#106): MenuBarAgent takes every Live Activity pill off the bar
+    /// under any assertion, allow-all included, so the pills only come back
+    /// with none held. Everything the assertion hid comes back with them,
+    /// Always Hidden and the system extras too. Converges in between keep it
+    /// dropped; the conceal or narrow that ends the reveal takes it back in
+    /// the same swap. Empty `sections` lifts a bar that is out already.
+    public func reveal(_ sections: Set<Section>, liftingAssertion: Bool) async {
+        if liftingAssertion, !lifted {
+            lifted = true
+            PelmetLog.log("lift: the assertion goes with the reveal — Live Activities back")
+        }
+        revealedSections.formUnion(sections)
+        await converge()
+    }
+
+    /// Whether the bar is out with the assertion let go.
+    public var isLifted: Bool { lifted }
+
+    private func endLift(_ why: String) {
+        guard lifted else { return }
+        lifted = false
+        PelmetLog.log("lift: over (\(why)), the assertion comes back")
+    }
+
     /// Take back every revealed section but these, the rest staying out:
     /// one swap. `reveal` only adds, so narrowing by a conceal and a fresh
     /// reveal reflowed the bar twice.
     public func narrowReveal(to sections: Set<Section>) async {
+        endLift("narrow")
         revealedSections.formIntersection(sections)
         await converge()
     }
@@ -281,6 +310,7 @@ public actor AgentBarEngine: MenuBarEngine {
     /// `conceal()` that also takes back icons Show in Menu Bar brought out on
     /// their own, in one swap instead of two.
     public func conceal(releasing items: Set<ItemID>) async {
+        endLift("conceal")
         revealedItems.subtract(items)
         // Nothing revealed but items: no section changes, the extras stay.
         companionMuted = revealedSections.isEmpty && !revealedItems.isEmpty
@@ -469,6 +499,7 @@ public actor AgentBarEngine: MenuBarEngine {
             revealedSections: revealedSections,
             revealedItems: revealedItems.union(ruleShownItems),
             steadyExtras: steadyExtras,
+            lifted: lifted,
             exemptBundles: Self.identityExemptBundles
         )
         timing.planMS = Self.ms(since: phase)

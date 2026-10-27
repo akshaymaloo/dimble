@@ -78,6 +78,7 @@ public extension ItemID {
         case siri
         case focus
         case quickNote
+        case liveActivity
         /// A Pelmet-minted title this build does not name. Still one of ours
         /// (so still a section-managed extra) — the classifier must not
         /// narrow `isPelmetExtraID` to a whitelist that a future or older
@@ -101,6 +102,7 @@ public extension ItemID {
         case "Pelmet.Siri": return .siri
         case "Pelmet.Focus": return .focus
         case "Pelmet.QuickNote": return .quickNote
+        case "Pelmet.LiveActivity": return .liveActivity
         default: break
         }
         if title.hasPrefix("Pelmet.Separator.") { return .separator }

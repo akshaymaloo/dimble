@@ -18,8 +18,8 @@ struct ConvergePlan: Equatable {
     var hiddenSystem: Set<SystemItem>
     /// System items staying on the allowlist.
     var allowedSystem: [SystemItem]
-    /// True when there is nothing to hide and extras may return: drop the
-    /// assertion entirely instead of swapping.
+    /// True when there is nothing to hide and extras may return, or a lift
+    /// asks for the assertion to go: drop it entirely instead of swapping.
     var dropAssertion: Bool
     /// The bundle allowlist for the new assertion (empty when dropping).
     var allowedBundles: Set<String>
@@ -43,6 +43,7 @@ struct ConvergePlan: Equatable {
         revealedSections: Set<PelmetCore.Section>,
         revealedItems: Set<ItemID> = [],
         steadyExtras: Bool,
+        lifted: Bool = false,
         exemptBundles: Set<String>
     ) -> ConvergePlan {
         let stale = ItemIdentityResolver.staleCarriedIDs(
@@ -96,7 +97,10 @@ struct ConvergePlan: Equatable {
         })
         let allowedSystem = SystemItem.allCases.filter { !hiddenSystem.contains($0) }
 
-        let dropAssertion = concealable.isEmpty && hiddenSystem.isEmpty && !steadyExtras
+        // A lift (#106) lets it go whatever is assigned where: MenuBarAgent
+        // keeps Live Activity pills off the bar under ANY assertion, an
+        // allow-all one included.
+        let dropAssertion = lifted || (concealable.isEmpty && hiddenSystem.isEmpty && !steadyExtras)
 
         // Allowlist = every third-party bundle except the concealable. Built
         // from ALL running apps, not just observed items — a bundle without a

@@ -1065,6 +1065,11 @@ private struct PelmetItemsStrip: View {
                     isOn: hasKind(.cameraMicIndicator)
                 ) { toggleKind(.cameraMicIndicator, on: $0) }
                 PelmetItemRow(
+                    symbol: ExtrasManager.liveActivitySymbol, title: "Live Activities",
+                    caption: "See when a Live Activity is running and bring it back in a click.",
+                    isOn: hasKind(.liveActivity)
+                ) { toggleKind(.liveActivity, on: $0) }
+                PelmetItemRow(
                     symbol: "siri", title: "Siri",
                     caption: "Siri, as an icon you can move. Replaces Apple's while it's on.",
                     isOn: hasKind(.siri)

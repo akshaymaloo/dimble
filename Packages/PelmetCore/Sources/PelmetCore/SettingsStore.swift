@@ -195,6 +195,12 @@ public enum ExtraKind: String, Codable, CaseIterable, Sendable {
     /// whatever the allowlist names (#99). A Pelmet-drawn twin posts the
     /// user's own Quick Note shortcut (symbolic hotkey 190).
     case quickNote
+    /// A Live Activity is running (#106). Every hide assertion takes the
+    /// pills off the bar and nothing exempts them; MenuBarAgent's log says
+    /// which app started one and when it ends (`LiveActivities`), so an
+    /// indicator can follow along, and a click lifts the hide for the real
+    /// pill.
+    case liveActivity
 }
 
 /// When an activity-driven item sits in the bar — System Settings' "Always
@@ -317,6 +323,7 @@ public struct ExtraItemSpec: Codable, Equatable, Identifiable, Sendable {
         case .siri: "Pelmet.Siri"
         case .focus: "Pelmet.Focus"
         case .quickNote: "Pelmet.QuickNote"
+        case .liveActivity: "Pelmet.LiveActivity"
         }
     }
 }

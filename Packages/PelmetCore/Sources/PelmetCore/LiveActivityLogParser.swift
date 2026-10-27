@@ -1,0 +1,170 @@
+// LiveActivityLogParser.swift
+// Live Activities as MenuBarAgent narrates them (#106). Any hide assertion
+// takes every Live Activity pill off the bar, ~20ms after the acquire, and
+// one that starts while it is held never shows; no allowlist key exempts
+// them. What an activity shows sits behind Apple-only entitlements, but the
+// agent's `liveActivities` log category names the app that asked for it and
+// the activity's id, in the clear, when one starts and when it ends (macOS
+// 27.2, read 2026-10-27 off an activity mirrored from the iPhone):
+//
+//   start  "Received live activity descriptor states: [… ActivityDescriptor(
+//          id: "<UUID>", …, requester: <bundle id>, …" — os_log cuts it at
+//          1 KB, before the activity's state, so the start and end copies
+//          read the same — then "Create client element for Live Activity:
+//          <the UUID's first 8 hex digits>"
+//   end    the descriptor line again, "Not showing remote live activity
+//          from <bundle id>: … state=dismissed", then "Keeping departed live
+//          activity alive: <UUID>" and "Releasing kept-alive live activity:
+//          <UUID>", all in the same millisecond
+//
+// The client element is created under the assertion too (only its scenes
+// aren't), so a start is seen whether or not the pill could show. Pure
+// string work so the shape of a real line can be pinned in a test.
+
+import Foundation
+
+/// One Live Activity MenuBarAgent is keeping, as far as its log tells.
+public struct LiveActivity: Equatable, Sendable {
+    /// The id's first eight hex digits, uppercased: all the start line
+    /// carries of it.
+    public let id: String
+    /// The app that asked for it (an iPhone app's id for one mirrored from
+    /// the phone, rarely installed on the Mac). Nil until a descriptor line
+    /// names it: a second activity can fall past the line's 1 KB cut.
+    public var bundleID: String?
+    /// When the start line was logged.
+    public let startedAt: Date
+    /// The MenuBarAgent process that announced it.
+    public let agent: Int32
+
+    public init(id: String, bundleID: String?, startedAt: Date, agent: Int32) {
+        self.id = id
+        self.bundleID = bundleID
+        self.startedAt = startedAt
+        self.agent = agent
+    }
+}
+
+/// The Live Activities running now, folded from the agent's lines.
+public struct LiveActivities: Equatable, Sendable {
+    /// Oldest first.
+    public private(set) var active: [LiveActivity] = []
+    /// Requesters the descriptor lines named, by short id, kept for the
+    /// start line a millisecond behind them.
+    private var requesters: [String: String] = [:]
+
+    public init() {}
+
+    /// The longest an activity can run: the system ends one at eight hours
+    /// and takes it off the Dynamic Island at once (ActivityKit's rule).
+    /// Only an end line the log never delivered leaves one here that long.
+    public static let lifetime: TimeInterval = 8 * 60 * 60
+
+    /// The activity the item shows: the latest to start.
+    public var latest: LiveActivity? { active.last }
+
+    /// When the oldest one runs out of `lifetime`; nil while none runs.
+    public var nextExpiry: Date? {
+        active.map { $0.startedAt.addingTimeInterval(Self.lifetime) }.min()
+    }
+
+    /// Folds one `liveActivities` message in. `agent` is the logging
+    /// MenuBarAgent's pid: a line from another one means it restarted, and
+    /// the new one announces again what still runs. True when `active`
+    /// changed.
+    @discardableResult
+    public mutating func read(_ message: String, at date: Date, agent: Int32) -> Bool {
+        let before = active
+        if active.contains(where: { $0.agent != agent }) {
+            active.removeAll { $0.agent != agent }
+        }
+        if message.hasPrefix(Self.descriptorPrefix) {
+            for (id, bundle) in Self.requesters(in: message) {
+                requesters[id] = bundle
+                if let index = active.firstIndex(where: { $0.id == id }), active[index].bundleID == nil {
+                    active[index].bundleID = bundle
+                }
+            }
+            // Only the ids still in play are worth keeping.
+            if requesters.count > 32 {
+                let live = Set(active.map(\.id))
+                requesters = requesters.filter { live.contains($0.key) }
+            }
+        } else if let id = Self.id(after: Self.createdPrefix, in: message) {
+            if !active.contains(where: { $0.id == id }) {
+                active.append(LiveActivity(id: id, bundleID: requesters[id], startedAt: date, agent: agent))
+            }
+        } else if let id = Self.id(after: Self.departedPrefix, in: message)
+                    ?? Self.id(after: Self.releasedPrefix, in: message) {
+            active.removeAll { $0.id == id }
+            requesters[id] = nil
+        } else if message.hasPrefix(Self.notShownPrefix) {
+            // A dismissal is followed by the per-id lines above; any other
+            // state is the agent refusing the app's activities outright
+            // (remote ones off, the app denied from the pill's menu).
+            let rest = message.dropFirst(Self.notShownPrefix.count)
+            let bundle = String(rest.prefix { $0 != ":" })
+            let state = rest.range(of: "state=").map { String(rest[$0.upperBound...].prefix { $0 != "," && !$0.isWhitespace }) }
+            if state != "dismissed", state != "ended" {
+                active.removeAll { $0.bundleID == bundle }
+            }
+        }
+        return active != before
+    }
+
+    /// Lets go of what the log can no longer vouch for: an activity past
+    /// `lifetime`, and one a MenuBarAgent that is gone announced (it died
+    /// before its end lines; `agent`: the running one's pid, nil unknown).
+    /// True when `active` changed.
+    @discardableResult
+    public mutating func prune(now: Date, agent: Int32?) -> Bool {
+        let before = active
+        active.removeAll { activity in
+            now.timeIntervalSince(activity.startedAt) >= Self.lifetime || agent.map { $0 != activity.agent } ?? false
+        }
+        return active != before
+    }
+
+    // MARK: Lines
+
+    static let descriptorPrefix = "Received live activity descriptor states:"
+    static let createdPrefix = "Create client element for Live Activity: "
+    static let departedPrefix = "Keeping departed live activity alive: "
+    static let releasedPrefix = "Releasing kept-alive live activity: "
+    static let notShownPrefix = "Not showing remote live activity from "
+
+    /// The lines worth reading, for a `log` predicate: the agent's own, and
+    /// none of the scene chatter (eight lines per scene, again on every
+    /// assertion cycle).
+    public static let predicate =
+        #"process == "MenuBarAgent" AND subsystem == "com.apple.menubar" AND category == "liveActivities" AND (eventMessage BEGINSWITH "Received live activity descriptor states" OR eventMessage BEGINSWITH "Create client element for Live Activity" OR eventMessage BEGINSWITH "Keeping departed live activity" OR eventMessage BEGINSWITH "Releasing kept-alive live activity" OR eventMessage BEGINSWITH "Not showing remote live activity")"#
+
+    /// The short id after `prefix`: the start line's eight digits as they
+    /// are, the end lines' UUID cut to them.
+    static func id(after prefix: String, in message: String) -> String? {
+        guard message.hasPrefix(prefix) else { return nil }
+        let id = message.dropFirst(prefix.count).prefix { $0.isHexDigit }
+        return id.count >= 8 ? id.prefix(8).uppercased() : nil
+    }
+
+    /// Every `ActivityDescriptor(id: "…"` with the `requester:` that
+    /// follows it inside the same descriptor; one cut off before its
+    /// requester names none.
+    static func requesters(in message: String) -> [(id: String, bundle: String)] {
+        let marker = "ActivityDescriptor(id: \""
+        var found: [(id: String, bundle: String)] = []
+        var rest = Substring(message)
+        while let start = rest.range(of: marker) {
+            let afterID = rest[start.upperBound...]
+            let id = afterID.prefix { $0.isHexDigit }
+            let next = afterID.range(of: marker)?.lowerBound ?? afterID.endIndex
+            let descriptor = afterID[..<next]
+            if id.count >= 8, let requester = descriptor.range(of: "requester: ") {
+                let bundle = descriptor[requester.upperBound...].prefix { $0 != "," && $0 != ")" && !$0.isWhitespace }
+                if !bundle.isEmpty { found.append((id.prefix(8).uppercased(), String(bundle))) }
+            }
+            rest = afterID[next...]
+        }
+        return found
+    }
+}
