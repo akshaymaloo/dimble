@@ -253,9 +253,6 @@ public actor AgentBarEngine: MenuBarEngine {
         await converge()
     }
 
-    /// Whether the bar is out with the assertion let go.
-    public var isLifted: Bool { lifted }
-
     private func endLift(_ why: String) {
         guard lifted else { return }
         lifted = false
@@ -516,7 +513,7 @@ public actor AgentBarEngine: MenuBarEngine {
 
         if plan.dropAssertion {
             timing.outcome = .dropped
-            await dropAssertionPath(plan: plan, epoch: epoch)
+            await dropAssertionPath(plan: plan, snapshot: snapshot, epoch: epoch)
             return
         }
         // With steadyExtras on, an empty concealable set still holds an
@@ -624,9 +621,23 @@ public actor AgentBarEngine: MenuBarEngine {
     }
 
     /// Nothing to hide and extras are allowed back: drop the assertion.
-    private func dropAssertionPath(plan: ConvergePlan, epoch: Int) async {
+    private func dropAssertionPath(plan: ConvergePlan, snapshot: EngineSnapshot, epoch: Int) async {
         invalidateAssertion()
         notifyReflowCompanion()
+        if lifted {
+            // A lift's walk blocks on the agent's reflow, and this one brings
+            // every icon and extra back: the reveal settled 683–734ms after
+            // the drop (2026-10-27), the rehide countdown and a second click
+            // waiting on it. Stamped and walked behind, as a swap is: nothing
+            // is concealed now, and the items the drop brings are not in the
+            // mirror yet, so it is not at rest.
+            setAsideConcealed = plan.setAside
+            lastSnapshot = EngineSnapshot(
+                items: snapshot.items, concealed: [], takenAt: Date(), shownAlone: shownAlone, itemsAtRest: false
+            )
+            Task { await self.walkAfterSwap(concealable: [], epoch: epoch, what: "drop") }
+            return
+        }
         let after = await refreshSnapshot()
         guard epoch == convergeEpoch else { return }
         setAsideConcealed = plan.setAside
@@ -797,11 +808,11 @@ public actor AgentBarEngine: MenuBarEngine {
     /// poll: when it already shows every concealable bundle gone there is
     /// nothing to poll for. A newer converge owns the state (and walks for
     /// itself) once the epoch has moved.
-    private func walkAfterSwap(concealable: Set<String>, epoch: Int) async {
+    private func walkAfterSwap(concealable: Set<String>, epoch: Int, what: String = "swap") async {
         guard epoch == convergeEpoch else { return }
         let started = Date()
         let after = await refreshSnapshot()
-        PelmetLog.log("converge: post-swap walk \(Self.ms(since: started))ms (background)")
+        PelmetLog.log("converge: post-\(what) walk \(Self.ms(since: started))ms (background)")
         guard epoch == convergeEpoch else { return }
         let stillVisible = after.items.contains { item in
             guard let bundle = item.id.bundleID else { return false }
