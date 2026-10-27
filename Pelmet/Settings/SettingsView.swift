@@ -1509,7 +1509,11 @@ private struct AboutPane: View {
             HStack(spacing: 18) {
                 Link("Website", destination: URL(string: "https://dimble.fif7y.com")!)
                 Link("GitHub", destination: URL(string: "https://github.com/fif7y/dimble")!)
-                Link("Report an issue", destination: URL(string: "https://github.com/fif7y/dimble/issues")!)
+                Link("Report an issue", destination: IssueReport.formURL)
+                    .environment(\.openURL, OpenURLAction { url in
+                        IssueReport.open(url)
+                        return .handled
+                    })
             }
             .font(.callout)
             .foregroundStyle(.secondary)
@@ -1911,4 +1915,51 @@ func hotkeyWarning(_ spec: HotkeySpec?, conflict: Bool) -> LocalizedStringKey? {
         return "macOS uses this shortcut. Turn it off in System Settings › Keyboard › Keyboard Shortcuts, or record another."
     }
     return nil
+}
+
+/// Settings › About › "Report an issue": the bug form with the versions and
+/// display setup already filled in (issue forms take a field's id as a query
+/// parameter), and dimble.log selected in Finder, ready to drag into it.
+enum IssueReport {
+    static var formURL: URL {
+        var c = URLComponents(string: "https://github.com/fif7y/dimble/issues/new")!
+        c.queryItems = [
+            URLQueryItem(name: "template", value: "bug_report.yml"),
+            URLQueryItem(name: "versions", value: versions),
+            URLQueryItem(name: "displays", value: displaySetup),
+        ]
+        return c.url ?? URL(string: "https://github.com/fif7y/dimble/issues")!
+    }
+
+    /// "0.3.4 (82) · macOS 27.2 (26C123)".
+    static var versions: String {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info?["CFBundleVersion"] as? String ?? "?"
+        let os = ProcessInfo.processInfo.operatingSystemVersionString
+            .replacingOccurrences(of: "Version ", with: "")
+            .replacingOccurrences(of: "Build ", with: "")
+        return "\(version) (\(build)) · macOS \(os)"
+    }
+
+    /// One of the template's dropdown options, word for word, or GitHub
+    /// leaves the field empty.
+    static var displaySetup: String {
+        let screens = NSScreen.screens
+        let builtIn = screens.filter { $0.directDisplayID.map { CGDisplayIsBuiltin($0) != 0 } ?? false }.count
+        if builtIn == screens.count { return "Built-in display only" }
+        if builtIn == 0 { return "External display(s)" }
+        return "Mixed, built-in plus external"
+    }
+
+    /// The form opens first, then Finder comes forward with the log
+    /// selected, so both are on screen for the drag.
+    static func open(_ url: URL) {
+        NSWorkspace.shared.open(url)
+        let log = PelmetLog.fileURL
+        guard FileManager.default.fileExists(atPath: log.path) else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            NSWorkspace.shared.activateFileViewerSelecting([log])
+        }
+    }
 }
