@@ -1032,10 +1032,19 @@ final class AppState {
             // membership hides them where they sit (docs/CORE-SETS.md).
             let launchSnapshot = await engine.snapshot()
             registerNewItems(from: launchSnapshot)
+            // The panel's tile order, read off the bar while every section
+            // is on it (#104). Memory only, it was empty after a launch: the
+            // first open drew the model's order (concealed icons have no
+            // frame, so their ids decided it) and the picture pass re-sorted
+            // the tiles under the pointer. Phantoms behind the « are left
+            // out (`ApplyPass.primaryFrames`) and keep their stored slot.
+            recordDrawnOrder(launchSnapshot, revealed: [.hidden, .alwaysHidden])
             // Last look at the fully live bar: the first reveal's picture
             // (see TransitionCoordinator.takeBootPicture). The converge
             // below is what conceals.
             await transitions.takeBootPicture(from: launchSnapshot)
+            // And the tiles' pictures, from the same live bar (#104).
+            await panelPresenter.takeLaunchPictures(from: launchSnapshot)
             await engine.setModel(settings.sectionModel)
             updateSnapshot(await engine.snapshot())
             // Startup state: everything the model says is hidden, is hidden.
