@@ -31,6 +31,8 @@ public enum PelmetLog {
         return dir
     }()
     private static let url = dir.appendingPathComponent("dimble.log")
+    /// The log file, for Settings › About › "Report an issue" to select in Finder.
+    public static var fileURL: URL { url }
 
     /// Moves the first real folder among `oldFolderNames` to `logs/Dimble`
     /// and leaves a symlink to it at the old path (an older symlink, Pelmet →
