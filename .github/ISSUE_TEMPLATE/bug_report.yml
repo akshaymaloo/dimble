@@ -30,7 +30,7 @@ body:
     id: log
     attributes:
       label: Log (optional)
-      description: "Dimble writes a log you can attach: `~/Library/Logs/Dimble/dimble.log` (`~/Library/Logs/Pelmet/pelmet.log` before 0.3.2). Paste the relevant part or drop the file here."
+      description: "In Finder, press ⇧⌘G, paste `~/Library/Logs/Dimble` and press Return, then drag `dimble.log` here. Before 0.3.2 it was `~/Library/Logs/Pelmet/pelmet.log`."
   - type: textarea
     id: screenshot
     attributes:
