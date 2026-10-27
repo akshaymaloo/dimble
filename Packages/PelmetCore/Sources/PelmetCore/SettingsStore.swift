@@ -327,14 +327,17 @@ public struct ExtraItemSpec: Codable, Equatable, Identifiable, Sendable {
 /// Glyph for Pelmet's own menu bar icon. Each style has a concealed and a
 /// revealed face so the icon keeps pointing at what a click will do.
 public enum StatusIconStyle: String, Codable, CaseIterable, Sendable, Identifiable {
-    case chevron, arrow, eye, dots, grid, panel, dot, smallDot
+    case chevron, wideChevron, arrow, eye, dots, grid, panel, dot, smallDot
 
     public var id: String { rawValue }
 
-    /// SF Symbol name for the current bar state.
+    /// SF Symbol name for the current bar state. The wide chevron is no
+    /// symbol: the app draws it in the site's proportions (#101), and this
+    /// is the nearest symbol for anything that only takes a name.
     public func symbol(revealed: Bool) -> String {
         switch self {
         case .chevron: revealed ? "chevron.compact.right" : "chevron.compact.left"
+        case .wideChevron: revealed ? "chevron.right" : "chevron.left"
         case .arrow: revealed ? "arrow.right" : "arrow.left"
         case .eye: revealed ? "eye" : "eye.slash"
         case .dots: "ellipsis"

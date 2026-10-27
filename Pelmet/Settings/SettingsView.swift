@@ -710,7 +710,7 @@ struct SettingToggleRow: View {
     }
 }
 
-/// Eight glyphs for the menu bar icon, drawn at bar size. Picking one repaints
+/// Nine glyphs for the menu bar icon, drawn at bar size. Picking one repaints
 /// the live status item through settingsChanged().
 struct StatusIconPicker: View {
     @Binding var selection: StatusIconStyle
@@ -719,7 +719,9 @@ struct StatusIconPicker: View {
         HStack(spacing: 2) {
             ForEach(StatusIconStyle.allCases) { style in
                 StatusIconTile(
-                    symbol: style.symbol(revealed: false),
+                    glyph: style == .wideChevron
+                        ? Image(nsImage: WideChevron.image(revealed: false)).renderingMode(.template)
+                        : Image(systemName: style.symbol(revealed: false)),
                     size: style.symbolPointSize ?? 13,
                     name: style.name,
                     selected: selection == style
@@ -739,6 +741,7 @@ extension StatusIconStyle {
     fileprivate var name: LocalizedStringKey {
         switch self {
         case .chevron: "Chevron"
+        case .wideChevron: "Wide Chevron"
         case .arrow: "Arrow"
         case .eye: "Eye"
         case .dots: "Dots"
@@ -751,7 +754,7 @@ extension StatusIconStyle {
 }
 
 private struct StatusIconTile: View {
-    let symbol: String
+    let glyph: Image
     let size: Double
     let name: LocalizedStringKey
     let selected: Bool
@@ -760,7 +763,7 @@ private struct StatusIconTile: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: symbol)
+            glyph
                 .font(.system(size: size, weight: .medium))
                 .foregroundStyle(selected ? PelmetAccent.accent : .secondary)
                 .frame(width: 30, height: 24)

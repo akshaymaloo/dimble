@@ -139,6 +139,10 @@ final class PelmetStatusItem {
         let key = "\(style.rawValue) \(revealedFace) \(warning)"
         guard key != appliedImage || item.button?.image == nil else { return }
         appliedImage = key
+        if style == .wideChevron {
+            item.button?.image = WideChevron.image(revealed: revealedFace, warning: warning)
+            return
+        }
         let symbol = NSImage(
             systemSymbolName: style.symbol(revealed: revealedFace),
             accessibilityDescription: "Dimble"
@@ -346,6 +350,39 @@ final class PelmetStatusItem {
         if spec.modifiers & UInt32(cmdKey) != 0 { mask.insert(.command) }
         item.keyEquivalent = keys.lowercased()
         item.keyEquivalentModifierMask = mask
+    }
+}
+
+/// The wide chevron (#101): the one on the site and in the README's
+/// animation, where SF's compact chevron is 3.5pt wide and reads squashed
+/// on a 15" Air. The animation's `M7.5 2 L3 8 L7.5 14` (a 10×16 box drawn
+/// at 0.9) gives the arms: 4.05pt across, 10.8pt tall, on a 1.8pt round
+/// stroke that sits between the site's two weights and closer to the bar's
+/// symbols. Both faces share one canvas, so a flip never moves it.
+enum WideChevron {
+    static func image(revealed: Bool, warning: Bool = false) -> NSImage {
+        let size = NSSize(width: 8, height: 16)
+        let image = NSImage(size: size, flipped: false) { _ in
+            let width: CGFloat = 4.05, height: CGFloat = 10.8
+            let left = (size.width - width) / 2, bottom = (size.height - height) / 2
+            let tip = revealed ? left + width : left
+            let ends = revealed ? left : left + width
+            let path = NSBezierPath()
+            path.move(to: NSPoint(x: ends, y: bottom + height))
+            path.line(to: NSPoint(x: tip, y: bottom + height / 2))
+            path.line(to: NSPoint(x: ends, y: bottom))
+            path.lineWidth = 1.8
+            path.lineCapStyle = .round
+            path.lineJoinStyle = .round
+            (warning ? NSColor.systemOrange : .black).setStroke()
+            path.stroke()
+            return true
+        }
+        // A template, so the bar inks it for light and dark like a symbol;
+        // the warning is the palette symbol's orange, its own colour.
+        image.isTemplate = !warning
+        image.accessibilityDescription = "Dimble"
+        return image
     }
 }
 
