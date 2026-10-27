@@ -461,15 +461,186 @@ final class TransitionCoordinator {
         }
     }
 
+    // MARK: - Live Activities lift (#106)
+
     /// When the Live Activities item asked for the reveal it starts to let
     /// the assertion go too (#106). Set right after the request, so the
     /// reveal's own task (which runs later) is the one that takes it; a
     /// conceal first, or no reveal within a moment, and it's dropped.
     var liftRequestedAt: Date?
 
+    /// The bar is out with the assertion let go: from the reveal that takes
+    /// the request until the conceal or narrow that ends it. Kept here, on
+    /// the main actor, so the item's click reads it at once: the engine is
+    /// mid-converge for the whole reveal.
+    private(set) var lifted = false
+
+    /// A lift is up or on its way: the item's click takes it back.
+    var liftUp: Bool { lifted || liftRequestPending }
+
+    private var liftRequestPending: Bool {
+        liftRequestedAt.map { Date().timeIntervalSince($0) < 3 } ?? false
+    }
+
     private func takeLiftRequest() -> Bool {
         defer { liftRequestedAt = nil }
-        return liftRequestedAt.map { Date().timeIntervalSince($0) < 3 } ?? false
+        guard liftRequestPending else { return false }
+        lifted = true
+        return true
+    }
+
+    /// The bar is out already with every section: no reveal is coming to
+    /// carry the lift, the engine lets the assertion go on its own.
+    func liftOutBar() async {
+        lifted = true
+        await engine.reveal([], liftingAssertion: true)
+    }
+
+    /// Why Pelmet's reads of the bar wait (`AppState.overflowReadHold`, the
+    /// order keeper): the pills and the system extras a lift lets back sit
+    /// in the bar, pushing the icons left and behind the «, and the re-hide
+    /// reflows under its cover. Nil once that cover is down. Only while the
+    /// bar is out or settling, so a lift no conceal ended can't hold them.
+    var liftHoldReason: String? {
+        if liftEnding { return "the bar is settling from a Live Activities lift" }
+        guard lifted, appState?.currentRevealedSections.isEmpty == false else { return nil }
+        return "a Live Activities lift has the bar"
+    }
+
+    /// Apple's camera pill comes back with the lift and goes with the
+    /// re-hide: Camera & mic must not step aside for it meanwhile, or it
+    /// leaves the bar at the lift and comes back after the re-hide, parked
+    /// wherever the agent puts it, and Apply drags it home (2.5s after the
+    /// re-hide, 2026-10-27). Two camera glyphs for the lift's length instead.
+    var liftKeepsCameraItem: Bool { lifted || liftEnding }
+
+    /// From the conceal or narrow that ends a lift until the bar beneath
+    /// has come to rest (`endLift`), cover or not.
+    private var liftEnding = false
+
+    /// The concealed bar as the click found it: what the re-hide shows while
+    /// the agent takes the pills and the extras back beneath (`beginLiftCover`).
+    private var liftPicture: [ConcealGhostOverlay.BarSnapshot] = []
+    /// Up from the conceal that ends a lift until the bar beneath has
+    /// settled. Held pictures don't refresh under it (`refreshHeld`), nor
+    /// is the idle picture taken: it would film the cover.
+    private var liftCover: ConcealGhostOverlay.GhostSet?
+
+    /// A picture of the concealed bar, kept before a lift moves anything.
+    /// The idle picture when it serves, no capture; concealed, else one now,
+    /// at the click (it costs the lift its length). Out already (a hover has
+    /// the bar), only the idle picture can show the conceal, its own items
+    /// read as the conceal will leave them, not as the reveal has them.
+    func keepLiftPicture() async {
+        let started = Date()
+        liftPicture = []
+        guard let appState else { return }
+        let concealed = appState.currentRevealedSections.isEmpty
+        backdropMayHaveChanged()
+        let idle = freshEmptyBarSnapshots(cropped: false)
+        let ownSame = revealCoverOwnBar == appState.ownBarSignature
+        if !idle.isEmpty, ownSame || !concealed {
+            liftPicture = idle
+            PelmetLog.log("liveactivity: re-hide picture — the idle one\(ownSame ? "" : " (own items read revealed)"), no capture")
+            return
+        }
+        guard concealed, let rect = precaptureRect else {
+            PelmetLog.log("liveactivity: re-hide picture — none (\(concealed ? "no bar geometry" : "the bar is out, no idle picture")), the re-hide goes uncovered")
+            return
+        }
+        // The lift brings the system extras and the pills in on the left
+        // of the visible ones: room for them past the idle picture's edge.
+        let wide = CGRect(x: rect.minX - AppTiming.liftPictureLeftRoom, y: rect.minY,
+                          width: rect.width + AppTiming.liftPictureLeftRoom, height: rect.height)
+        liftPicture = await ConcealGhostOverlay.snapshotSet(of: wide)
+        PelmetLog.log("liveactivity: re-hide picture — captured \(Int(wide.minX))..\(Int(wide.maxX))\(idle.isEmpty ? "" : " (the idle one shows other own items)") in \(Int(-started.timeIntervalSinceNow * 1000))ms")
+    }
+
+    /// The conceal that ends a lift: the kept picture goes up over the bar
+    /// first, from its left end to the clock, so the bar reads concealed
+    /// in one frame, and the agent's reflow (the pills and extras leaving,
+    /// the icons sliding back, held pictures retaken, own items coming and
+    /// going) runs beneath it. `endLift` takes it down at rest.
+    private func beginLiftCover() -> ConcealGhostOverlay.GhostSet? {
+        let picture = liftPicture
+        liftPicture = []
+        guard !picture.isEmpty else {
+            PelmetLog.log("liveactivity: re-hide uncovered — no picture kept")
+            return nil
+        }
+        // Each display's picture to its own span, never over the clock: the
+        // picture can be minutes old.
+        let primaryMaxX = primaryMaxX
+        let pad = ConcealGhostOverlay.capturePadding
+        let clockEnd = barCoverGeometry().map { Self.coverEnd(anchorMinX: $0.anchorMinX) }
+        let shots = picture.compactMap { shot -> ConcealGhostOverlay.BarSnapshot? in
+            guard let screen = NSScreen.screens.first(where: { $0.frame.intersects(shot.windowFrame) }) else { return nil }
+            let shift = screen.frame.maxX - primaryMaxX
+            let left = shot.windowFrame.minX - shift + pad + 1
+            let right = min(shot.windowFrame.maxX - shift - pad - 1, clockEnd ?? .greatestFiniteMagnitude)
+            return right > left ? ConcealGhostOverlay.cropped([shot], toPrimaryX: left...right).first : nil
+        }
+        guard let cover = ConcealGhostOverlay.begin(from: shots, safety: AppTiming.liftCoverSafety) else {
+            PelmetLog.log("liveactivity: re-hide uncovered — the picture won't crop to the bar")
+            return nil
+        }
+        liftCover = cover
+        let spans = shots.map { "\(Int($0.windowFrame.minX))..\(Int($0.windowFrame.maxX))" }.joined(separator: " ")
+        // The lifted bar reaching past the picture's left end shows that
+        // much of the re-hide.
+        let primaryShot = shots.first { NSScreen.screens.first?.frame.intersects($0.windowFrame) == true }
+        let leftmost = appState?.snapshot?.items.compactMap(\.frame)
+            .filter { MenuBarGeometry.isInPrimaryBand($0, primaryMaxX: primaryMaxX) }.map(\.minX).min()
+        let short = primaryShot.flatMap { shot in leftmost.map { Int(shot.windowFrame.minX - $0) } }.flatMap { $0 > 0 ? $0 : nil }
+        PelmetLog.log("liveactivity: re-hide cover \(cover.ids) up \(spans)\(short.map { ", \($0)pt short of the lifted bar's left end" } ?? "")")
+        return cover
+    }
+
+    /// The conceal or narrow that ends a lift starts here, before anything
+    /// moves: the cover goes up when a picture was kept. Called with the
+    /// lift's state as the request found it.
+    private func beginLiftEnd(_ endsLift: Bool) -> ConcealGhostOverlay.GhostSet? {
+        guard endsLift else { return nil }
+        liftEnding = true
+        liftEndGeneration += 1
+        return beginLiftCover()
+    }
+    /// Only the latest lift's end clears `liftEnding`.
+    private var liftEndGeneration = 0
+
+    /// Once the bar beneath has come to rest: the swap quiet, the concealed
+    /// items out of the tree, the agent's fade run, quiet again (the own
+    /// items' reflows follow the swap). The held pictures then go up on the
+    /// run the bar settled to, under the cover, and it lifts.
+    private func endLift(_ endsLift: Bool, cover: ConcealGhostOverlay.GhostSet?) {
+        guard endsLift else { return }
+        let generation = liftEndGeneration
+        Task { @MainActor in
+            defer {
+                if generation == liftEndGeneration {
+                    liftEnding = false
+                    appState?.liftSettled()
+                }
+            }
+            guard let appState else { cover?.dismiss(); liftCover = nil; return }
+            let started = Date()
+            await appState.waitUntilQuiesced(interval: 0.15, deadline: 2, poll: .milliseconds(30))
+            let deadline = Date().addingTimeInterval(AppTiming.clockBlinkCoverDeadline)
+            while Date() < deadline, await appState.engine.concealedItemsStillVisible() {
+                try? await Task.sleep(for: .milliseconds(60))
+            }
+            let gone = Int(-started.timeIntervalSinceNow * 1000)
+            try? await Task.sleep(for: .seconds(AppTiming.exitCoverHold))
+            await appState.waitUntilQuiesced(interval: 0.15, deadline: 1, poll: .milliseconds(30))
+            guard let cover else {
+                PelmetLog.log("liveactivity: re-hide settled at \(Int(-started.timeIntervalSinceNow * 1000))ms, uncovered")
+                return
+            }
+            if liftCover?.ids == cover.ids { liftCover = nil }
+            await hold(appState.barsKeptConcealed)
+            cover.dismiss()
+            PelmetLog.log("liveactivity: re-hide cover \(cover.ids) down — concealed gone at \(gone)ms, lifted at \(Int(-started.timeIntervalSinceNow * 1000))ms")
+        }
     }
 
     func performReveal(_ sections: Set<PelmetCore.Section>, trace: PerfTrace) {
@@ -609,7 +780,9 @@ final class TransitionCoordinator {
             onRevealSettled?()
             trace.mark("settled")
             if cover == nil { trace.finish("uncovered") }
-            scheduleRevealedStripPrecapture()
+            // A lifted strip, the pills and extras in it, is no picture of
+            // the next reveal.
+            if !lifting { scheduleRevealedStripPrecapture() }
         }
     }
 
@@ -619,10 +792,14 @@ final class TransitionCoordinator {
     /// companion. Settles like a reveal of `sections`.
     func performNarrow(_ sections: Set<PelmetCore.Section>, trace: PerfTrace) {
         passWaiterArrived()
+        liftRequestedAt = nil
+        let endsLift = lifted
+        lifted = false
         Task {
             guard let appState else { return }
             await awaitPicturePass()
             await awaitPreviousLift()
+            let liftCover = beginLiftEnd(endsLift)
             lastRevealedSections = sections
             PelmetLog.log("effect narrow to \(sections.map(\.rawValue).sorted()) → engine")
             await engine.narrowReveal(to: sections)
@@ -632,10 +809,11 @@ final class TransitionCoordinator {
             appState.updateSnapshot(settled)
             appState.recordDrawnOrder(settled, revealed: sections)
             PelmetLog.log("effect narrow settled")
+            endLift(endsLift, cover: liftCover)
             onRevealSettled?()
             trace.mark("settled")
             trace.finish("uncovered")
-            scheduleRevealedStripPrecapture()
+            if !endsLift { scheduleRevealedStripPrecapture() }
         }
     }
 
@@ -643,12 +821,16 @@ final class TransitionCoordinator {
     /// in the same swap, and the hold they put on the idle picture ends here.
     func performConceal(trace: PerfTrace, releasing released: Set<ItemID> = []) {
         liftRequestedAt = nil
+        let endsLift = lifted
+        lifted = false
         Task {
             guard let appState else { return }
             await awaitPreviousLift()
             await anchorTask?.value
+            let liftCover = beginLiftEnd(endsLift)
             if anchored {
                 await performAnchoredConceal(trace: trace, releasing: released)
+                endLift(endsLift, cover: liftCover)
                 return
             }
             let style = appState.settings.revealAnimation
@@ -730,6 +912,7 @@ final class TransitionCoordinator {
                 }
             }
             PelmetLog.log("effect conceal settled")
+            endLift(endsLift, cover: liftCover)
             onConcealSettled?()
             trace.mark("settled")
             if cover == nil { trace.finish("uncovered") }
@@ -1374,6 +1557,9 @@ final class TransitionCoordinator {
         // hidden icons showed as the pass cover lifted). The pass re-holds
         // before its cover lifts, and its end refreshes.
         guard let appState, !passInFlight else { return }
+        // A lift's re-hide cover is over the bar: what moves beneath it is
+        // the reflow it hides, and it re-holds before it lifts.
+        guard liftCover == nil else { return }
         // One read of the window list for every bar and the backdrop.
         var windows: [[String: Any]]?
         let want = appState.barsKeptConcealed(windows: &windows)
@@ -1784,6 +1970,9 @@ final class TransitionCoordinator {
             await appState.waitUntilQuiesced(interval: 0.5, deadline: 3, poll: .milliseconds(afterConceal ? 200 : 30))
             // The agent's own conceal fade must not bake into the snapshot.
             if afterConceal { try? await Task.sleep(for: AppTiming.precaptureGhostClearance) }
+            // Nor a lift's re-hide cover, up until the bar beneath has settled.
+            let liftWait = Date().addingTimeInterval(AppTiming.liftCoverSafety)
+            while liftEnding, Date() < liftWait { try? await Task.sleep(for: .milliseconds(50)) }
             guard !Task.isCancelled, appState.currentRevealedSections.isEmpty else { return }
             guard !pressHoldsBar else {
                 PelmetLog.log("cover: item press holds the bar, precapture skipped")

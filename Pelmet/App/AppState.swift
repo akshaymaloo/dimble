@@ -2028,19 +2028,29 @@ final class AppState {
     /// panel that outlives the re-acquire. Every section comes out, Always
     /// Hidden too: with any assertion held the pills stay gone, so nothing
     /// can stay hidden while they show. Through the bar's own reveal, so it
-    /// moves the way a ⌥-click does. A click while it is up puts it back.
+    /// moves the way a ⌥-click does. A click while it is up, or on its way,
+    /// puts it back at once: the lift's state is read here, not asked of the
+    /// engine, which is mid-converge for the whole reveal.
     func liftHideForLiveActivities() {
         let all: Set<PelmetCore.Section> = [.hidden, .alwaysHidden]
+        if transitions.liftUp {
+            PelmetLog.log("liveactivity: click with the bar lifted — concealing")
+            concealNow()
+            return
+        }
+        guard !liftStarting else {
+            PelmetLog.log("liveactivity: click while the lift starts — left to it")
+            return
+        }
+        liftStarting = true
         Task { @MainActor in
-            if await engine.isLifted {
-                PelmetLog.log("liveactivity: click with the bar lifted — concealing")
-                concealNow()
-                return
-            }
+            defer { liftStarting = false }
+            // Before anything moves: the picture the re-hide will show.
+            await transitions.keepLiftPicture()
             if isRevealed, !panelShowsReveal, currentRevealedSections.isSuperset(of: all) {
                 // Out already: no reveal is coming to carry the lift.
                 PelmetLog.log("liveactivity: lift — the bar is out, the assertion goes")
-                await engine.reveal([], liftingAssertion: true)
+                await transitions.liftOutBar()
                 return
             }
             PelmetLog.log("liveactivity: lift — everything out with the assertion down")
@@ -2048,6 +2058,18 @@ final class AppState {
             // After the request: the reveal's task, which runs later, takes it.
             transitions.liftRequestedAt = Date()
         }
+    }
+    /// From the lift's click until its reveal is asked for (the picture
+    /// it keeps first).
+    private var liftStarting = false
+
+    /// A lift's re-hide has come to rest (`TransitionCoordinator.endLift`):
+    /// the reads it held look at the bar again, and Camera & mic, kept on
+    /// the bar beside Apple's pill, goes back to its own rule.
+    func liftSettled() {
+        overflowHoldEnded()
+        guard !isTransitioning else { return }
+        extras?.apply(model: settings.sectionModel, revealed: currentRevealedSections, systemCameraPillVisible: systemCameraPillVisible)
     }
 
     /// Set while the Camera & mic relay has the assertion down: Apple's
@@ -3242,15 +3264,22 @@ final class AppState {
 
     /// Pelmet has the bar: a pass (Apply, the quiet Apply under the panel, a
     /// picture pass) or a relay (an item menu, the clock, Camera & mic) has
-    /// icons out or the « open, so a walk reads a bar nobody sees.
+    /// icons out or the « open, so a walk reads a bar nobody sees; or a Live
+    /// Activities lift has let the system's extras and pills in.
     private var overflowReadHold: String? {
         if applying { return "an Apply pass has the bar" }
         if transitions.quietApplyInFlight { return "a quiet Apply has the bar" }
         if transitions.passInFlight { return "a picture pass has the bar" }
         if clockBlinkInFlight || audioVideoRelayActive { return "clock or Camera & mic relay in flight" }
         if press.isRunning { return "item menu relay in flight" }
+        if let lift = liftHoldReason { return lift }
         return nil
     }
+
+    /// A Live Activities lift has the bar, or its re-hide is settling (#106):
+    /// the extras and pills it lets back are in the bar's order and push
+    /// icons behind the «. The order keeper waits on it by name.
+    var liftHoldReason: String? { transitions.liftHoldReason }
 
     private var barMovingReason: String? {
         overflowReadHold ?? (isTransitioning ? "reveal or conceal in progress" : nil)
@@ -3604,7 +3633,7 @@ final class AppState {
     /// assertion held (a full reveal); Pelmet's indicator defers to it to
     /// avoid duplication. Not while the relay has it up for a click.
     var systemCameraPillVisible: Bool {
-        guard !audioVideoRelayActive else { return false }
+        guard !audioVideoRelayActive, !transitions.liftKeepsCameraItem else { return false }
         return (snapshot?.items ?? []).contains {
             $0.id.rawValue.contains("menuextra.audiovideo") && $0.frame != nil
         }
@@ -3616,7 +3645,7 @@ final class AppState {
     /// Apple's SharePlay icon is on screen (a full reveal lets it back):
     /// the Camera & mic item steps aside for it as it does for the pill.
     var systemSharePlayVisible: Bool {
-        guard !audioVideoRelayActive else { return false }
+        guard !audioVideoRelayActive, !transitions.liftKeepsCameraItem else { return false }
         return (snapshot?.items ?? []).contains {
             $0.id.rawValue.hasSuffix(AudioVideoPill.sharePlayIdentifier) && $0.frame != nil
         }
