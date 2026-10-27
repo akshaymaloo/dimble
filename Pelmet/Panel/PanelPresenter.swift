@@ -1105,11 +1105,23 @@ final class PanelPresenter: RevealPresenter {
         content.showsAlwaysHidden = alwaysShown
         content.motion = Self.foldStyle(appState.settings.revealAnimation)
         content.fold = options.alwaysHiddenFold
+        // The row's tiles are as wide as their pictures at bar size, so a
+        // battery's "80%" isn't shrunk into a one-icon cell (#102). The
+        // panel's tiles are one size, whatever they hold.
+        var pictureWidths: [PanelTile: CGFloat] = [:]
+        if layout == .row {
+            for entry in shown {
+                for case .item(let key) in entry.section.tiles {
+                    if let picture = pictures.picture(for: key) { pictureWidths[.item(key)] = picture.size.width }
+                }
+            }
+        }
         content.blocks = shown.map { entry in
             PanelBlock(
                 kind: entry.section.kind,
                 grid: PanelGrid(tiles: entry.section.tiles, columns: columns, layout: layout,
-                                showsNames: options.showsNames, minimumColumns: minimum, maxWidth: maxRowWidth),
+                                showsNames: options.showsNames, minimumColumns: minimum, maxWidth: maxRowWidth,
+                                pictureWidths: pictureWidths),
                 // The tile in the air is not one more behind the fold.
                 count: layout == .panel ? base.section(entry.section.kind)?.count ?? entry.section.count : entry.section.count,
                 showsHeader: layout == .panel && (entry.section.kind == .didntFit || (entry.section.kind == .hidden && didntFitShown)),
@@ -1344,7 +1356,7 @@ final class PanelPresenter: RevealPresenter {
         // the tile it was (the tile's y runs down, the screen's up).
         let mouse = NSEvent.mouseLocation
         let center = CGPoint(x: mouse.x - (pointer.x - wellCenter.x), y: mouse.y + (pointer.y - wellCenter.y))
-        let ghost = PanelDragGhost(art: art, grid: block.grid, appearance: window.appearance)
+        let ghost = PanelDragGhost(art: art, grid: block.grid, tileWidth: block.grid.tileWidth(of: tile), appearance: window.appearance)
         let drag = TileDrag(
             tile: tile, key: key, origin: origin, ghost: ghost,
             grab: CGSize(width: mouse.x - center.x, height: mouse.y - center.y),
@@ -1728,12 +1740,16 @@ final class PanelPresenter: RevealPresenter {
         barGhost = nil
         guard isOpen, let window, let grid = lastContent?.blocks.first?.grid else { return }
         let art: PanelTileArt
+        var pictureWidth: CGFloat?
         if let id, let picture = pictures.picture(for: id.sectionKey) {
             art = PanelTileArt(image: .picture(picture.image, size: picture.size, monochrome: picture.isMonochrome), name: "")
+            pictureWidth = picture.size.width
         } else {
             art = PanelTileArt(image: .icon(id.map(Self.standIn(for:)) ?? Self.placeholder), name: "")
         }
-        barGhost = PanelDragGhost(art: art, grid: grid, appearance: window.appearance)
+        // The tile it would land as: the row's follow their pictures (#102).
+        barGhost = PanelDragGhost(art: art, grid: grid, tileWidth: grid.metrics.rowTileWidth(forPicture: pictureWidth),
+                                  appearance: window.appearance)
     }
 
     /// A ⌘-drag from the bar is at `point`: lights the section a drop there

@@ -459,9 +459,10 @@ struct PanelView: View {
                     foldTile(at: placement, in: grid)
                 } else if let art = content.art[placement.tile] {
                     Button { onPress(placement.tile) } label: {
-                        PanelTileLabel(art: art, grid: grid, ink: ink)
+                        PanelTileLabel(art: art, grid: grid, ink: ink, tileWidth: placement.frame.width)
                     }
-                    .buttonStyle(PanelTileStyle(grid: grid, ink: ink, selected: content.selected == placement.tile))
+                    .buttonStyle(PanelTileStyle(grid: grid, ink: ink, selected: content.selected == placement.tile,
+                                                tileWidth: placement.frame.width))
                     // The arrow keys have their own selection; the system's
                     // blue ring is not it.
                     .focusEffectDisabled()
@@ -529,7 +530,8 @@ struct PanelView: View {
     /// The gesture that picks a tile up. The pointer is read on screen by the
     /// presenter; the tile only says where in itself it was grabbed.
     private func tileDrag(_ tile: PanelTile, grid: PanelGrid) -> some Gesture {
-        let center = CGPoint(x: grid.metrics.tileSize.width / 2, y: grid.metrics.wellSize.height / 2)
+        // The row's tiles differ in width (#102).
+        let center = CGPoint(x: grid.tileWidth(of: tile) / 2, y: grid.metrics.wellSize.height / 2)
         return DragGesture(minimumDistance: 4, coordinateSpace: .local)
             .onChanged { onTileDrag?(tile, .moved(pointer: $0.location, wellCenter: center)) }
             .onEnded { _ in onTileDrag?(tile, .ended) }
@@ -589,15 +591,21 @@ struct PanelTileLabel: View {
     let ink: PanelInk
     /// The well and what is on it, no name: the tile in the air.
     var glyphOnly = false
+    /// The tile's own width, which the row's tiles differ in (#102); nil is
+    /// the metrics'.
+    var tileWidth: CGFloat?
     /// Backing pixels per point of the display the panel is on (1 on a
     /// non-Retina screen).
     @Environment(\.displayScale) private var displayScale
 
+    private var well: CGSize { grid.wellSize(tileWidth: tileWidth) }
+
     var body: some View {
         let metrics = grid.metrics
+        let well = well
         VStack(spacing: metrics.labelGap) {
             glyph
-                .frame(width: metrics.wellSize.width, height: metrics.wellSize.height)
+                .frame(width: well.width, height: well.height)
             if grid.showsNames, !glyphOnly {
                 Text(art.name)
                     .font(.system(size: 11))
@@ -607,8 +615,8 @@ struct PanelTileLabel: View {
                     .frame(width: metrics.tileSize.width, height: metrics.labelHeight)
             }
         }
-        .frame(width: glyphOnly ? metrics.wellSize.width : metrics.tileSize.width,
-               height: glyphOnly ? metrics.wellSize.height : metrics.tileSize.height, alignment: .top)
+        .frame(width: glyphOnly ? well.width : tileWidth ?? metrics.tileSize.width,
+               height: glyphOnly ? well.height : metrics.tileSize.height, alignment: .top)
         .contentShape(Rectangle())
     }
 
@@ -618,7 +626,9 @@ struct PanelTileLabel: View {
 
     @ViewBuilder
     private var image: some View {
-        let room = CGSize(width: grid.metrics.wellSize.width - 6, height: grid.metrics.wellSize.height - 6)
+        // The picture's room grows with the row's tile, so a wide picture
+        // draws as it is (#102).
+        let room = CGSize(width: well.width - PanelMetrics.pictureMargin, height: well.height - PanelMetrics.pictureMargin)
         switch art.image {
         case .picture(let image, let size, let monochrome):
             // The bar's own size, pulled in only when it can't fit (a wide
@@ -627,10 +637,9 @@ struct PanelTileLabel: View {
             // a 1px stroke came out black on one edge and grey on the other
             // on a 1x display (#81). Drawn as it is when its pixels already
             // fit, interpolated only when it has to be scaled.
-            let wellSize = grid.metrics.wellSize
             let placed = PanelPictureFrame(
                 pixels: CGSize(width: image.width, height: image.height), size: size,
-                well: wellSize, room: room, displayScale: displayScale)
+                well: well, room: room, displayScale: displayScale)
             let picture = Image(decorative: image, scale: CGFloat(image.width) / max(size.width, 1))
                 .renderingMode(monochrome ? .template : .original)
                 .resizable()
@@ -644,7 +653,7 @@ struct PanelTileLabel: View {
             }
             .frame(width: placed.frame.width, height: placed.frame.height)
             .offset(x: placed.frame.minX, y: placed.frame.minY)
-            .frame(width: wellSize.width, height: wellSize.height, alignment: .topLeading)
+            .frame(width: well.width, height: well.height, alignment: .topLeading)
         case .icon(let icon):
             let side = min(icon.isTemplate ? 16 : 20, room.height)
             Image(nsImage: icon)
@@ -661,9 +670,12 @@ private struct PanelTileStyle: ButtonStyle {
     let grid: PanelGrid
     let ink: PanelInk
     let selected: Bool
+    /// The tile's own width, which the row's tiles differ in (#102); nil is
+    /// the metrics'.
+    var tileWidth: CGFloat?
 
     func makeBody(configuration: Configuration) -> some View {
-        Well(configuration: configuration, grid: grid, ink: ink, selected: selected)
+        Well(configuration: configuration, grid: grid, ink: ink, selected: selected, tileWidth: tileWidth)
     }
 
     /// A view of its own so the hover can be state.
@@ -672,16 +684,17 @@ private struct PanelTileStyle: ButtonStyle {
         let grid: PanelGrid
         let ink: PanelInk
         let selected: Bool
+        let tileWidth: CGFloat?
         @State private var hovering = false
 
         var body: some View {
-            let metrics = grid.metrics
+            let well = grid.wellSize(tileWidth: tileWidth)
             let row = grid.layout == .row
             configuration.label
                 .background(alignment: .top) {
                     RoundedRectangle(cornerRadius: row ? 8 : 13, style: .continuous)
                         .fill(configuration.isPressed ? ink.wellPress : hovering || selected ? ink.wellHover : row ? .clear : ink.well)
-                        .frame(width: metrics.wellSize.width, height: metrics.wellSize.height)
+                        .frame(width: well.width, height: well.height)
                         .scaleEffect(configuration.isPressed ? 0.94 : 1)
                         // On the well alone: on the whole tile, a hover that
                         // changed with a re-layout slid the tile (2026-10-09).

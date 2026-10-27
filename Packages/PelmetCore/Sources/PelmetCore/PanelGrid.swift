@@ -42,6 +42,18 @@ public struct PanelMetrics: Equatable, Sendable {
         columnGap: 0, rowGap: 2, padding: 5, labelGap: 0, labelHeight: 0,
         groupGap: 0, dividerWidth: 13)
 
+    /// What a picture's room is smaller than its well by, across: 3pt a side.
+    public static let pictureMargin: CGFloat = 6
+
+    /// The row layout's tile for a picture `width` points wide at bar size
+    /// (nil: no picture, an app icon's stand-in): wide enough to draw it as
+    /// it is, in whole points, never narrower than the standard tile and never
+    /// wider than twice it, so one runaway text item can't eat the row (#102).
+    public func rowTileWidth(forPicture width: CGFloat?) -> CGFloat {
+        guard let width, width.isFinite else { return tileSize.width }
+        return min(max((width + Self.pictureMargin).rounded(.up), tileSize.width), 2 * tileSize.width)
+    }
+
     public static func standard(layout: PanelGrid.Layout, showsNames: Bool) -> PanelMetrics {
         switch layout {
         case .row: .row
@@ -94,6 +106,9 @@ public struct PanelGrid: Equatable, Sendable {
     ///     width: the widest of their `neededColumns`.
     ///   - maxWidth: the row layout wraps past it, into rows of about the
     ///     same length; the panel layout ignores it.
+    ///   - pictureWidths: the row layout's tiles are as wide as their
+    ///     picture at bar size, in points (`PanelMetrics.rowTileWidth`); a tile
+    ///     with no entry is the standard width. The panel layout ignores it.
     public init(
         tiles: [PanelTile],
         columns: Int?,
@@ -101,6 +116,7 @@ public struct PanelGrid: Equatable, Sendable {
         showsNames: Bool,
         minimumColumns: Int = 1,
         maxWidth: CGFloat? = nil,
+        pictureWidths: [PanelTile: CGFloat] = [:],
         metrics: PanelMetrics? = nil
     ) {
         let names = layout == .panel && showsNames
@@ -138,14 +154,38 @@ public struct PanelGrid: Equatable, Sendable {
             size = rows.isEmpty ? .zero : CGSize(
                 width: width, height: y + metrics.tileSize.height)
         case .row:
+            // Each tile is as wide as its picture (#102), so a row is a sum
+            // of widths, not a count of tiles.
+            func tileWidth(of tile: PanelTile) -> CGFloat { metrics.rowTileWidth(forPicture: pictureWidths[tile]) }
             // Too wide for `maxWidth`: as many rows as it takes, the tiles
             // shared out evenly (the first rows one longer), never a full
             // row over a stub.
-            let icons = tiles.filter { $0 != .rowBreak }.count
-            let pitch = metrics.tileSize.width + metrics.columnGap
-            let fit = maxWidth.map { max(1, Int(($0 + metrics.columnGap) / pitch)) } ?? max(icons, 1)
-            let lines = max(1, (icons + fit - 1) / fit)
-            func length(of row: Int) -> Int { icons / lines + (row < icons % lines ? 1 : 0) }
+            let icons = tiles.filter { $0 != .rowBreak }
+            var lines = 1
+            if let maxWidth {
+                // As many as a plain fill needs, dividers aside: the guard
+                // below breaks a row they push past the edge.
+                var used: CGFloat = 0
+                var count = 0
+                for tile in icons {
+                    let wide = tileWidth(of: tile)
+                    if count > 0, used + wide > maxWidth {
+                        lines += 1
+                        used = 0
+                        count = 0
+                    }
+                    used += wide + metrics.columnGap
+                    count += 1
+                }
+            }
+            // What is left shared by the rows left, so a row that broke early
+            // for want of width (a wide tile, a divider) doesn't leave a stub
+            // at the end; with every row on its share this is the even split.
+            var placed = 0
+            func length() -> Int {
+                let rowsLeft = max(1, lines - rows.count)
+                return (icons.count - placed + rowsLeft - 1) / rowsLeft
+            }
             var x: CGFloat = 0
             var y: CGFloat = 0
             var width: CGFloat = 0
@@ -158,11 +198,13 @@ public struct PanelGrid: Equatable, Sendable {
                     pendingBreak = !line.isEmpty
                     continue
                 }
+                let wide = tileWidth(of: tile)
                 let divider = pendingBreak ? metrics.dividerWidth : 0
-                if !line.isEmpty, line.count >= length(of: rows.count)
-                    || maxWidth.map({ x + divider + metrics.tileSize.width > $0 }) == true {
+                if !line.isEmpty, line.count >= length()
+                    || maxWidth.map({ x + divider + wide > $0 }) == true {
                     // A new row starts the group: its divider goes.
                     rows.append(line)
+                    placed += line.count
                     line = []
                     x = 0
                     y += metrics.tileSize.height + metrics.rowGap
@@ -175,8 +217,8 @@ public struct PanelGrid: Equatable, Sendable {
                 }
                 line.append(Placement(
                     tile: tile, row: rows.count, column: line.count,
-                    frame: CGRect(x: x, y: y, width: metrics.tileSize.width, height: metrics.tileSize.height)))
-                x += pitch
+                    frame: CGRect(x: x, y: y, width: wide, height: metrics.tileSize.height)))
+                x += wide + metrics.columnGap
                 width = max(width, x - metrics.columnGap)
             }
             if !line.isEmpty { rows.append(line) }
@@ -201,6 +243,19 @@ public struct PanelGrid: Equatable, Sendable {
     public func placement(of tile: PanelTile) -> Placement? { positions[tile] }
     public func frame(of tile: PanelTile) -> CGRect? { positions[tile]?.frame }
 
+    /// The width of `tile`'s cell: the metrics' everywhere but the row, where
+    /// it follows the picture (#102).
+    public func tileWidth(of tile: PanelTile) -> CGFloat {
+        frame(of: tile)?.width ?? metrics.tileSize.width
+    }
+
+    /// The well a cell `tileWidth` wide has: in the row it fills the cell, so
+    /// it grows with it; elsewhere it is the metrics' (#102).
+    public func wellSize(tileWidth: CGFloat?) -> CGSize {
+        guard layout == .row, let tileWidth else { return metrics.wellSize }
+        return CGSize(width: tileWidth, height: metrics.wellSize.height)
+    }
+
     /// Where the keyboard starts.
     public var firstTile: PanelTile? { rows.first?.first?.tile }
 
@@ -208,7 +263,8 @@ public struct PanelGrid: Equatable, Sendable {
     /// carry on into another section or the search field. Left and right
     /// run along the rows and wrap from one row's end to the next row's
     /// start. Up and down keep the column, landing on the last tile of a
-    /// shorter row.
+    /// shorter row; in the row layout, where the tiles differ in width, the
+    /// tile nearest across (#102).
     public func neighbour(of tile: PanelTile, toward direction: Direction) -> PanelTile? {
         guard let here = positions[tile] else { return nil }
         let r = here.row, c = here.column
@@ -221,11 +277,21 @@ public struct PanelGrid: Equatable, Sendable {
             return r > 0 ? rows[r - 1][rows[r - 1].count - 1].tile : nil
         case .down:
             guard r + 1 < rows.count else { return nil }
-            return rows[r + 1][min(c, rows[r + 1].count - 1)].tile
+            return landing(in: rows[r + 1], from: here)
         case .up:
             guard r > 0 else { return nil }
-            return rows[r - 1][min(c, rows[r - 1].count - 1)].tile
+            return landing(in: rows[r - 1], from: here)
         }
+    }
+
+    /// The tile an up or down arrow lands on in `line`, from `here`: the same
+    /// column, or the last tile of a shorter line. The row layout's columns
+    /// don't line up, so it takes the tile whose middle is nearest (the first
+    /// of two equally near).
+    private func landing(in line: [Placement], from here: Placement) -> PanelTile {
+        guard layout == .row else { return line[min(here.column, line.count - 1)].tile }
+        let x = here.frame.midX
+        return line.min { abs($0.frame.midX - x) < abs($1.frame.midX - x) }?.tile ?? line[0].tile
     }
 
     // MARK: - Columns

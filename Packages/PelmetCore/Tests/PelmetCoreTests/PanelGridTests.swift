@@ -192,7 +192,112 @@ import Testing
         #expect(dropped.dividers.isEmpty)
     }
 
+    // MARK: - Row tiles follow their pictures (#102)
+
+    private func wideRow(
+        _ tiles: [PanelTile], pictures: [PanelTile: CGFloat], maxWidth: CGFloat? = nil
+    ) -> PanelGrid {
+        PanelGrid(tiles: tiles, columns: nil, layout: .row, showsNames: false, maxWidth: maxWidth,
+                  pictureWidths: pictures)
+    }
+
+    // The picture's width and the 6pt the 34/28 well leaves round its room;
+    // never under today's 34, never over twice it.
+    @Test func aRowTileIsItsPicturePlusTheMarginWithinThePanelsBounds() {
+        let metrics = PanelMetrics.row
+        #expect(metrics.rowTileWidth(forPicture: 55) == 61)
+        #expect(metrics.rowTileWidth(forPicture: 100) == 68)
+        #expect(metrics.rowTileWidth(forPicture: nil) == 34)
+        #expect(metrics.rowTileWidth(forPicture: 20) == 34)
+        #expect(metrics.rowTileWidth(forPicture: 28) == 34)
+        #expect(metrics.rowTileWidth(forPicture: 62) == 68)
+        // Whole points, rounded up, so the picture's room is never short.
+        #expect(metrics.rowTileWidth(forPicture: 55.2) == 62)
+        #expect(metrics.rowTileWidth(forPicture: .nan) == 34)
+        #expect(metrics.rowTileWidth(forPicture: 0) == 34)
+    }
+
+    @Test func aRowPlacesEachTileAtItsOwnWidth() {
+        // A battery with its percentage, a text item that would run away, an
+        // app icon's stand-in (no picture), and a small glyph.
+        let g = wideRow([t(0), t(1), t(2), t(3), t(4)], pictures: [t(1): 55, t(2): 100, t(4): 16])
+        #expect(g.rows[0].map(\.frame.minX) == [0, 34, 95, 163, 197])
+        #expect(g.rows[0].map(\.frame.width) == [34, 61, 68, 34, 34])
+        #expect(g.rows[0].allSatisfy { $0.frame.height == 28 })
+        // The capsule is as wide as the tiles it holds, 231.
+        #expect(g.contentSize == CGSize(width: 231, height: 28))
+        #expect(g.panelSize == CGSize(width: 241, height: 38))
+        #expect(g.tileWidth(of: t(1)) == 61 && g.tileWidth(of: t(2)) == 68 && g.tileWidth(of: t(0)) == 34)
+        // The well fills the tile in the row, and is the metrics' elsewhere.
+        #expect(g.wellSize(tileWidth: 61) == CGSize(width: 61, height: 28))
+        #expect(grid(tiles(2)).wellSize(tileWidth: 61) == PanelMetrics.compact.wellSize)
+    }
+
+    // Tiles with no entry are the standard 34, so a row of stand-ins is what it was.
+    @Test func aRowWithoutPicturesIsAsItWas() {
+        let plain = grid(tiles(8), layout: .row)
+        #expect(wideRow(tiles(8), pictures: [:]) == plain)
+        #expect(plain.contentSize == CGSize(width: 272, height: 28))
+    }
+
+    @Test func dividersAndTheNextTileFollowAWideTile() {
+        let g = wideRow([t(0), .rowBreak, t(1), t(2)], pictures: [t(0): 55, t(1): 100])
+        // 61, the divider's 13, then 68 and 34.
+        #expect(g.dividers == [CGRect(x: 61, y: 0, width: 13, height: 28)])
+        #expect(g.rows[0].map(\.frame.minX) == [0, 74, 142])
+        #expect(g.contentSize.width == 176)
+    }
+
+    @Test func thePanelLayoutIgnoresPictureWidths() {
+        let seven = tiles(7)
+        let wide = PanelGrid(tiles: seven, columns: 3, layout: .panel, showsNames: true,
+                             pictureWidths: [t(0): 100, t(1): 55])
+        #expect(wide == grid(seven, columns: 3, names: true))
+        #expect(wide.tileWidth(of: t(0)) == 68)
+        #expect(wide.wellSize(tileWidth: 61) == PanelMetrics.named.wellSize)
+    }
+
+    // The wrap counts widths, not tiles: 61 + 61 fit 130, a third does not.
+    @Test func aRowWrapsByTheWidthsItHolds() {
+        let g = wideRow([t(0), t(1), t(2), t(3)], pictures: [t(0): 55, t(1): 55], maxWidth: 130)
+        #expect(counts(g) == [2, 2])
+        #expect(g.rows[1][0].frame == CGRect(x: 0, y: 30, width: 34, height: 28))
+        #expect(g.contentSize == CGSize(width: 122, height: 58))
+        // Only ever one row where all of it fits.
+        #expect(counts(wideRow([t(0), t(1), t(2), t(3)], pictures: [t(0): 55, t(1): 55], maxWidth: 190)) == [4])
+    }
+
+    // Two 68s and four 34s in 140: the first row can't take its share of
+    // three, and the rest then takes four rather than leaving a stub.
+    @Test func aRowThatBreaksEarlyForWidthLeavesNoStub() {
+        let g = wideRow(tiles(6), pictures: [t(0): 100, t(1): 100], maxWidth: 140)
+        #expect(counts(g) == [2, 4])
+        #expect(g.rows.allSatisfy { $0.last!.frame.maxX <= 140 })
+        #expect(g.contentSize == CGSize(width: 136, height: 58))
+    }
+
+    // A tile wider than the display's room still gets a row of its own.
+    @Test func aTileWiderThanTheRoomStandsAlone() {
+        let g = wideRow(tiles(3), pictures: [t(0): 100], maxWidth: 50)
+        #expect(counts(g) == [1, 1, 1])
+    }
+
     // MARK: - Arrow keys
+
+    // Up and down land on the tile nearest across when the widths differ.
+    @Test func upAndDownInAWideRowLandOnTheNearestTile() {
+        // Row 0: 68, 68 (x 0..136); row 1: 34s at 0, 34, 68, 102.
+        let g = wideRow(tiles(6), pictures: [t(0): 100, t(1): 100], maxWidth: 140)
+        #expect(counts(g) == [2, 4])
+        // t0's middle is 34: t2 (17) and t3 (51) are as near; the first wins.
+        #expect(g.neighbour(of: t(0), toward: .down) == t(2))
+        // t1's middle is 102: t5 (119) and t4 (85) are 17 either side.
+        #expect(g.neighbour(of: t(1), toward: .down) == t(4))
+        #expect(g.neighbour(of: t(5), toward: .up) == t(1))
+        #expect(g.neighbour(of: t(2), toward: .up) == t(0))
+        #expect(g.neighbour(of: t(3), toward: .up) == t(0))
+        #expect(g.neighbour(of: t(4), toward: .up) == t(1))
+    }
 
     @Test func rightAndLeftWalkTheRowsAndStopAtTheEnds() {
         let g = grid(tiles(7))

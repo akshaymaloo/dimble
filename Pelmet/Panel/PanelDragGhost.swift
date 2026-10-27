@@ -18,11 +18,12 @@ final class PanelDragGhost {
     private let window: GlassPanel
 
     /// `appearance` is the panel's, so the ghost reads in the same mode.
-    init(art: PanelTileArt, grid: PanelGrid, appearance: NSAppearance?) {
-        let well = grid.metrics.wellSize
+    /// `tileWidth`: the row's tile it was lifted from, or would land as (#102).
+    init(art: PanelTileArt, grid: PanelGrid, tileWidth: CGFloat? = nil, appearance: NSAppearance?) {
+        let well = grid.wellSize(tileWidth: tileWidth)
         let size = CGSize(width: (well.width * Self.scale).rounded(.up), height: (well.height * Self.scale).rounded(.up))
         let radius: CGFloat = (grid.layout == .row ? 8 : 13) * Self.scale
-        let hosting = NSHostingView(rootView: Face(art: art, grid: grid, scale: Self.scale))
+        let hosting = NSHostingView(rootView: Face(art: art, grid: grid, tileWidth: tileWidth, scale: Self.scale))
         hosting.sizingOptions = []
         window = GlassPanel(content: hosting, cornerRadius: radius)
         // Above the menu bar, and the panel's own level.
@@ -85,16 +86,17 @@ final class PanelDragGhost {
     private struct Face: View {
         let art: PanelTileArt
         let grid: PanelGrid
+        let tileWidth: CGFloat?
         let scale: CGFloat
         @Environment(\.colorScheme) private var scheme
 
         var body: some View {
             let ink = PanelInk(scheme: scheme)
-            let well = grid.metrics.wellSize
+            let well = grid.wellSize(tileWidth: tileWidth)
             ZStack {
                 RoundedRectangle(cornerRadius: grid.layout == .row ? 8 : 13, style: .continuous)
                     .fill(ink.wellHover)
-                PanelTileLabel(art: art, grid: grid, ink: ink, glyphOnly: true)
+                PanelTileLabel(art: art, grid: grid, ink: ink, glyphOnly: true, tileWidth: tileWidth)
             }
             .frame(width: well.width, height: well.height)
             .scaleEffect(scale)
