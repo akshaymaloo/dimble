@@ -98,10 +98,25 @@ final class LiveActivityStatus {
                 for entry in self.pending { replayed.read(entry.message, at: entry.date, agent: entry.agent) }
                 self.pending = []
                 self.recovering = false
+                Self.addDebugActivity(to: &replayed)
                 PelmetLog.log("liveactivity: boot \(Self.describe(replayed))\(dropped ? " (ended ones the log never closed dropped)" : "")\(entries.isEmpty ? ", nothing on record" : "")")
                 self.activities = replayed
             }
         }
+    }
+
+    /// Debug: `open -a Dimble --args -pelmet.debug.fakeLiveActivity <bundle id>`
+    /// starts one activity of that app at boot, read through the parser
+    /// from the lines a real start logs, so the item and its lift can be
+    /// tried with nothing running. It ends the way a real one does: the
+    /// agent restarting, or its lifetime.
+    private static func addDebugActivity(to activities: inout LiveActivities) {
+        guard let bundle = UserDefaults.standard.string(forKey: "pelmet.debug.fakeLiveActivity"), !bundle.isEmpty else { return }
+        let agent = agentPID() ?? 0
+        for line in LiveActivities.startLines(id: "DEB06106-0000-4000-8000-000000000106", requester: bundle) {
+            activities.read(line, at: Date(), agent: agent)
+        }
+        PelmetLog.log("liveactivity: debug — a fake activity of \(bundle) running")
     }
 
     /// The running MenuBarAgent's pid; nil when it isn't up.

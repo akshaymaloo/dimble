@@ -49,6 +49,18 @@ struct LiveActivityLogParserTests {
         #expect(activities.active.isEmpty)
     }
 
+    /// The app's debug activity (`pelmet.debug.fakeLiveActivity`) starts
+    /// through the same reading as a real one.
+    @Test func theDebugStartLinesStartOneOfThatApp() {
+        var activities = LiveActivities()
+        let changed = Self.read(LiveActivities.startLines(id: Self.uuid, requester: "com.example.car"), into: &activities)
+        #expect(changed == [false, true])
+        #expect(activities.active == [LiveActivity(id: "A1B2C3D4", bundleID: "com.example.car", startedAt: Self.t0, agent: Self.agent)])
+        // And ends like one.
+        _ = Self.read([Self.released], into: &activities)
+        #expect(activities.active.isEmpty)
+    }
+
     @Test func aLaterDescriptorNamesAnActivityStartedWithoutOne() {
         var activities = LiveActivities()
         _ = Self.read([Self.created], into: &activities)

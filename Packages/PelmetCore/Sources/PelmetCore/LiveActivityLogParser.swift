@@ -125,6 +125,15 @@ public struct LiveActivities: Equatable, Sendable {
         return active != before
     }
 
+    /// The two lines a start logs, cut to what `read` takes from them: for
+    /// the app's debug activity (`pelmet.debug.fakeLiveActivity`), read
+    /// like a real one, so the item and its lift can be tried with nothing
+    /// running.
+    public static func startLines(id: String, requester bundle: String) -> [String] {
+        [#"\#(descriptorPrefix) [ActivityDescriptor(id: "\#(id)", requester: \#(bundle))]"#,
+         createdPrefix + id.prefix(8)]
+    }
+
     // MARK: Lines
 
     static let descriptorPrefix = "Received live activity descriptor states:"
