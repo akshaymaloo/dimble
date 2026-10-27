@@ -85,6 +85,11 @@ enum AppTiming {
     /// How long a reveal or a press waits for a picture pass to put the bar
     /// back: 11 icons took ~1.0s, measured 2026-10-09.
     static let picturePassWait: TimeInterval = 2.5
+    /// How long the boot's first conceal waits for the launch pictures
+    /// (#104): three captures (~90ms each) and a walk (70–130ms), about
+    /// 0.4s. Past it the film is dropped and the first open's pass takes
+    /// the pictures, as before.
+    static let launchPicturesWait: TimeInterval = 0.6
     /// What one follow-up batch of the picture pass is given (swaps, settle
     /// walks, strip): the cover is held up that long, plus the lift reserve,
     /// when one starts, and a waiting reveal or press waits that much longer

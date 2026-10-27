@@ -1032,10 +1032,19 @@ final class AppState {
             // membership hides them where they sit (docs/CORE-SETS.md).
             let launchSnapshot = await engine.snapshot()
             registerNewItems(from: launchSnapshot)
+            // The panel's tile order, read off the bar while every section
+            // is on it (#104). Memory only, it was empty after a launch: the
+            // first open drew the model's order (concealed icons have no
+            // frame, so their ids decided it) and the picture pass re-sorted
+            // the tiles under the pointer. Phantoms behind the « are left
+            // out (`ApplyPass.primaryFrames`) and keep their stored slot.
+            recordDrawnOrder(launchSnapshot, revealed: [.hidden, .alwaysHidden])
             // Last look at the fully live bar: the first reveal's picture
             // (see TransitionCoordinator.takeBootPicture). The converge
             // below is what conceals.
             await transitions.takeBootPicture(from: launchSnapshot)
+            // And the tiles' pictures, from the same live bar (#104).
+            await panelPresenter.takeLaunchPictures(from: launchSnapshot)
             await engine.setModel(settings.sectionModel)
             updateSnapshot(await engine.snapshot())
             // Startup state: everything the model says is hidden, is hidden.
@@ -4088,10 +4097,19 @@ final class AppState {
         UserDefaults.standard.set(Array(immovableBundles), forKey: Self.immovableKey)
         PelmetLog.log("editor: immovable \(immovableBundles.sorted())")
     }
-    /// Consecutive snapshots a host must read the same (dis)agreeing way
-    /// before the sticky mark flips.
-    private static let bundlelessConfirmations = 3
+    /// Per bundle, the snapshots in a row whose host read against its sticky
+    /// mark (`BundlelessMark`).
     private var bundlelessStreak: [String: Int] = [:]
+
+    /// When `pid` started, from the kernel; nil for an unknown pid.
+    /// `BundlelessMark` tells a relaunch from a settled host by it (#103).
+    nonisolated private static func processStart(_ pid: pid_t) -> Date? {
+        guard pid > 0 else { return nil }
+        var info = proc_bsdinfo()
+        let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+        guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return nil }
+        return Date(timeIntervalSince1970: TimeInterval(info.pbi_start_tvsec) + TimeInterval(info.pbi_start_tvusec) / 1_000_000)
+    }
 
     func isBundlelessHost(_ id: ItemID) -> Bool {
         id.bundleID.map { bundlelessHosts.contains($0) } ?? false
@@ -4754,23 +4772,33 @@ final class AppState {
         // normal app as bundle-less (Sconce and a Pelmet launcher, both
         // 2026-09-14; the read cleared 75ms later). A real bundle-less host
         // (ChatGPT Classic's helper) reads that way on every walk. So: mark
-        // after `bundlelessConfirmations` consecutive live sightings, and
-        // unmark a host that reads fine that many times in a row — the
-        // "fix the app" recovery happens on its own. Never Pelmet's bundles.
+        // after `BundlelessMark.confirmations` consecutive live sightings,
+        // and unmark a host that reads fine that many times in a row — the
+        // "fix the app" recovery happens on its own. Once concealed, though,
+        // a bundle-less host's icon is never live again: a launch reads it
+        // once, before the first swap, and the mark never landed (#103). A
+        // host that has run for a while is no relaunch, so that one sighting
+        // marks it (`BundlelessMark.settledHostAge`). Never Pelmet's bundles.
         var readings: [String: Bool] = [:]
+        var hostAges: [String: TimeInterval] = [:]
         for item in snap.items where item.frame != nil {
             guard let bundle = item.id.bundleID, !PelmetBundle.ownIDs.contains(bundle) else { continue }
             readings[bundle] = (readings[bundle] ?? false) || item.hostIsBundleless
+            if item.hostIsBundleless, !bundlelessHosts.contains(bundle), let started = Self.processStart(item.pid) {
+                hostAges[bundle] = max(hostAges[bundle] ?? 0, -started.timeIntervalSinceNow)
+            }
         }
         var changed = false
         for (bundle, bundleless) in readings {
-            let marked = bundlelessHosts.contains(bundle)
-            guard bundleless != marked else { bundlelessStreak.removeValue(forKey: bundle); continue }
-            let streak = (bundlelessStreak[bundle] ?? 0) + 1
-            bundlelessStreak[bundle] = streak
-            guard streak >= Self.bundlelessConfirmations else { continue }
-            bundlelessStreak.removeValue(forKey: bundle)
+            let before = bundlelessStreak[bundle] ?? 0
+            let step = BundlelessMark.step(
+                marked: bundlelessHosts.contains(bundle), bundleless: bundleless, streak: before, hostAge: hostAges[bundle])
+            bundlelessStreak[bundle] = step.streak > 0 ? step.streak : nil
+            guard step.flips else { continue }
             if bundleless { bundlelessHosts.insert(bundle) } else { bundlelessHosts.remove(bundle) }
+            if bundleless, before + 1 < BundlelessMark.confirmations, let age = hostAges[bundle] {
+                PelmetLog.log("editor: \(bundle) marked on one sighting, its bundle-less host has run \(Int(age))s")
+            }
             changed = true
         }
         if changed {

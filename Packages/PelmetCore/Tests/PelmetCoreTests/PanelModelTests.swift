@@ -76,6 +76,22 @@ import Testing
         #expect(model.section(.hidden)?.tiles == [tile("c"), tile("a"), tile("b"), tile("d")])
     }
 
+    // #104: the order seeded at launch from the live bar. Pelmet's own Focus
+    // extra is collapsed there (never drawn) and keeps its stored slot; the
+    // walk order, where its id sorted first, decides nothing.
+    @Test func theLaunchSeedOrdersTheFirstOpenByTheBar() {
+        let focus = ItemID.status(bundle: PelmetBundle.mainID, title: "Pelmet.Focus")
+        let stored = [key("x"), focus.sectionKey, key("y")]
+        let seeded = PanelModel.mergedDrawnOrder(stored, drawn: [key("y"), key("x")])
+        #expect(seeded == [key("y"), focus.sectionKey, key("x")])
+        let model = PanelModel.build(
+            roster: roster(always: ["x", "y"], extra: [focus.sectionKey: .alwaysHidden]),
+            items: [focus, raw("x"), raw("y")],
+            drawnOrder: [.alwaysHidden: seeded],
+            alwaysHiddenRequested: true)
+        #expect(model.section(.alwaysHidden)?.tiles == [tile("y"), .item(focus.sectionKey), tile("x")])
+    }
+
     // Order drawn for another section, or for an item that left, is not a claim here.
     @Test func drawnOrderOfOtherSectionsAndGoneItemsIsIgnored() {
         let model = PanelModel.build(
