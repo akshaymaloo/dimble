@@ -1,12 +1,15 @@
 // ItemPictures.swift
 // One picture per item for the panel's tiles: the icon as the bar draws it,
 // keyed out against the empty bar so it sits on glass with no bar around it
-// (ported from the tray's TrayPictures). Memory only. Nothing here captures:
-// the picture pass hands pictures in (TransitionCoordinator.picturePass).
+// (ported from the tray's TrayPictures). Kept across launches in the user's
+// cache folder (#104). Nothing here captures: the picture pass hands
+// pictures in (TransitionCoordinator.picturePass).
 
 import AppKit
+import ImageIO
 import PelmetCore
 import PelmetEngine
+import UniformTypeIdentifiers
 
 @MainActor
 final class ItemPictures {
@@ -33,6 +36,12 @@ final class ItemPictures {
     /// tinted for the panel; a coloured one keeps the bar's own look (white
     /// parts from a dark bar on light glass), so a switch drops those.
     private var takenDark: Bool?
+    /// The write after a store, held a moment so a pass's batches go as one.
+    private var saveTask: Task<Void, Never>?
+
+    init() {
+        load()
+    }
 
     /// The latest picture, however old: `isStale` says when to retake it.
     func picture(for key: ItemID) -> Picture? {
@@ -47,6 +56,7 @@ final class ItemPictures {
     func store(_ new: [ItemID: Picture]) {
         dropColouredOnAppearanceChange()
         pictures.merge(new) { _, latest in latest }
+        scheduleSave()
     }
 
     private func dropColouredOnAppearanceChange() {
@@ -58,6 +68,91 @@ final class ItemPictures {
         guard !coloured.isEmpty else { return }
         for key in coloured { pictures[key] = nil }
         PelmetLog.log("panel: \(dark ? "dark" : "light") mode, \(coloured.count) coloured picture(s) dropped")
+        scheduleSave()
+    }
+
+    // MARK: - Kept across launches
+
+    /// Pictures were memory only, so the first open after a launch drew app
+    /// icons for the second the pass took, and the row's tiles jumped to
+    /// their pictures' widths when they landed (#104). The last session's
+    /// pictures are kept in the user's own cache folder and drawn from the
+    /// first frame: each is past `maxAge` by then, so the pass retakes it as
+    /// it does any stale picture, and a tile's width holds unless the icon
+    /// itself changed. Nothing a pass could not take again, in a folder the
+    /// system may clear; a picture is one of the user's own bar icons, keyed
+    /// out, never the bar around it.
+    private static var keptURL: URL? {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
+            .appendingPathComponent(PelmetBundle.mainID, isDirectory: true)
+            .appendingPathComponent("panel-pictures.plist")
+    }
+
+    /// Past this a kept picture is not loaded or written: an icon from a
+    /// month ago is likelier wrong than right, and the file stays small.
+    private static let keepFor: TimeInterval = 30 * 24 * 3600
+
+    private struct Kept: Codable {
+        struct Entry: Codable {
+            let key: String
+            let png: Data
+            let width: Double
+            let height: Double
+            let takenAt: Date
+            let isMonochrome: Bool
+        }
+        let dark: Bool
+        let entries: [Entry]
+    }
+
+    private func load() {
+        guard let url = Self.keptURL, let data = try? Data(contentsOf: url),
+              let kept = try? PropertyListDecoder().decode(Kept.self, from: data) else { return }
+        var loaded: [ItemID: Picture] = [:]
+        for entry in kept.entries where -entry.takenAt.timeIntervalSinceNow < Self.keepFor {
+            guard let source = CGImageSourceCreateWithData(entry.png as CFData, nil),
+                  let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { continue }
+            loaded[ItemID(rawValue: entry.key)] = Picture(
+                image: image, size: CGSize(width: entry.width, height: entry.height),
+                takenAt: entry.takenAt, isMonochrome: entry.isMonochrome)
+        }
+        guard !loaded.isEmpty else { return }
+        pictures = loaded
+        takenDark = kept.dark
+        PelmetLog.log("panel: \(loaded.count) picture(s) kept from the last launch")
+    }
+
+    private func scheduleSave() {
+        saveTask?.cancel()
+        saveTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { return }
+            self?.save()
+        }
+    }
+
+    private func save() {
+        guard let url = Self.keptURL, let dark = takenDark else { return }
+        let entries = pictures.compactMap { key, picture -> Kept.Entry? in
+            guard -picture.takenAt.timeIntervalSinceNow < Self.keepFor, let png = Self.png(picture.image) else { return nil }
+            return Kept.Entry(key: key.rawValue, png: png, width: picture.size.width, height: picture.size.height,
+                              takenAt: picture.takenAt, isMonochrome: picture.isMonochrome)
+        }
+        guard let data = try? PropertyListEncoder().encode(Kept(dark: dark, entries: entries)) else { return }
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? data.write(to: url, options: .atomic)
+    }
+
+    /// Drawn once more first: a picture cut from a stream frame does not
+    /// serialize as it is (as `dumpPass` found).
+    private static func png(_ image: CGImage) -> Data? {
+        guard let bitmap = rgba(image, width: image.width, height: image.height) else { return nil }
+        defer { withExtendedLifetime(bitmap.context) {} }
+        guard let copy = bitmap.context.makeImage() else { return nil }
+        let data = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(data, UTType.png.identifier as CFString, 1, nil) else { return nil }
+        CGImageDestinationAddImage(destination, copy, nil)
+        return CGImageDestinationFinalize(destination) ? data as Data : nil
     }
 
     /// `snap` is one item's column of a keyed-out strip, trimmed to the
@@ -70,9 +165,13 @@ final class ItemPictures {
     /// glass). Nil when the column is blank.
     static func picture(from snap: ConcealGhostOverlay.BarSnapshot, raw: CGImage?, background: CGImage?) -> Picture? {
         let image = snap.image
-        guard snap.windowFrame.width > 0, let ink = inkBounds(of: image) else { return nil }
+        guard snap.windowFrame.width > 0 else { return nil }
         let mask = raw.flatMap { raw in background.flatMap { flatMask(raw: raw, background: $0) } }
-        guard let trimmed = (mask ?? image).cropping(to: ink) else { return nil }
+        // The box is read off the mask when there is one: the capsule the
+        // bar draws behind an item drops out of the mask but stays in the
+        // keyed column as faint ink, and a 17pt glyph in a 38pt capsule made
+        // a 42pt row tile (Vorssaint, #102).
+        guard let ink = inkBounds(of: mask ?? image), let trimmed = (mask ?? image).cropping(to: ink) else { return nil }
         let scale = CGFloat(image.width) / snap.windowFrame.width
         return Picture(
             image: trimmed,

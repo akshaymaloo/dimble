@@ -137,9 +137,9 @@ final class PanelPresenter: RevealPresenter {
     private var glassTimer: Timer?
     /// Where `place` last put the window, before any motion.
     private var placed: NSRect?
+    /// The open `placed` belongs to (`generation`).
+    private var placedGeneration = -1
     private var passTask: Task<Void, Never>?
-    /// The launch film while the boot waits on it (#104).
-    private var launchFilm: Task<Void, Never>?
     /// Keys a pass looked for and could not picture (an item that draws
     /// nothing, one the notch hides): not asked for again until a picture
     /// would have gone stale anyway.
@@ -279,7 +279,13 @@ final class PanelPresenter: RevealPresenter {
         // On screen from the next pass of the run loop: the `perf` line's
         // open → first frame.
         DispatchQueue.main.async { trace.finish("shown") }
-        PelmetLog.log("panel: \(wasOpen ? "widened" : "open") (\(reason.map { "\($0)" } ?? "no reason")) — \(shown.tiles) tile(s), \(shown.missing.count) without a fresh picture, key=\(window?.isKeyWindow == true)")
+        // A kept picture (one from the last launch, #104) draws while the
+        // pass retakes it; a tile with none draws its app's icon.
+        let bare = lastContent?.art.filter { entry in
+            if case .item = entry.key, case .icon = entry.value.image { return true }
+            return false
+        }.count ?? 0
+        PelmetLog.log("panel: \(wasOpen ? "widened" : "open") (\(reason.map { "\($0)" } ?? "no reason")) — \(shown.tiles) tile(s), \(shown.missing.count) without a fresh picture (\(bare) with none), key=\(window?.isKeyWindow == true)")
         // Settled on the next turn, as the bar's reveal settles after its
         // effect returns: the machine is still in this dispatch.
         DispatchQueue.main.async { [weak self] in self?.appState?.panelDidSettle() }
@@ -775,6 +781,12 @@ final class PanelPresenter: RevealPresenter {
             y: (top - size.height).rounded(),
             width: width.rounded() + window.leadingMargin, height: size.height.rounded())
         if frame.size != placed?.size { resizedAt = CACurrentMediaTime() }
+        // The oracle for a panel that moves under the pointer (#104): a
+        // resize within one open, as pictures landing on 34pt tiles made.
+        if isOpen, placedGeneration == generation, let before = placed, before.size != frame.size {
+            PelmetLog.log("panel: \(Int(before.width))×\(Int(before.height)) → \(Int(frame.width))×\(Int(frame.height)), left edge \(Int(before.minX)) → \(Int(frame.minX))")
+        }
+        placedGeneration = generation
         if let style = foldMotion {
             foldMotion = nil
             resizeGlass(to: frame, style: style)
@@ -2105,39 +2117,6 @@ final class PanelPresenter: RevealPresenter {
         unpicturable[key] = nil
         PelmetLog.log("panel: \(key.rawValue) re-pictured")
         if isOpen { refresh() }
-    }
-
-    /// Launch, before the first conceal (#104): the hidden icons' pictures
-    /// filmed off the live bar (TransitionCoordinator.launchPictures).
-    /// Pictures are memory only, so the first open after a launch drew app
-    /// icons that the pass swapped for the bar's pictures a second later.
-    /// The conceal waits `launchPicturesWait` at most: a film still running
-    /// then would go on over a bar that is concealing, so it is cancelled
-    /// and nothing it took is kept, and the first open's pass takes the
-    /// pictures as before.
-    func takeLaunchPictures(from snap: EngineSnapshot) async {
-        guard let appState, appState.screenRecordingGranted, appState.settings.usesPanel, launchFilm == nil else { return }
-        let start = Date()
-        launchFilm = Task { @MainActor [weak self, weak appState] in
-            let found = await appState?.transitions.launchPictures(from: snap)
-            guard let self, !Task.isCancelled else { return }
-            self.launchFilm = nil
-            let ms = Int(Date().timeIntervalSince(start) * 1000)
-            guard let found else {
-                PelmetLog.log("panel: launch pictures — none filmed at \(ms)ms, the first open takes them")
-                return
-            }
-            self.pictures.store(found.pictures)
-            PelmetLog.log("panel: launch pictures — \(found.pictures.count) item(s) at \(ms)ms (\(found.clear) clear of the «\(found.unsteady > 0 ? ", \(found.unsteady) changed between frames" : ""))")
-        }
-        let by = start.addingTimeInterval(AppTiming.launchPicturesWait)
-        while launchFilm != nil, Date() < by {
-            try? await Task.sleep(for: .milliseconds(20))
-        }
-        guard let film = launchFilm else { return }
-        film.cancel()
-        launchFilm = nil
-        PelmetLog.log("panel: launch pictures — gave up at \(Int(Date().timeIntervalSince(start) * 1000))ms, the first open takes them")
     }
 
     /// A concealed icon is in no tree the bar walks, so an app that switched

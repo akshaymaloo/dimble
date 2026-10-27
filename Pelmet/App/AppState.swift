@@ -1043,8 +1043,6 @@ final class AppState {
             // (see TransitionCoordinator.takeBootPicture). The converge
             // below is what conceals.
             await transitions.takeBootPicture(from: launchSnapshot)
-            // And the tiles' pictures, from the same live bar (#104).
-            await panelPresenter.takeLaunchPictures(from: launchSnapshot)
             await engine.setModel(settings.sectionModel)
             updateSnapshot(await engine.snapshot())
             // Startup state: everything the model says is hidden, is hidden.
