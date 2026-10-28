@@ -32,7 +32,21 @@ xcodegen generate
 
 echo "==> Archiving (Release)"
 rm -rf "$BUILD_DIR"
+mkdir -p "$BUILD_DIR"
+# Verify the upstream SPM artifact before extracting any release executable.
+# Keep in sync with the pinned Sparkle revision's Package.swift.
+SPARKLE_VERSION="2.10.1"
+SPARKLE_SHA256="4c2e48a3e50ebcc2c88a58a4c7264a1a99c3c31857ce754357afb9cdb323022a"
+SPARKLE_ARCHIVE="$BUILD_DIR/Sparkle.zip"
+curl --fail --location --proto '=https' --proto-redir '=https' --tlsv1.2 \
+    "https://github.com/sparkle-project/Sparkle/releases/download/$SPARKLE_VERSION/Sparkle-for-Swift-Package-Manager.zip" \
+    --output "$SPARKLE_ARCHIVE"
+echo "$SPARKLE_SHA256  $SPARKLE_ARCHIVE" | shasum -a 256 -c -
+unzip -q "$SPARKLE_ARCHIVE" -d "$BUILD_DIR/sparkle-tools"
+GENERATE_APPCAST="$BUILD_DIR/sparkle-tools/bin/generate_appcast"
+[[ -x "$GENERATE_APPCAST" ]] || { echo "error: verified Sparkle artifact has no generate_appcast" >&2; exit 1; }
 xcodebuild -project Pelmet.xcodeproj -scheme Pelmet -configuration Release \
+    -derivedDataPath "$BUILD_DIR/DerivedData" \
     -archivePath "$BUILD_DIR/Dimble.xcarchive" \
     -destination 'generic/platform=macOS' \
     archive | tail -20
@@ -63,7 +77,7 @@ if [[ -z "${SKIP_NOTARIZE:-}" ]]; then
     echo "==> Notarizing DMG"
     xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait
     xcrun stapler staple "$DMG"
-    spctl -a -t open --context context:primary-signature -v "$DMG" || true
+    spctl -a -t open --context context:primary-signature -v "$DMG"
 fi
 
 echo "==> Release notes for the update window"
@@ -78,18 +92,7 @@ else
 fi
 
 echo "==> Generating Sparkle appcast"
-# generate_appcast ships in the Sparkle SPM artifact bundle; find it in DerivedData.
-# Prefer the repo-local SPM artifacts (this build's own checkout) over a glob
-# across the shared user DerivedData — anything on this machine can write to
-# ~/Library/Developer/Xcode/DerivedData, and this binary gets handed the
-# update-signing key. (The tool is ad-hoc signed upstream, so a Team ID pin
-# isn't possible; path trust is the available control.)
-GENERATE_APPCAST="$REPO_ROOT/build/SourcePackages/artifacts/sparkle/Sparkle/bin/generate_appcast"
-if [[ ! -x "$GENERATE_APPCAST" ]]; then
-    GENERATE_APPCAST=$(find ~/Library/Developer/Xcode/DerivedData -path '*/artifacts/*/Sparkle/bin/generate_appcast' -print -quit 2>/dev/null || true)
-    [[ -n "$GENERATE_APPCAST" ]] && echo "warning: using generate_appcast from shared DerivedData: $GENERATE_APPCAST" >&2
-fi
-if [[ -n "$GENERATE_APPCAST" ]]; then
+(
     # Signs with the EdDSA private key from the keychain (generate_keys), or
     # from a file when SPARKLE_KEY_FILE is set (CI).
     APPCAST_ARGS=(--download-url-prefix "https://github.com/fif7y/dimble/releases/download/v$VERSION/")
@@ -120,9 +123,8 @@ if [[ -n "$GENERATE_APPCAST" ]]; then
         s#(releases/download/)v[\w.-]+/((?:Nook|Pelmet|Pliss|Dimble)(\d+)-\d+\.delta)#exists $tag{$3} ? "$1$tag{$3}/$2" : $&#ge;
     ' "$RELEASES_DIR/appcast.xml"
     echo "==> Appcast written to $RELEASES_DIR/appcast.xml (prior-version URLs re-pointed)"
-else
-    echo "warning: generate_appcast not found in DerivedData — build the app once so SPM fetches Sparkle, or download the Sparkle release tools" >&2
-fi
+)
+xcrun swift scripts/verify-update.swift "$APP/Contents/Info.plist" "$RELEASES_DIR/appcast.xml" "$DMG"
 
 echo ""
 echo "Done. Artifacts:"

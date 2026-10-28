@@ -35,6 +35,7 @@ final class HelperHosts {
         var exitWatch: DispatchSourceProcess?
         var launching = false
         var relaunches = 0
+        var identity: HelperPeerIdentity?
 
         var wantedItems: [HostedItem] { wanted.values.flatMap { $0 } }
         var wantsAnything: Bool { !wantedItems.isEmpty }
@@ -44,18 +45,26 @@ final class HelperHosts {
         .hidden: Host(section: .hidden, bundleID: PelmetBundle.hiddenHostID, appName: "DimbleItems-Hidden"),
         .alwaysHidden: Host(section: .alwaysHidden, bundleID: PelmetBundle.alwaysHiddenHostID, appName: "DimbleItems-AlwaysHidden"),
     ]
-    private var listener: MessagePortListener?
+    private var listener: HelperListener?
     private var terminationObserver: NSObjectProtocol?
     private weak var appState: AppState?
 
     init(appState: AppState) {
         self.appState = appState
-        listener = MessagePortListener(name: PelmetBundle.mainLinkPort) { data in
+        for section in Array(hosts.keys) {
+            guard let host = hosts[section] else { continue }
+            let url = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/\(host.appName).app")
+            hosts[section]?.identity = Bundle(url: url)?.executableURL.flatMap(HelperPeerIdentity.init)
+        }
+        let peers = Dictionary(uniqueKeysWithValues: hosts.values.compactMap { host in
+            host.identity.map { (host.bundleID, $0) }
+        })
+        listener = HelperListener(name: PelmetBundle.mainLinkPort, peers: peers) { data, peer in
             guard let event = HelperWire.decode(HelperEvent.self, from: data) else { return }
-            Task { @MainActor in appState.helperHosts?.handle(event) }
+            Task { @MainActor in appState.helperHosts?.handle(event, peer: peer) }
         }
         if listener == nil {
-            PelmetLog.log("helpers: link port \(PelmetBundle.mainLinkPort) taken — another Pelmet listening?")
+            PelmetLog.log("helpers: authenticated link unavailable — check helper signatures or another running instance")
         }
         terminationObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main
@@ -83,18 +92,18 @@ final class HelperHosts {
     }
 
     private func push(_ section: PelmetCore.Section) {
-        guard let host = hosts[section] else { return }
+        guard let host = hosts[section], let identity = host.identity, listener != nil else { return }
         if !host.wantsAnything {
             if host.running != nil, let data = HelperWire.encode(HelperCommand.quit) {
                 PelmetLog.log("helpers: \(host.appName) hosts nothing — quit")
-                MessagePortLink.send(data, to: host.bundleID)
+                HelperLink.send(data, to: host.bundleID, peer: identity)
             }
             return
         }
         guard host.running != nil else { launch(section); return }
         guard host.ready, let data = HelperWire.encode(HelperCommand.sync(host.wantedItems)) else { return }
         PelmetLog.log("helpers: \(host.appName) ← sync \(host.wantedItems.count) item(s)")
-        if !MessagePortLink.send(data, to: host.bundleID) {
+        if !HelperLink.send(data, to: host.bundleID, peer: identity) {
             PelmetLog.log("helpers: \(host.appName) not answering — relaunch")
             hosts[section]?.ready = false
             track(nil, for: section)
@@ -190,7 +199,9 @@ final class HelperHosts {
         launch(section)
     }
 
-    private func handle(_ event: HelperEvent) {
+    private func handle(_ event: HelperEvent, peer: String) {
+        guard let host = hosts.values.first(where: { $0.bundleID == peer }),
+              event.isAuthorized(peer: peer, items: host.wantedItems) else { return }
         switch event {
         case .ready(let bundle):
             guard let section = hosts.first(where: { $0.value.bundleID == bundle })?.key else { return }

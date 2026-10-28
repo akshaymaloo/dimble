@@ -53,7 +53,8 @@ The engine's `ConvergePlan` does not change.
 ### What a helper does
 
 Hosts `NSStatusItem`s and nothing else. No Accessibility, no AX walking, no
-settings file. It is told what to host over XPC and reports clicks back.
+settings file. It is told what to host over an authenticated local socket
+and reports clicks back.
 
 - **Launchers**: image + `removalAllowed` + click → opens the app itself via
   `NSWorkspace` (no round trip). Right-click → asks main for the menu.
@@ -68,7 +69,7 @@ settings file. It is told what to host over XPC and reports clicks back.
   0.2.25 and separators/chevron in `7a579cf`): the observer moves into the
   helper, which reports `draggedOff(id)`; main drops the spec.
 
-### XPC protocol (main ⇄ helper)
+### Helper protocol (main ⇄ helper)
 
 Main → helper: `sync([HostedItem])` — the full list for that section, idempotent
 (helper diffs against what it hosts, creates/updates/removes). `HostedItem` =
@@ -79,10 +80,13 @@ fresh registrations (see Placement below).
 Helper → main: `clicked(id, button: left|right, screenPoint)`,
 `draggedOff(id)`, `hosted(id, ready: Bool)`.
 
-Transport: `NSXPCConnection` with a Mach service is overkill for a nested
-helper we spawn ourselves; use an anonymous listener endpoint passed at
-launch, or a `DistributedNotificationCenter` pair for the four messages if
-the endpoint handoff proves fussy. Decide at M1 on the first spike.
+Transport: `HelperLink` uses local sockets in a private per-user temporary
+directory. Both ends verify the peer's kernel audit token against the expected
+executable's code-signing requirement and path before exchanging payloads.
+This also pins ad-hoc development builds to their code hash; unsigned or
+unverifiable peers are rejected. Main binds events to the authenticated helper's
+section and currently wanted items. Messages, item counts, and item dimensions
+are bounded. No unauthenticated message-port fallback remains.
 
 ### Lifecycle
 

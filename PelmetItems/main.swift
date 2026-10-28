@@ -2,8 +2,8 @@
 // A bundle id the hide assertion can exclude, hosting the NSStatusItems of
 // ONE section (hidden or always-hidden, by bundle id). It knows nothing
 // about sections or settings: the main app sends the full list to host
-// over a message port and this diffs it; clicks and drag-outs go back the
-// same way. Exits when the launching Pelmet is gone; never runs twice.
+// over an authenticated local link and this diffs it; clicks and drag-outs
+// go back the same way. Exits when the launching Pelmet is gone; never runs twice.
 
 import AppKit
 import OSLog
@@ -31,12 +31,22 @@ final class ItemsHost: NSObject, NSApplicationDelegate {
     /// Titles whose isVisible WE set false (a sync removal), so the KVO
     /// does not read our own removal as a user drag-out.
     private var unhosting: Set<String> = []
-    private var listener: MessagePortListener?
+    private var listener: HelperListener?
+    private var parentIdentity: HelperPeerIdentity?
     private var parentWatch: DispatchSourceProcess?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        listener = MessagePortListener(name: bundleID) { data in
-            guard let command = HelperWire.decode(HelperCommand.self, from: data) else { return }
+        let parentURL = Bundle.main.bundleURL.deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        guard let executable = Bundle(url: parentURL)?.executableURL,
+              let identity = HelperPeerIdentity(executableURL: executable) else {
+            log.error("PelmetItems: parent signature unavailable — exiting")
+            NSApp.terminate(nil)
+            return
+        }
+        parentIdentity = identity
+        listener = HelperListener(name: bundleID, peers: [PelmetBundle.mainLinkPort: identity]) { data, _ in
+            guard let command = HelperWire.decode(HelperCommand.self, from: data), command.isValid else { return }
             Task { @MainActor in host.handle(command) }
         }
         if listener == nil {
@@ -67,8 +77,8 @@ final class ItemsHost: NSObject, NSApplicationDelegate {
 
     @discardableResult
     private func send(_ event: HelperEvent) -> Bool {
-        guard let data = HelperWire.encode(event) else { return false }
-        return MessagePortLink.send(data, to: PelmetBundle.mainLinkPort)
+        guard let data = HelperWire.encode(event), let parentIdentity else { return false }
+        return HelperLink.send(data, to: PelmetBundle.mainLinkPort, peer: parentIdentity)
     }
 
     private func handle(_ command: HelperCommand) {
