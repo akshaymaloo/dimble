@@ -427,6 +427,8 @@ final class LiveMirror {
     private var lastBlockedWhy = ""
     private var lastSummaryAt = Date()
     private var tickCount = 0
+    private var activityCount = 0
+    private var lookEagerlyUntil = Date.distantPast
     private var screenObserver: NSObjectProtocol?
     private var spaceObserver: NSObjectProtocol?
     private var orderKeeper: Task<Void, Never>?
@@ -461,10 +463,17 @@ final class LiveMirror {
 
     // MARK: Entry points
 
-    func activitiesChanged(running: Bool) {
+    func activitiesChanged(running: Bool, count: Int = 0) {
         guard Self.enabled else { return }
         if running != wanted { PelmetLog.log("livemirror: activities \(running ? "running" : "none") — wanted \(running)") }
         wanted = running
+        // An activity started or ended: the pills are looked for every tick for
+        // a few seconds (its pill shows a moment after the log line).
+        if count != activityCount {
+            if isActive { PelmetLog.log("livemirror: activities \(activityCount) → \(count), looking for the pills") }
+            activityCount = count
+            lookEagerlyUntil = Date().addingTimeInterval(3)
+        }
         if loop == nil { startLoop() }
     }
 
@@ -1401,7 +1410,7 @@ final class LiveMirror {
             let moving = side.mirrors.contains { ($0.textChangedAt.map { now.timeIntervalSince($0) < 5 } ?? false) || $0.lookCandidate != nil }
             let net = tickCount % Self.fallbackEvery == 0
             var looked = false
-            if side.mirrors.isEmpty || side.needsDiscovery || net {
+            if side.mirrors.isEmpty || side.needsDiscovery || net || now < lookEagerlyUntil {
                 await discoverPills(side)
                 looked = true
             }

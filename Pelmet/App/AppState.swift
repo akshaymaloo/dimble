@@ -2072,8 +2072,8 @@ final class AppState {
 
     /// The Live Activities item saw an activity start or end (live mode,
     /// spike): `LiveMirror` enters or leaves when the bar allows.
-    func liveActivitiesChanged(running: Bool) {
-        liveMirror.activitiesChanged(running: running)
+    func liveActivitiesChanged(running: Bool, count: Int = 0) {
+        liveMirror.activitiesChanged(running: running, count: count)
     }
 
     /// A lift's re-hide has come to rest (`TransitionCoordinator.endLift`):
