@@ -245,7 +245,9 @@ nonisolated enum PillProbe {
             if error != .success { status = "err \(error.rawValue)" }
             for window in (raw as? [AXUIElement]) ?? [] {
                 guard let frame = frame(of: window) else { parts.append("?"); continue }
-                let who = frame.minY >= 20 ? owner(window, 0) : nil
+                // The harness's card is a plain window titled for its pill.
+                let harness = (attribute(window, kAXTitleAttribute) as? String).flatMap { $0.hasPrefix("harness-card-") ? String($0.dropFirst(13)) : nil }
+                let who = frame.minY >= 20 ? (owner(window, 0) ?? harness) : nil
                 if let who { owners.append(who) }
                 parts.append("\(Int(frame.minX)),\(Int(frame.minY)) \(Int(frame.width))x\(Int(frame.height))\(who.map { "*\($0)" } ?? "")")
             }
