@@ -230,6 +230,8 @@ final class LiveMirror {
     static let flagKey = "pelmet.debug.liveMirror"
     /// Debug: while true live mode is left (or not entered), for cycling it by hand.
     static let suspendKey = "pelmet.debug.liveMirrorSuspend"
+    /// Debug: the mirror's streams stop (the AX polling and the cover stay), for the CPU split.
+    static let pauseKey = "pelmet.debug.liveMirrorPause"
     static var enabled: Bool { UserDefaults.standard.bool(forKey: flagKey) }
 
     private static let fps = 2.0
@@ -282,6 +284,7 @@ final class LiveMirror {
     private var lastBlockedWhy = ""
     private var lastSummaryAt = Date()
     private var tickCount = 0
+    private var capturePaused = false
     private var screenObserver: NSObjectProtocol?
 
     init(appState: AppState) { self.appState = appState }
@@ -427,13 +430,7 @@ final class LiveMirror {
         for side in sides {
             let right = chevronMinX(chevron, on: side)
             let local = CGRect(x: right - side.bounds.minX - 70, y: 0, width: 64, height: 39)
-            side.stream.onFrame = { [weak self, weak side] frame, changed in
-                Task { @MainActor in
-                    guard let self, let side else { return }
-                    self.deliver(frame, changed: changed, to: side)
-                }
-            }
-            side.stream.onStop = { why in PelmetLog.log("livemirror: stream stopped — \(why)") }
+            configureStream(side)
             do {
                 try await side.stream.start(display: side.scDisplay, excluding: [], rect: local, scale: side.scale, fps: Self.fps)
             } catch {
@@ -493,6 +490,34 @@ final class LiveMirror {
         }
         PelmetLog.log("livemirror: live at \(ms())ms (assertion down \(dropped)ms, pill \(firstWalk.map { "\($0)ms" } ?? "never seen"))")
         lastSummaryAt = Date()
+    }
+
+    private func configureStream(_ side: Side) {
+        side.stream.onFrame = { [weak self, weak side] frame, changed in
+            Task { @MainActor in
+                guard let self, let side else { return }
+                self.deliver(frame, changed: changed, to: side)
+            }
+        }
+        side.stream.onStop = { why in PelmetLog.log("livemirror: stream stopped — \(why)") }
+    }
+
+    /// Debug pause and resume of the films (the CPU split).
+    private func setCapturePaused(_ pause: Bool) async {
+        capturePaused = pause
+        PelmetLog.log("livemirror: capture \(pause ? "paused" : "resumed") (debug)")
+        for side in sides {
+            if pause {
+                await side.stream.stop()
+            } else if let frame = side.pillFrame {
+                side.stream = MirrorStream()
+                configureStream(side)
+                let local = frame.offsetBy(dx: -side.bounds.minX, dy: -side.bounds.minY)
+                do { try await side.stream.start(display: side.scDisplay, excluding: [], rect: local, scale: side.scale, fps: Self.fps) }
+                catch { PelmetLog.log("livemirror: resume on display \(side.id) failed — \(error.localizedDescription)") }
+            }
+        }
+        if !pause { await excludeOwnWindows() }
     }
 
     private func fps(_ n: Int, of total: Int) -> String { "\(n)/\(total)" }
@@ -629,6 +654,7 @@ final class LiveMirror {
         side.mirror.isHidden = false
         CATransaction.commit()
         side.shown += 1
+        if changed { PelmetLog.log("livemirror: display \(side.id) mirror frame changed") }
         if changed, let at = side.textChangedAt, Date().timeIntervalSince(at) < 4 {
             PelmetLog.log("livemirror: display \(side.id) mirror changed \(Int(Date().timeIntervalSince(at) * 1000))ms after the AX text did")
             side.textChangedAt = nil
@@ -683,6 +709,8 @@ final class LiveMirror {
 
     private func tick() async {
         guard let appState else { return }
+        let wantPause = UserDefaults.standard.bool(forKey: Self.pauseKey)
+        if wantPause != capturePaused { await setCapturePaused(wantPause) }
         // The clock's left edge is the cover's right end: re-read every two
         // seconds (the date grows a digit, the indicator comes and goes).
         tickCount += 1
