@@ -609,6 +609,8 @@ final class LiveMirror {
     /// reveal waits for the start to settle.
     private var assertionDropped = false
     private var standDown = false
+    /// The displays changed while a start or a retake ran.
+    private var displaysChangedWhileEntering = false
     /// No pill to mirror for a while: live mode leaves, and does not come
     /// back for a while (longer each time in a row).
     private var noPillSince: Date?
@@ -1012,7 +1014,15 @@ final class LiveMirror {
                     guard let self else { return }
                     self.backdropGeneration += 1
                     self.keptPictures = [:]
-                    guard self.isActive, !self.exiting, !self.entering else { return }
+                    guard self.isActive, !self.exiting else { return }
+                    // A start or a retake in flight built its sides and covers
+                    // for the old displays: it finishes, then leaves
+                    // (`leaveForDisplayChange`).
+                    if self.entering {
+                        self.displaysChangedWhileEntering = true
+                        PelmetLog.log("livemirror: displays changed while live mode starts — it leaves once the start has settled")
+                        return
+                    }
                     PelmetLog.log("livemirror: displays changed — leaving live mode, it re-enters")
                     await self.exit("displays changed")
                 }
@@ -1269,7 +1279,26 @@ final class LiveMirror {
     }
 
     private func enter() async {
+        await enterOnce()
+        await leaveForDisplayChange()
+    }
+
+    /// The displays changed while a start or a retake ran: its sides and
+    /// covers are for the old ones. Live mode leaves; the loop starts it
+    /// again on the new displays.
+    private func leaveForDisplayChange() async {
+        guard displaysChangedWhileEntering, !entering else { return }
+        displaysChangedWhileEntering = false
+        guard isActive, !exiting else { return }
+        PelmetLog.log("livemirror: displays changed during the start — leaving live mode, it re-enters")
+        backdropGeneration += 1
+        keptPictures = [:]
+        await exit("displays changed")
+    }
+
+    private func enterOnce() async {
         guard let appState, !isActive, !entering else { return }
+        displaysChangedWhileEntering = false
         entering = true
         defer { entering = false }
         // After a re-hide the bar may still be at its reflow.
@@ -2537,6 +2566,11 @@ final class LiveMirror {
     }
 
     private func retake(_ reason: String) async {
+        await retakeOnce(reason)
+        await leaveForDisplayChange()
+    }
+
+    private func retakeOnce(_ reason: String) async {
         guard let appState, isActive, !entering, !exiting, !handingOver else { return }
         entering = true
         retaking = true
