@@ -951,6 +951,24 @@ final class ConcealGhostOverlay {
     // MARK: Live mode (spike)
 
     var windowNumber: Int { window.windowNumber }
+
+    /// Shortens the cover from the right, in place: the picture stays where it
+    /// is and the window just ends sooner (a new window for a shorter cover
+    /// left a gap of three frames, and the layers in it had to move).
+    func clip(toMaxX x: CGFloat) {
+        guard !finished else { return }
+        var frame = window.frame
+        guard x < frame.maxX, x > frame.minX else { return }
+        frame.size.width = x - frame.minX
+        window.setFrame(frame, display: true)
+    }
+
+    /// Directly below another cover: the one above stays what is seen while
+    /// this one is already up beneath it (a hand-over with no gap).
+    func order(beneath other: ConcealGhostOverlay) {
+        guard !finished else { return }
+        window.order(.below, relativeTo: other.windowNumber)
+    }
     var windowFrame: NSRect { window.frame }
 
     /// Every click on the picture goes to `hook` (global Cocoa point).

@@ -266,6 +266,7 @@ final class AppState {
             if case .concealed = rehide.state {
                 bandMonitor?.rearmHoverAfterConceal()
             }
+            liveMirror.kick()
         }
         // Settled as concealed: left `.revealed([])`, hover stayed dead.
         transitions.onNothingRevealed = { [weak self] in

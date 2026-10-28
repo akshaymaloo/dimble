@@ -599,6 +599,7 @@ final class LiveMirror {
     /// swap has landed (`revealLanded`), and live mode comes back by the
     /// loop once the re-hide has rested.
     private var handingOver = false
+    private var kicking = false
     private var released = false
     private var handOverWatchdog: Task<Void, Never>?
     private var lastHoverNote = Date.distantPast
@@ -659,6 +660,22 @@ final class LiveMirror {
     init(appState: AppState) { self.appState = appState }
 
     // MARK: Entry points
+
+    /// A conceal landed (the re-hide after a reveal): live mode that waits to
+    /// come back looks now, not at the loop's next quarter second.
+    func kick() {
+        guard Self.enabled, wanted, loop != nil, !isActive, !entering, !exiting, !handingOver, !kicking else { return }
+        kicking = true
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.kicking = false }
+            guard self.wanted, !self.isActive, !self.entering, !UserDefaults.standard.bool(forKey: Self.suspendKey) else { return }
+            if await self.cannotEnter() == nil {
+                self.lastBlockedWhy = ""
+                await self.enter()
+            }
+        }
+    }
 
     func activitiesChanged(running: Bool, count: Int = 0) {
         guard Self.enabled else { return }
@@ -1102,12 +1119,13 @@ final class LiveMirror {
     }
 
     private func enter() async {
-        guard let appState, !isActive else { return }
+        guard let appState, !isActive, !entering else { return }
         entering = true
         defer { entering = false }
         // After a re-hide the bar may still be at its reflow.
         let quietFrom = Date()
-        await appState.waitUntilQuiesced(interval: 0.2, deadline: 2, poll: .milliseconds(30))
+        // A return from a reveal has its pictures kept: it needs the bar's rest less.
+        await appState.waitUntilQuiesced(interval: keptPictures.isEmpty ? 0.2 : 0.08, deadline: 2, poll: .milliseconds(30))
         let started = Date()
         func ms() -> Int { Int(-started.timeIntervalSinceNow * 1000) }
         guard let chevron = appState.chevronWindowFrame,
@@ -1306,8 +1324,21 @@ final class LiveMirror {
     /// The cover over [`left`, `right`] (global Cocoa x) from the kept picture.
     /// The new one goes up before the old one comes down.
     @discardableResult
-    private func buildCover(_ side: Side, left: CGFloat, right: CGFloat, why: String) -> Bool {
+    /// `keepMirrors`: the mirrors stay in the cover they stand in (the exit's:
+    /// they leave there, with the exit motion, while the new cover is already
+    /// up beneath them), and that cover goes once they are gone.
+    private func buildCover(_ side: Side, left: CGFloat, right: CGFloat, why: String, keepMirrors: Bool = false) -> Bool {
         guard let picture = side.picture else { return false }
+        // A shorter cover with the same left edge is the cover itself, ended
+        // sooner: no new window, nothing moves, no frame without a cover.
+        if why == "settled" || why == "chevron moved", let current = side.cover?.members.first, abs(left - side.coverMinX) < 0.5,
+           right < side.coverMaxX - 0.5, right > side.coverMinX + 40 {
+            current.clip(toMaxX: right)
+            side.coverMaxX = current.windowFrame.maxX
+            layoutMirrors(side)
+            if why != "enter" { PelmetLog.log("livemirror: cover #\(current.id) on display \(side.id) \(Int(side.coverMinX))..\(Int(side.coverMaxX)) (\(why), ended in place)") }
+            return true
+        }
         let shift = side.screen.frame.maxX - primaryMaxX
         let pad = ConcealGhostOverlay.capturePadding
         let span = (left - shift + pad)...(right - shift - pad)
@@ -1326,14 +1357,28 @@ final class LiveMirror {
             guard let self, let side else { return }
             self.clicked(side, at: point)
         }
-        for mirror in side.mirrors { mirror.attached = false }
-        layoutMirrors(side)
+        if !keepMirrors {
+            for mirror in side.mirrors { mirror.attached = false }
+            layoutMirrors(side)
+        }
         if why != "enter" { PelmetLog.log("livemirror: cover #\(overlay.id) on display \(side.id) \(Int(side.coverMinX))..\(Int(side.coverMaxX)) (\(why))") }
         if coverLifted { overlay.setShown(false) } else { logOrder(overlay, why: "cover \(why)") }
         // The old cover stays until the new one is on screen: taken off at
         // once, the real pills showed for three frames (55 ms, measured on a
         // return, round 6). Overlap, never chain.
-        if let old { DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { old.dismiss() } }
+        if keepMirrors, let old, let from = old.members.first {
+            overlay.order(beneath: from)
+            let recipe = AnimationRecipe.recipe(for: appState?.settings.revealAnimation ?? .smooth)
+            let leave: TimeInterval
+            switch recipe.exit {
+            case .pop: leave = 0
+            case .fade(let d): leave = d
+            case .slide(_, let d): leave = d
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + leave + 0.06) { old.dismiss() }
+        } else if let old {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { old.dismiss() }
+        }
         return true
     }
 
@@ -2218,9 +2263,25 @@ final class LiveMirror {
                     lastEnforce = Date()
                     self.enforceOrder(busy ? "transition" : "keeper")
                 }
-                try? await Task.sleep(for: self.keeperRest(busy: busy))
+                let rest = self.keeperRest(busy: busy)
+                if rest >= .milliseconds(400) {
+                    // Nobody is at the machine: the windows are listed every
+                    // 0.4 s, but the input clock (one cheap call) is looked at
+                    // every 0.1 s, and the first input starts the quick
+                    // watch at once (Mission Control starts with one).
+                    for _ in 0..<4 {
+                        try? await Task.sleep(for: .milliseconds(100))
+                        if Self.secondsSinceInput() < 0.3 { break }
+                    }
+                } else {
+                    try? await Task.sleep(for: rest)
+                }
             }
         }
+    }
+
+    nonisolated private static func secondsSinceInput() -> Double {
+        CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: CGEventType(rawValue: ~0)!)
     }
 
     /// How long the keeper rests. Mission Control opens from a key, a swipe or
@@ -2230,8 +2291,7 @@ final class LiveMirror {
     private func keeperRest(busy: Bool) -> Duration {
         if busy { return .milliseconds(50) }
         guard isActive else { return .milliseconds(1000) }
-        let idle = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: CGEventType(rawValue: ~0)!)
-        return idle < 3 ? .milliseconds(80) : .milliseconds(400)
+        return Self.secondsSinceInput() < 3 ? .milliseconds(80) : .milliseconds(400)
     }
 
     /// Mission Control is up while the window server shows its "Spaces Bar"
@@ -2259,12 +2319,18 @@ final class LiveMirror {
 
     private func watchMissionControl() {
         let up = Self.missionControlIsUp()
-        guard up != missionControlUp, !entering, !exiting, !handingOver else { return }
+        guard up != missionControlUp, !exiting, !handingOver else { return }
         missionControlUp = up
         PelmetLog.log("livemirror: Mission Control \(up ? "is up — the mirrors step aside, the covers stay" : "is gone — the mirrors are back")")
-        // A short fade: Mission Control is moving everything itself.
+        // A start has the mirrors' layout read the flag when it ends; a
+        // retake (the Space changed under Mission Control) shows them back now,
+        // not 2 s later when its pictures are done.
+        guard !entering || retaking else { return }
+        // Gone at once on the way in (the pills sat over Mission Control's
+        // first frames, 0.12 s of fade made it worse); a short fade back,
+        // Mission Control is moving everything itself.
         for side in sides {
-            for mirror in side.mirrors { present(mirror, !up && !mirror.dropped && mirror.base.contents != nil, move: .fade(0.12)) }
+            for mirror in side.mirrors { present(mirror, !up && !mirror.dropped && mirror.base.contents != nil, move: up ? .pop : .fade(0.12)) }
         }
     }
 
@@ -2467,7 +2533,7 @@ final class LiveMirror {
         // they stand while they go.
         for side in sides {
             if let chevron = lastChevron { side.predictedRight = chevronMinX(chevron, on: side) - 1 }
-            if let picture = side.picture { buildCover(side, left: side.coverMinX, right: picture.windowFrame.maxX, why: "exit") }
+            if let picture = side.picture { buildCover(side, left: side.coverMinX, right: picture.windowFrame.maxX, why: "exit", keepMirrors: true) }
         }
         await appState.engine.holdLift(false)
         PelmetLog.log("livemirror: assertion back at \(Int(-started.timeIntervalSinceNow * 1000))ms")
