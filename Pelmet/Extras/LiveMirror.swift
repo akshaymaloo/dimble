@@ -316,6 +316,18 @@ nonisolated enum PillProbe {
     /// The card's window stays listed for the whole collapse (~0.8 s).
     static func cardIsOpen() -> Bool { cardProbe().open }
 
+    /// The top edge (CG global) of the display `frame` sits on: a bar is at
+    /// y 0 on the primary and above or below it on any other display, so
+    /// "below the bar" is measured from its own display's top.
+    static func displayTop(of frame: CGRect) -> CGFloat {
+        var ids = [CGDirectDisplayID](repeating: 0, count: 16)
+        var count: UInt32 = 0
+        guard CGGetActiveDisplayList(16, &ids, &count) == .success else { return 0 }
+        let point = CGPoint(x: frame.midX, y: frame.minY + 1)
+        let bounds = ids.prefix(Int(count)).map { CGDisplayBounds($0) }
+        return (bounds.first { $0.contains(point) } ?? bounds.first { $0.minX <= frame.midX && frame.midX < $0.maxX })?.minY ?? 0
+    }
+
     /// The same read with what it saw: whose card is open (the group's
     /// AXDescription is its pill's, "Sports"), and the agent's windows with
     /// their frames, a star on the one holding the live-activity group.
@@ -344,7 +356,7 @@ nonisolated enum PillProbe {
                 guard let frame = frame(of: window) else { parts.append("?"); continue }
                 // The harness's card is a plain window titled for its pill.
                 let harness = (attribute(window, kAXTitleAttribute) as? String).flatMap { $0.hasPrefix("harness-card-") ? String($0.dropFirst(13)) : nil }
-                let who = frame.minY >= 20 ? (owner(window, 0) ?? harness) : nil
+                let who = frame.minY >= displayTop(of: frame) + 20 ? (owner(window, 0) ?? harness) : nil
                 if let who { owners.append(who) }
                 parts.append("\(Int(frame.minX)),\(Int(frame.minY)) \(Int(frame.width))x\(Int(frame.height))\(who.map { "*\($0)" } ?? "")")
             }
@@ -844,8 +856,18 @@ final class LiveMirror {
         released = true
         handOverWatchdog?.cancel()
         ConcealGhostOverlay.liveModeBlocksCaptures = false
-        await appState.engine.releaseLiftHold()
-        PelmetLog.log("livemirror: hold released — the reveal's assertion is the swap")
+        if underAnchor {
+            // Anchored, Hidden is out already: a reveal of it touches no
+            // section and runs no swap of its own, so nothing else would put
+            // the assertion back (the pill and every hidden icon stayed on
+            // the bars, 2026-10-28). The hold ends with a swap of its own,
+            // under the cover that is still up.
+            await appState.engine.holdLift(false)
+            PelmetLog.log("livemirror: hold released — anchored, the assertion goes back in a swap of its own")
+        } else {
+            await appState.engine.releaseLiftHold()
+            PelmetLog.log("livemirror: hold released — the reveal's assertion is the swap")
+        }
     }
 
     /// The reveal's swap has landed: the pill is gone for good, live mode
