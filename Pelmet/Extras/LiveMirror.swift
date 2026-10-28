@@ -30,6 +30,7 @@ import ApplicationServices
 import PelmetCore
 import PelmetEngine
 import QuartzCore
+import ImageIO
 import ScreenCaptureKit
 
 // MARK: - The pill over AX
@@ -77,13 +78,29 @@ nonisolated struct PillTree: @unchecked Sendable {
         nodes.filter(isBackdrop).reduce(frame) { $0.union($1.frame) }
     }
     /// What forces a new still: the image children and the pill's width.
-    var signature: [String] {
-        func r(_ v: CGFloat) -> String { String(format: "%.1f", (v * 2).rounded() / 2) }
-        var out = ["w\(r(frame.width))"]
-        for n in images {
-            out.append("\(n.key)@\(r(n.frame.minX - frame.minX)),\(r(n.frame.minY - frame.minY)),\(r(n.frame.width))x\(r(n.frame.height))")
+    struct Look {
+        var width: CGFloat
+        var items: [(key: String, rect: CGRect)]
+
+        /// Why `self` needs a new still after `old`, or nil: the pill's width,
+        /// the image children (count, key) or a relative frame moved by more
+        /// than a point (AX frames drift by half a point as the bar shifts).
+        func change(from old: Look) -> String? {
+            if abs(width - old.width) > 1 { return "pill width \(fmt(old.width)) → \(fmt(width))" }
+            if items.count != old.items.count { return "image children \(old.items.count) → \(items.count)" }
+            for (new, was) in zip(items, old.items) {
+                if new.key != was.key { return "image child \(was.key) → \(new.key)" }
+                let r = new.rect, o = was.rect
+                if abs(r.minX - o.minX) > 1 || abs(r.minY - o.minY) > 1 || abs(r.width - o.width) > 1 || abs(r.height - o.height) > 1 {
+                    return "\(new.key) frame \(fmt(o.minX)),\(fmt(o.minY)),\(fmt(o.width))x\(fmt(o.height)) → \(fmt(r.minX)),\(fmt(r.minY)),\(fmt(r.width))x\(fmt(r.height))"
+                }
+            }
+            return nil
         }
-        return out
+        private func fmt(_ v: CGFloat) -> String { String(format: "%.1f", v) }
+    }
+    var look: Look {
+        Look(width: frame.width, items: images.map { ($0.key, CGRect(x: $0.frame.minX - frame.minX, y: $0.frame.minY - frame.minY, width: $0.frame.width, height: $0.frame.height)) })
     }
 }
 
@@ -293,7 +310,8 @@ final class LiveMirror {
         var coverMaxX: CGFloat = 0
         var pill: PillCopy?
         var tree: PillTree?
-        var signature: [String] = []
+        var look: PillTree.Look?
+        var snapping = false
         var snapshots = 0
         var texts: [String] = []
         var textChangedAt: Date?
@@ -598,14 +616,14 @@ final class LiveMirror {
     /// Reads the pill's tree and brings the mirror up to it: a new still when
     /// the image children changed, the texts redrawn when they did.
     private func apply(_ tree: PillTree, to side: Side, why: String) async {
-        let signature = tree.signature
-        if side.tree == nil || signature != side.signature || side.base.contents == nil {
-            let reason: String
-            if side.signature.isEmpty { reason = "first (\(why))" }
-            else if signature.first != side.signature.first && signature.dropFirst() == side.signature.dropFirst() { reason = "pill width \(side.signature.first ?? "") → \(signature.first ?? "")" }
-            else if signature.count != side.signature.count { reason = "image children \(side.signature.count - 1) → \(signature.count - 1)" }
-            else { reason = "image children changed: \(zip(side.signature, signature).first { $0 != $1 }.map { "\($0) → \($1)" } ?? "?")" }
-            if await snapshot(side, tree, reason: reason) { side.signature = signature }
+        let look = tree.look
+        let reason: String?
+        if let old = side.look, side.base.contents != nil { reason = look.change(from: old) }
+        else { reason = "first (\(why))" }
+        if let reason, !side.snapping {
+            side.snapping = true
+            if await snapshot(side, tree, reason: reason) { side.look = look }
+            side.snapping = false
         }
         side.tree = tree
         side.visual = tree.visual
@@ -640,12 +658,22 @@ final class LiveMirror {
                    width: node.frame.width * scale, height: node.frame.height * scale)
         }
         let blanked = Self.blanked(image, rects: rects)
+        if let dir = UserDefaults.standard.string(forKey: "pelmet.debug.liveMirrorDump") {
+            Self.dump(image, to: "\(dir)/still-\(side.snapshots)-raw.png")
+            Self.dump(blanked, to: "\(dir)/still-\(side.snapshots)-blanked.png")
+        }
         CATransaction.begin(); CATransaction.setDisableActions(true)
         side.base.contents = blanked
         side.base.contentsGravity = .resize
         CATransaction.commit()
         PelmetLog.log("livemirror: snapshot #\(side.snapshots) — \(reason) [display \(side.id), \(image.width)×\(image.height)px, \(Int(-started.timeIntervalSinceNow * 1000))ms, \(excluded.count) window(s) left out]")
         return true
+    }
+
+    nonisolated private static func dump(_ image: CGImage, to path: String) {
+        guard let destination = CGImageDestinationCreateWithURL(URL(fileURLWithPath: path) as CFURL, "public.png" as CFString, 1, nil) else { return }
+        CGImageDestinationAddImage(destination, image, nil)
+        CGImageDestinationFinalize(destination)
     }
 
     /// The still with each rect (pixels, top-left origin) painted over from
