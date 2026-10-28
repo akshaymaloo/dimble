@@ -423,7 +423,7 @@ final class ConcealGhostOverlay {
         of rect: CGRect?, excludingOwnWindows: Bool = false, ownWindows: [SCWindow]? = nil, primaryOnly: Bool = false,
         displays: Set<CGDirectDisplayID>? = nil, bare: Bool = false, liveMirror: Bool = false
     ) async -> [BarSnapshot] {
-        guard let rect, rect.width > 8 else { return [] }
+        guard !Task.isCancelled, let rect, rect.width > 8 else { return [] }
         if liveModeBlocksCaptures, !liveMirror { return [] }
         if let closed = menuClosedAt {
             let remaining = menuFadeHold - Date().timeIntervalSince(closed)
@@ -432,6 +432,7 @@ final class ConcealGhostOverlay {
                 try? await Task.sleep(for: .milliseconds(Int(remaining * 1000)))
             }
         }
+        guard !Task.isCancelled else { return [] }
         guard ScreenRecordingAccess.isGranted else {
             ScreenRecordingAccess.promptOnce()
             return []
@@ -445,6 +446,7 @@ final class ConcealGhostOverlay {
         let excludingOwnWindows = excludingOwnWindows || bare
         let lookUpOwn = excludingOwnWindows && ownWindows == nil
         for screen in primaryOnly ? [primary] : NSScreen.screens {
+            guard !Task.isCancelled else { break }
             guard let displayID = screen.directDisplayID, displays?.contains(displayID) ?? true,
                   let display = await scDisplay(for: displayID) else { continue }
             let bounds = CGDisplayBounds(displayID)  // CG top-left global
@@ -561,7 +563,7 @@ final class ConcealGhostOverlay {
             ))
         }
         if !shots.isEmpty { lastCaptureAt = Date() }
-        return shots
+        return Task.isCancelled ? [] : shots
     }
 
     /// One frame from an SCStream, the display as it is shown. A
@@ -577,6 +579,7 @@ final class ConcealGhostOverlay {
     private static let captureQueue = DispatchQueue(label: "app.fif7y.Pelmet.ghost.capture")
 
     private static func captureFrame(filter: SCContentFilter, configuration: SCStreamConfiguration) async -> CGImage? {
+        guard !Task.isCancelled else { return nil }
         let stream = SCStream(filter: filter, configuration: configuration, delegate: nil)
         let sink = FirstFrameSink()
         do {

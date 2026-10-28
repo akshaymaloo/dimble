@@ -1678,8 +1678,12 @@ final class AppState {
         interval: TimeInterval, deadline: TimeInterval, poll: Duration
     ) async {
         let by = Date().addingTimeInterval(deadline)
-        while Date() < by, await !engine.quiesced(for: interval) {
-            try? await Task.sleep(for: poll)
+        while !Task.isCancelled, Date() < by, await !engine.quiesced(for: interval) {
+            do {
+                try await Task.sleep(for: poll)
+            } catch {
+                return
+            }
         }
     }
 
