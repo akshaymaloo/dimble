@@ -253,7 +253,7 @@ public actor AgentBarEngine: MenuBarEngine {
         await converge()
     }
 
-    /// Live mode (spike): the assertion stays down across conceals and
+    /// Live mode: the assertion stays down across conceals and
     /// narrows, so the pill keeps showing while the bar reads concealed
     /// under the app's cover. Only `holdLift(false)` ends it.
     private var keepsLift = false

@@ -52,7 +52,7 @@ enum AlphaFade {
 @MainActor
 /// A held bar's window: the clicks on the covered run are the bar's (#88).
 private final class HeldBarPanel: NSPanel {
-    /// Live mode (spike): takes every click on the picture; the mirror's
+    /// Live mode: takes every click on the picture; the mirror's
     /// forwards it to the real pill.
     var clickHook: ((NSPoint) -> Void)?
     override func sendEvent(_ event: NSEvent) {
@@ -89,7 +89,7 @@ final class ConcealGhostOverlay {
     /// keep the single-cover call shape.
     struct GhostSet {
         fileprivate let overlays: [ConcealGhostOverlay]
-        /// Live mode (spike): the covers, to hang a mirror in each.
+        /// Live mode: the covers, to hang a mirror in each.
         var members: [ConcealGhostOverlay] { overlays }
         /// The covers' ids as they read in the `ghost:` lines, "#3 #4".
         var ids: String { overlays.map { "#\($0.id)" }.joined(separator: " ") }
@@ -405,7 +405,7 @@ final class ConcealGhostOverlay {
     /// own windows left out. The bar is clear glass: what is left matches
     /// the empty bar pixel for pixel, window shadows under it included
     /// (2026-10-19, three displays, max diff 0 outside the glyphs).
-    /// Live mode (spike): the live mirror's cover is over the bar and the
+    /// Live mode: the live mirror's cover is over the bar and the
     /// assertion is down, so any other picture would film the hidden icons
     /// or the mirror itself. Everyone else's capture runs uncovered.
     static var liveModeBlocksCaptures = false
@@ -987,7 +987,7 @@ final class ConcealGhostOverlay {
         window.ignoresMouseEvents = through || countsAsStrip
     }
 
-    // MARK: Live mode (spike)
+    // MARK: Live mode
 
     var windowNumber: Int { window.windowNumber }
 

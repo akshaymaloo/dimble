@@ -32,7 +32,6 @@ import ApplicationServices
 import PelmetCore
 import PelmetEngine
 import QuartzCore
-import ImageIO
 import ScreenCaptureKit
 
 // MARK: - The pill over AX
@@ -459,8 +458,6 @@ nonisolated enum PillProbe {
 final class LiveMirror {
     /// The "Show Live Activities" setting.
     private var enabled: Bool { appState?.settings.showLiveActivities ?? false }
-    /// Debug: while true live mode is left (or not entered), for cycling it by hand.
-    static let suspendKey = "pelmet.debug.liveMirrorSuspend"
 
     private static let pollInterval = Duration.milliseconds(250)
     /// The AX fallback read, in ticks: the observer is the way in, this is the net.
@@ -656,8 +653,6 @@ final class LiveMirror {
     /// A kept picture of the bare bar serves a return this long (the
     /// backdrop's changes it can know of are counted by `backdropGeneration`).
     static let pictureMaxAge: TimeInterval = 180
-    /// Debug: one log line per clock tick drawn, with the time it was drawn at.
-    static let clockTraceKey = "pelmet.debug.liveMirrorClockTrace"
 
     /// The last still of each display, kept across a reveal (not across the
     /// end of live mode): reused when the pill's look is unchanged, so the
@@ -694,7 +689,7 @@ final class LiveMirror {
         Task { @MainActor [weak self] in
             guard let self else { return }
             defer { self.kicking = false }
-            guard self.wanted, !self.isActive, !self.entering, !UserDefaults.standard.bool(forKey: Self.suspendKey) else { return }
+            guard self.wanted, !self.isActive, !self.entering else { return }
             if await self.cannotEnter() == nil {
                 self.lastBlockedWhy = ""
                 await self.enter()
@@ -1039,8 +1034,7 @@ final class LiveMirror {
         loop = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
-                let suspended = UserDefaults.standard.bool(forKey: Self.suspendKey)
-                let desired = self.wanted && !suspended && self.enabled
+                let desired = self.wanted && self.enabled
                 if self.entering || self.exiting || self.handingOver {
                     // a step is running
                 } else if !self.wanted || !self.enabled, !self.isActive {
@@ -1056,7 +1050,7 @@ final class LiveMirror {
                         await self.enter()
                     }
                 } else if !desired, self.isActive {
-                    await self.exit(suspended ? "suspended (debug)" : (self.enabled ? "activity ended" : "setting turned off"))
+                    await self.exit(self.enabled ? "activity ended" : "setting turned off")
                 } else if self.isActive {
                     await self.tick()
                 }
@@ -1350,9 +1344,6 @@ final class LiveMirror {
             // indicator gone) never shows a boot-state item there.
             if fresh.contains(side.id), let picture = side.picture {
                 side.picture = ConcealGhostOverlay.smeared(picture, from: right)
-                if let dir = UserDefaults.standard.string(forKey: "pelmet.debug.liveMirrorDump"), let scrubbed = side.picture {
-                    Self.dump(scrubbed.image, to: "\(dir)/picture-\(Int(Date().timeIntervalSince1970)).png")
-                }
             }
             guard buildCover(side, left: coverLeft(for: side, right: right), right: right, why: "enter") else {
                 await abort("cover won't crop on display \(side.id)"); return
@@ -1520,9 +1511,6 @@ final class LiveMirror {
         else {
             PelmetLog.log("livemirror: cover on display \(side.id) can't be built for \(Int(left))..\(Int(right)) (\(why)); picture \(Int(picture.windowFrame.minX))..\(Int(picture.windowFrame.maxX))")
             return false
-        }
-        if let dir = UserDefaults.standard.string(forKey: "pelmet.debug.liveMirrorDump") {
-            Self.dump(cropped.image, to: "\(dir)/cover-\(Int(Date().timeIntervalSince1970))-\(Int(left))-\(Int(right)).png")
         }
         let old = side.cover
         side.cover = cover
@@ -1897,8 +1885,6 @@ final class LiveMirror {
         side.snapshots += 1
         side.lastSnapshotAt = Date()
         let scale = side.scale
-        let dumpDir = UserDefaults.standard.string(forKey: "pelmet.debug.liveMirrorDump")
-        if let dumpDir { Self.dump(image, to: "\(dumpDir)/still-\(side.snapshots)-union.png") }
         textSnapAt[side.id] = Date()
         for (mirror, tree) in shown {
             let v = tree.visual
@@ -1910,7 +1896,6 @@ final class LiveMirror {
                        width: node.frame.width * scale, height: node.frame.height * scale)
             }
             let blanked = Self.blanked(crop, rects: rects)
-            if let dumpDir { Self.dump(blanked, to: "\(dumpDir)/still-\(side.snapshots)-\(mirror.key)-blanked.png") }
             let had = mirror.base.contents
             CATransaction.begin(); CATransaction.setDisableActions(true)
             mirror.base.contents = blanked
@@ -1933,12 +1918,6 @@ final class LiveMirror {
         }
         PelmetLog.log("livemirror: snapshot #\(side.snapshots) — \(reason) [display \(side.id), \(image.width)×\(image.height)px, \(Int(-started.timeIntervalSinceNow * 1000))ms, \(excluded.count) window(s) left out, \(shown.count) pill(s)]")
         return true
-    }
-
-    nonisolated private static func dump(_ image: CGImage, to path: String) {
-        guard let destination = CGImageDestinationCreateWithURL(URL(fileURLWithPath: path) as CFURL, "public.png" as CFString, 1, nil) else { return }
-        CGImageDestinationAddImage(destination, image, nil)
-        CGImageDestinationFinalize(destination)
     }
 
     /// The still with each rect (pixels, top-left origin) painted over from
@@ -2010,9 +1989,6 @@ final class LiveMirror {
         if !bridge { mirror.lastRead = readAt }
         if shown != mirror.texts {
             if !mirror.texts.isEmpty {
-                if Defaults.traceClock {
-                    PelmetLog.log("livemirror: clocktrace \"\(mirror.key)\" \(mirror.texts) → \(shown) drawn (\(why), read \(Int(-readAt.timeIntervalSinceNow * 1000))ms ago)")
-                }
                 if Date().timeIntervalSince(mirror.textLoggedAt) >= 10 {
                     let more = mirror.textHeld > 0 ? ", \(mirror.textHeld) change(s) not logged before" : ""
                     PelmetLog.log("livemirror: display \(side.id) \"\(mirror.key)\" text \(mirror.texts) → \(shown) (seen by \(why)\(more))")
@@ -2022,11 +1998,6 @@ final class LiveMirror {
             mirror.texts = shown
             mirror.textChangedAt = Date()
         }
-    }
-
-    /// Debug switches read once per run.
-    private enum Defaults {
-        static let traceClock = UserDefaults.standard.bool(forKey: LiveMirror.clockTraceKey)
     }
 
     nonisolated private static func font(size: CGFloat, forDigits: Bool) -> NSFont {

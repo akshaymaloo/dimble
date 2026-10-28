@@ -517,7 +517,7 @@ final class TransitionCoordinator {
     /// re-hide, 2026-10-27). Two camera glyphs for the lift's length instead.
     var liftKeepsCameraItem: Bool { lifted || liftEnding || liveModeActive }
 
-    // MARK: - Live mode (spike)
+    // MARK: - Live mode
 
     /// The live mirror holds the bar: the assertion is down under its
     /// cover (`LiveMirror`). Reads wait and held pictures stand still, the
@@ -784,7 +784,7 @@ final class TransitionCoordinator {
                 trace.mark("preattach")
             }
             PelmetLog.log("effect reveal \(sections) → engine (anim=\(style.rawValue), cover=\(cover != nil), finished=\(finished != nil)\(lifting ? ", lifting" : ""))")
-            // Live mode (spike): its hold ends here, in the reveal's own swap.
+            // Live mode: its hold ends here, in the reveal's own swap.
             await appState.liveMirror.releaseForReveal()
             await engine.reveal(sections, liftingAssertion: lifting)
             trace.mark("engine")
@@ -1574,7 +1574,7 @@ final class TransitionCoordinator {
         }
     }
 
-    /// Live mode (spike) stands over the bars the anchor holds: its covers
+    /// Live mode stands over the bars the anchor holds: its covers
     /// are pictures of the same bare glass, up before this is called, and
     /// the mirrors would sit beneath a held window. The held windows go;
     /// the pictures stay, so the exit's `hold` puts them back up with no

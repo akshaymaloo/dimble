@@ -131,9 +131,7 @@ final class LiveActivityStatus {
     /// and end lines (MenuBarAgent's wording, logged by process
     /// "PillHarness") count as activities, and live mode reads its pills.
     nonisolated static var debugHost: String? {
-        // Only with the live-mode flag: the debug host is part of that spike.
-        guard UserDefaults.standard.bool(forKey: "pelmet.debug.liveMirror") else { return nil }
-        return UserDefaults.standard.string(forKey: "pelmet.debug.pillHost").flatMap { $0.isEmpty ? nil : $0 }
+        UserDefaults.standard.string(forKey: "pelmet.debug.pillHost").flatMap { $0.isEmpty ? nil : $0 }
     }
 
     /// With `pelmet.debug.pillHostOnly` the harness is the only source: the
