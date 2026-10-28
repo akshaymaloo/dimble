@@ -656,7 +656,7 @@ final class LiveMirror {
             PelmetLog.log("livemirror: no reveal came for the hand-over in \(Int(waited))s — live mode carries on")
             self.handingOver = false
             for side in self.sides {
-                for mirror in side.mirrors { mirror.container.isHidden = mirror.dropped }
+                for mirror in side.mirrors { mirror.container.isHidden = mirror.dropped || self.missionControlUp }
             }
         }
     }
@@ -1467,7 +1467,7 @@ final class LiveMirror {
         for mirror in placed.reversed() {
             guard let visual = mirror.visual else { continue }
             mirror.dropped = !fit.contains { $0 === mirror }
-            if !handingOver { mirror.container.isHidden = mirror.dropped }
+            if !handingOver { mirror.container.isHidden = mirror.dropped || missionControlUp }
             guard !mirror.dropped else { mirror.global = nil; continue }
             x -= visual.width
             let cg = cocoa(visual)
