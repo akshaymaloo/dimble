@@ -628,7 +628,7 @@ final class LiveMirror {
         side.tree = tree
         side.visual = tree.visual
         layoutMirror(side)
-        drawTexts(side, tree)
+        drawTexts(side, tree, why: why)
     }
 
     /// One still of the pill, the texts blanked out of it.
@@ -709,7 +709,7 @@ final class LiveMirror {
     /// The pill's texts, drawn by Dimble at their AX frames. A value that
     /// names a team ("Senators 1") shows its last word when the frame is
     /// the width of that alone.
-    private func drawTexts(_ side: Side, _ tree: PillTree) {
+    private func drawTexts(_ side: Side, _ tree: PillTree, why: String) {
         guard let visual = side.visual else { return }
         let nodes = tree.texts
         CATransaction.begin(); CATransaction.setDisableActions(true)
@@ -740,7 +740,7 @@ final class LiveMirror {
         }
         CATransaction.commit()
         if shown != side.texts {
-            if !side.texts.isEmpty { PelmetLog.log("livemirror: display \(side.id) text \(side.texts) → \(shown)") }
+            if !side.texts.isEmpty { PelmetLog.log("livemirror: display \(side.id) text \(side.texts) → \(shown) (seen by \(why))") }
             side.texts = shown
             side.textChangedAt = Date()
         }
