@@ -1419,13 +1419,15 @@ final class LiveMirror {
 
     /// The backdrop under the cover can't be told from here without a
     /// capture: the Space and the appearance changing are the signals. The
-    /// cover is retaken by leaving live mode and entering again, the still
-    /// kept: the picture must be of the concealed bar.
+    /// cover is retaken by leaving live mode and entering again. The stills
+    /// go too: a pill's still carries the backdrop in its rounded corners
+    /// (green desktop around the pills on a black full-screen bar), so
+    /// they are taken again on the new Space, one capture.
     private func backdropMayHaveChanged(_ reason: String) async {
         try? await Task.sleep(for: .milliseconds(600))
         guard isActive, !handingOver, !entering, !exiting else { return }
         PelmetLog.log("livemirror: cover retake — \(reason)")
-        await exit("cover retake", keepStills: true)
+        await exit("cover retake", keepStills: false)
     }
 
     /// The « (or the item) asked for a reveal: the cover goes, the real bar
