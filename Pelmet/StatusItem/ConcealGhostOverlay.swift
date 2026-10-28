@@ -907,8 +907,13 @@ final class ConcealGhostOverlay {
         if holdsBar {
             let panel = HeldBarPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
             panel.hidesOnDeactivate = false
-            // Up for a whole reveal: on every Space of its display.
-            panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
+            // Up for a whole reveal: on every Space of its display. Transient,
+            // not stationary: a stationary one stayed in Mission Control, a
+            // dark band over the Spaces bar (#108). The window server hides it
+            // with the bar; whether it's back before the bar on the way out
+            // (live mode's covers must be, LiveMirror.missionControlUp) is
+            // still to measure.
+            panel.collectionBehavior = [.canJoinAllSpaces, .transient, .ignoresCycle]
             // A cut, not the window server's default: ordered in it grows ~5pt
             // and fades up over ~60ms, ordered out it shrinks 5pt and fades
             // over ~170ms (a held cover on the bar must neither dim the bar

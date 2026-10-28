@@ -980,8 +980,7 @@ final class CommandBarController {
             return true
         }
         let mods = ShortcutRecorder.carbonModifiers(from: flags)
-        // A bare key (or shift alone) would hijack typing in every app.
-        guard mods & ~UInt32(shiftKey) != 0 else {
+        guard !ShortcutRecorder.wouldType(keyCode: Int(event.keyCode), modifiers: mods) else {
             NSSound.beep()
             model.inputMessage = String(localized: "Hold ⌘, ⌥ or ⌃ with the key, so it doesn't type into other apps.")
             return true

@@ -215,8 +215,7 @@ struct ShortcutRecorder: View {
             break
         }
         let mods = Self.carbonModifiers(from: flags)
-        // A bare key (or shift alone) would hijack typing in every app.
-        guard mods & ~UInt32(shiftKey) != 0 else {
+        guard !Self.wouldType(keyCode: keyCode, modifiers: mods) else {
             NSSound.beep()
             return true
         }
@@ -243,6 +242,18 @@ struct ShortcutRecorder: View {
         }
         stopRecording()
     }
+
+    /// True when the shortcut would hijack typing in every app: a bare key,
+    /// or shift alone. The function keys type nothing, so they may stand
+    /// alone (#103: F8 for Notification Center beeped).
+    static func wouldType(keyCode: Int, modifiers: UInt32) -> Bool {
+        modifiers & ~UInt32(shiftKey) == 0 && !functionKeys.contains(keyCode)
+    }
+
+    static let functionKeys: Set<Int> = [
+        kVK_F1, kVK_F2, kVK_F3, kVK_F4, kVK_F5, kVK_F6, kVK_F7, kVK_F8, kVK_F9, kVK_F10,
+        kVK_F11, kVK_F12, kVK_F13, kVK_F14, kVK_F15, kVK_F16, kVK_F17, kVK_F18, kVK_F19, kVK_F20,
+    ]
 
     /// AppKit modifier flags → the Carbon mask RegisterEventHotKey wants.
     static func carbonModifiers(from flags: NSEvent.ModifierFlags) -> UInt32 {
@@ -296,6 +307,8 @@ struct ShortcutRecorder: View {
             kVK_F1: "F1", kVK_F2: "F2", kVK_F3: "F3", kVK_F4: "F4",
             kVK_F5: "F5", kVK_F6: "F6", kVK_F7: "F7", kVK_F8: "F8",
             kVK_F9: "F9", kVK_F10: "F10", kVK_F11: "F11", kVK_F12: "F12",
+            kVK_F13: "F13", kVK_F14: "F14", kVK_F15: "F15", kVK_F16: "F16",
+            kVK_F17: "F17", kVK_F18: "F18", kVK_F19: "F19", kVK_F20: "F20",
         ]
         if let name = special[keyCode] { return name }
         if let roman = romanKey(keyCode), !roman.isEmpty { return roman.uppercased() }
