@@ -1708,19 +1708,27 @@ final class TransitionCoordinator {
     /// The strip as it looks now — revealed, at rest, no picture over it —
     /// becomes the finished picture. Callers check the reveal state.
     private func takeRevealedStripPicture(reason: String) async {
-        guard let appState, !ConcealGhostOverlay.stripActive else { return }
+        guard let appState, !Task.isCancelled, !ConcealGhostOverlay.stripActive else { return }
         // The reveal cover's footprint, so the two pictures overlay
         // exactly (same rect, same padding).
-        revealedStripSignature = hiddenSectionSignature
-        revealedStripChevronX = liveChevronMinX
-        revealedStripAnchor = liveAnchor
-        revealedStripActiveDisplay = appState.lastMouseDownDisplay
-        revealedStripBackdrop = ConcealGhostOverlay.backdropSignature(of: revealCoverRect) + ConcealGhostOverlay.surfaceSignature()
+        let signature = hiddenSectionSignature
+        let chevronX = liveChevronMinX
+        let anchor = liveAnchor
+        let activeDisplay = appState.lastMouseDownDisplay
+        let backdrop = ConcealGhostOverlay.backdropSignature(of: revealCoverRect) + ConcealGhostOverlay.surfaceSignature()
+        let underPanel = ClockClickRelay.notificationCenterIsOpen()
+        // Under a held bar's picture the icons are still there (#88).
+        let taken = await ConcealGhostOverlay.snapshotSet(of: revealCoverRect, excludingOwnWindows: !held.isEmpty)
+        guard !Task.isCancelled else { return }
+        revealedStripSignature = signature
+        revealedStripChevronX = chevronX
+        revealedStripAnchor = anchor
+        revealedStripActiveDisplay = activeDisplay
+        revealedStripBackdrop = backdrop
         revealedStripBackground = []
         revealedStripKeep = nil
-        revealedStripUnderPanel = ClockClickRelay.notificationCenterIsOpen()
-        // Under a held bar's picture the icons are still there (#88).
-        revealedStripSnapshot = await ConcealGhostOverlay.snapshotSet(of: revealCoverRect, excludingOwnWindows: !held.isEmpty)
+        revealedStripUnderPanel = underPanel
+        revealedStripSnapshot = taken
         PelmetLog.log("finished: picture taken at \(reason) (\(revealedStripSnapshot.count) display(s), \(revealedStripSignature.count) hidden item(s))")
     }
 
@@ -1766,8 +1774,9 @@ final class TransitionCoordinator {
         precaptureTask?.cancel()
         precaptureInFlight = true
         precaptureTask = Task { @MainActor in
-            defer { precaptureInFlight = false }
-            guard let appState else { return }
+            // Cancellation means a replacement owns this flag now.
+            defer { if !Task.isCancelled { precaptureInFlight = false } }
+            guard let appState, !Task.isCancelled else { return }
             await appState.waitUntilQuiesced(interval: 0.5, deadline: 3, poll: .milliseconds(afterConceal ? 200 : 30))
             // The agent's own conceal fade must not bake into the snapshot.
             if afterConceal { try? await Task.sleep(for: AppTiming.precaptureGhostClearance) }
@@ -1784,13 +1793,14 @@ final class TransitionCoordinator {
                 PelmetLog.log("cover: panel open, precapture skipped")
                 return
             }
-            revealCoverActiveDisplay = appState.lastMouseDownDisplay ?? Self.displayUnderPointer
+            let activeDisplay = appState.lastMouseDownDisplay ?? Self.displayUnderPointer
             let rect = precaptureRect
-            revealCoverBackdrop = ConcealGhostOverlay.backdropSignature(of: rect) + ConcealGhostOverlay.surfaceSignature()
+            let backdrop = ConcealGhostOverlay.backdropSignature(of: rect) + ConcealGhostOverlay.surfaceSignature()
             let underPanel = ClockClickRelay.notificationCenterIsOpen()
             let ownBar = appState.ownBarSignature
             let epoch = pressEpoch
             let taken = await ConcealGhostOverlay.snapshotSet(of: rect)
+            guard !Task.isCancelled else { return }
             guard epoch == pressEpoch, !pressHoldsBar else {
                 PelmetLog.log("cover: idle picture dropped, an item press had the bar while it was taken")
                 revealCoverSnapshot = []
@@ -1799,6 +1809,8 @@ final class TransitionCoordinator {
                 return
             }
             revealCoverSnapshot = taken
+            revealCoverActiveDisplay = activeDisplay
+            revealCoverBackdrop = backdrop
             revealCoverTakenRect = rect
             revealCoverOwnBar = ownBar
             revealCoverUnderPanel = underPanel
