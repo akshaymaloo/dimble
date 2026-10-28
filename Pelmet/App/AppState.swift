@@ -1721,6 +1721,7 @@ final class AppState {
         guard granted != screenRecordingGranted else { return }
         screenRecordingGranted = granted
         PelmetLog.log("screen: recording granted=\(granted)")
+        extras?.screenRecordingChanged()
         if launchBaselineApplied { reconcileAnchor("screen recording \(granted ? "granted" : "lost")") }
     }
 

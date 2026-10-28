@@ -103,8 +103,8 @@ final class ExtrasManager {
     /// Camera & mic item exists.
     private var sharePlayStatus: SharePlayStatus?
     /// The Live Activities running, alive while a Live Activities item exists
-    /// or live mode is on (the "Show Live Activities" setting): one watcher
-    /// serves both.
+    /// or live mode is on with Screen Recording granted (the "Show Live
+    /// Activities" setting): one watcher serves both.
     private var liveActivityStatus: LiveActivityStatus?
     private var lastLiveActivityActive = false
     /// One clock per media item drawing the animated bars (see ExtraGlyphs).
@@ -350,23 +350,7 @@ final class ExtrasManager {
             status.stop()
             focusStatus = nil
         }
-        let hasLiveActivityItem = newSpecs.contains { $0.kind == .liveActivity }
-        if hasLiveActivityItem || appState?.settings.showLiveActivities == true {
-            if liveActivityStatus == nil {
-                let status = LiveActivityStatus()
-                status.onChange = { [weak self] in self?.liveActivityChanged() }
-                liveActivityStatus = status
-                status.start()
-            }
-        } else if let status = liveActivityStatus {
-            status.stop()
-            liveActivityStatus = nil
-            // With the item and live mode both off nothing says an activity
-            // ended, so live mode is told here (it forgets what it was told).
-            appState?.liveActivitiesChanged(running: false, count: 0)
-        }
-        // The item's edge tracking starts over when it goes, watcher or not.
-        if !hasLiveActivityItem { lastLiveActivityActive = false }
+        syncLiveActivityWatcher()
         if newSpecs.contains(where: { $0.kind == .cameraMicIndicator }) {
             if sharePlayStatus == nil {
                 let status = SharePlayStatus()
@@ -1122,6 +1106,37 @@ final class ExtrasManager {
             button.title = ""
             button.imagePosition = .imageOnly
         }
+    }
+
+    /// The watcher lives for the item, or for live mode alone while it can
+    /// start: a log stream and an eight-hour replay are not spent on a Mac
+    /// where Screen Recording keeps live mode from ever entering. The grant
+    /// arriving (`screenRecordingChanged`) starts it.
+    private func syncLiveActivityWatcher() {
+        let hasItem = specs.values.contains { $0.kind == .liveActivity }
+        let liveMode = appState?.settings.showLiveActivities == true && ScreenRecordingAccess.isGranted
+        if hasItem || liveMode {
+            if liveActivityStatus == nil {
+                let status = LiveActivityStatus()
+                status.onChange = { [weak self] in self?.liveActivityChanged() }
+                liveActivityStatus = status
+                status.start()
+            }
+        } else if let status = liveActivityStatus {
+            status.stop()
+            liveActivityStatus = nil
+            // With the item off and live mode off or unable to start nothing
+            // says an activity ended, so live mode is told here (it forgets
+            // what it was told).
+            appState?.liveActivitiesChanged(running: false, count: 0)
+        }
+        // The item's edge tracking starts over when it goes, watcher or not.
+        if !hasItem { lastLiveActivityActive = false }
+    }
+
+    /// Screen Recording was granted or lost (`AppState.refreshScreenRecording`).
+    func screenRecordingChanged() {
+        syncLiveActivityWatcher()
     }
 
     private func liveActivityChanged() {
