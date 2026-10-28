@@ -450,6 +450,12 @@ public struct SettingsStore: Codable, Equatable, Sendable {
     /// row lives under that toggle. Never off there (⌫ restores the default).
     public var notificationCenterHotkey: HotkeySpec? = .notificationCenterDefault
 
+    /// Live mode: while a Live Activity runs, its pill shows next to the «
+    /// and the system icons Dimble hides come back, the bar beneath held
+    /// under a picture. Needs Screen Recording for that picture. Independent
+    /// of the Live Activities item, which only follows what runs.
+    public var showLiveActivities: Bool = true
+
     /// A found update posts a user notification instead of Sparkle's window
     /// interrupting whatever the user is doing. Off: only the About pane
     /// shows it. (Auto-download is Sparkle's own preference.)
@@ -548,6 +554,7 @@ public struct SettingsStore: Codable, Equatable, Sendable {
         case notifyOnUpdates, barRightClickMenu, betaUpdates
         case statusIconStyle
         case clockClickOpensNotificationCenter, notificationCenterHotkey
+        case showLiveActivities
         case orderEdits
         case hiddenIconsIn, panel
         case showRules
@@ -586,6 +593,7 @@ public struct SettingsStore: Codable, Equatable, Sendable {
         statusIconStyle = c.field(StatusIconStyle.self, .statusIconStyle, defaults.statusIconStyle)
         clockClickOpensNotificationCenter = c.field(Bool.self, .clockClickOpensNotificationCenter, defaults.clockClickOpensNotificationCenter)
         notificationCenterHotkey = c.field(HotkeySpec?.self, .notificationCenterHotkey, defaults.notificationCenterHotkey) ?? defaults.notificationCenterHotkey
+        showLiveActivities = c.field(Bool.self, .showLiveActivities, defaults.showLiveActivities)
         orderEdits = c.field(OrderEdits.self, .orderEdits, defaults.orderEdits)
         hiddenIconsIn = c.field(RevealTarget.self, .hiddenIconsIn, defaults.hiddenIconsIn)
         panel = c.field(PanelOptions.self, .panel, defaults.panel)

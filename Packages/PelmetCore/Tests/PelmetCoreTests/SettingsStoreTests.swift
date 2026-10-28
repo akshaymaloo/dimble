@@ -58,6 +58,22 @@ struct SettingsStoreTests {
         #expect(back.alwaysHiddenHotkey == settings.alwaysHiddenHotkey)
     }
 
+    // Live mode is on for everyone: a blob saved before the setting existed,
+    // and a field that fails to decode, both take it on; off survives a save.
+    @Test func showLiveActivitiesDefaultsOnAndRoundTrips() throws {
+        #expect(SettingsStore().showLiveActivities)
+        let legacy = try JSONDecoder().decode(SettingsStore.self, from: Data("{}".utf8))
+        #expect(legacy.showLiveActivities)
+        let broken = try JSONDecoder().decode(SettingsStore.self, from: Data(#"{"showLiveActivities":"yes"}"#.utf8))
+        #expect(broken.showLiveActivities)
+        var settings = SettingsStore()
+        settings.showLiveActivities = false
+        let back = try JSONDecoder().decode(SettingsStore.self, from: JSONEncoder().encode(settings))
+        #expect(!back.showLiveActivities)
+        let on = try JSONDecoder().decode(SettingsStore.self, from: Data(#"{"showLiveActivities":true}"#.utf8))
+        #expect(on.showLiveActivities)
+    }
+
     // Turned off on purpose (#79) survives a save; only a missing, null or
     // unreadable value falls back to the default.
     @Test func turnedOffHotkeyRoundTrips() throws {
