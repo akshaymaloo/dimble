@@ -535,6 +535,14 @@ final class LiveMirror {
         let id: CGDirectDisplayID
         let screen: NSScreen
         var scDisplay: SCDisplay
+        /// A display set to show every icon (round 7c): the bar stays anchored
+        /// out on it, Hidden icons included. Live mode covers only what the
+        /// assertion hides there (the Always Hidden run and the pills' spot),
+        /// which ends at `runEdge`, the left edge of the Hidden icons.
+        var showsAll = false
+        var runEdge: CGFloat?
+        var alwaysRun: ClosedRange<CGFloat>?
+        var runNote = ""
         var picture: ConcealGhostOverlay.BarSnapshot?
         var cover: ConcealGhostOverlay.GhostSet?
         var coverMinX: CGFloat = 0
@@ -839,7 +847,7 @@ final class LiveMirror {
                 return Remembered(key: m.key, name: m.copy.name, visual: v,
                                   bits: m.bits.map { ($0.value, $0.frame.offsetBy(dx: -v.minX, dy: -v.minY)) }, clock: m.clock)
             }
-            remembered[side.id] = Memory(chevronMinX: chevronMinX(chevron, on: side), pills: pills)
+            remembered[side.id] = Memory(chevronMinX: coverEnd(chevron, on: side), pills: pills)
         }
     }
 
@@ -875,7 +883,12 @@ final class LiveMirror {
     /// beneath it (under the reveal's own cover, which lifts after).
     func revealLanded() async {
         guard handingOver, released, let appState else { return }
-        let covers = sides.compactMap(\.cover)
+        let covers = sides.filter { !$0.showsAll }.compactMap(\.cover)
+        // A display that shows every icon has no held bar to take over: the
+        // assertion's return fades its Always Hidden icons out natively
+        // (60 fps burst 2026-10-28: ten icons, still visible 30 ms after the
+        // cover was down), so its cover stays until they are gone.
+        let runCovers = sides.filter(\.showsAll).compactMap(\.cover)
         sides = []
         isActive = false
         handingOver = false
@@ -889,6 +902,20 @@ final class LiveMirror {
             await appState.waitUntilQuiesced(interval: 0.15, deadline: 2, poll: .milliseconds(30))
             for cover in covers { cover.dismiss() }
             PelmetLog.log("livemirror: hand-over cover down at \(Int(-started.timeIntervalSinceNow * 1000))ms")
+            guard !runCovers.isEmpty else { return }
+            // Unless the reveal brought the Always Hidden icons out: then
+            // they are meant to show.
+            if !appState.currentRevealedSections.contains(.alwaysHidden) {
+                let deadline = Date().addingTimeInterval(AppTiming.clockBlinkCoverDeadline)
+                while Date() < deadline, await appState.engine.concealedItemsStillVisible() {
+                    try? await Task.sleep(for: .milliseconds(60))
+                }
+                let gone = Int(-started.timeIntervalSinceNow * 1000)
+                try? await Task.sleep(for: .seconds(AppTiming.exitCoverHold))
+                PelmetLog.log("livemirror: show-all display cover held for the Always Hidden icons' fade — gone at \(gone)ms")
+            }
+            for cover in runCovers { cover.dismiss() }
+            PelmetLog.log("livemirror: show-all display cover down at \(Int(-started.timeIntervalSinceNow * 1000))ms")
         }
     }
 
@@ -1084,6 +1111,37 @@ final class LiveMirror {
         return chevron.minX + (side.screen.frame.maxX - home.frame.maxX)
     }
 
+    /// Where a cover on `side` ends: the « on a display that conceals; on one
+    /// that shows every icon, the left edge of the Hidden icons (they stay
+    /// out, the cover is only over what the assertion hides left of them).
+    private func coverEnd(_ chevron: NSRect, on side: Side) -> CGFloat {
+        if side.showsAll, let edge = side.runEdge { return edge }
+        return chevronMinX(chevron, on: side)
+    }
+
+    /// A display that shows every icon: the left edge of its Hidden icons
+    /// (the leftmost visible one when it has none) and the span of the Always
+    /// Hidden icons, from a fresh walk of the agent's bar for that display.
+    private func measureRunEdge(_ side: Side) async {
+        guard let appState else { return }
+        _ = await appState.engine.freshSnapshot()
+        let copies = await appState.engine.barCopies()
+        let model = appState.settings.sectionModel
+        let bounds = side.bounds
+        var hidden: CGFloat?, visible: CGFloat?
+        var always: ClosedRange<CGFloat>?
+        for (id, rects) in copies {
+            guard let r = rects.first(where: { bounds.contains(CGPoint(x: $0.midX, y: $0.midY)) }) else { continue }
+            switch model.section(of: id) {
+            case .hidden: hidden = min(hidden ?? r.minX, r.minX)
+            case .visible: visible = min(visible ?? r.minX, r.minX)
+            case .alwaysHidden: always = min(always?.lowerBound ?? r.minX, r.minX)...max(always?.upperBound ?? r.maxX, r.maxX)
+            }
+        }
+        side.runEdge = hidden ?? visible
+        side.alwaysRun = always
+    }
+
     /// Where a cover may start: far enough left for the hidden icons the
     /// last conceal measured (the estimate by count when none was) and the
     /// pill beside them, right of the notch and right of the frontmost
@@ -1182,19 +1240,25 @@ final class LiveMirror {
         appState.transitions.liveModeActive = true
         sides = NSScreen.screens.compactMap { screen in
             guard let id = screen.directDisplayID, let display = content.displays.first(where: { $0.displayID == id }) else { return nil }
-            // A display set to show every icon has nothing concealed to cover,
-            // and its real pills show as they are (the assertion is down).
+            // A display set to show every icon keeps its Hidden icons out; the
+            // assertion dropping brings back what it hides there (the Always
+            // Hidden icons, the pills): a cover over that alone, from the
+            // left limit to the Hidden icons, with the mirrors in it.
+            let side = Side(id: id, screen: screen, scDisplay: display)
             if appState.settings.behavior(forDisplayUUID: screen.displayUUIDString) == .alwaysShowAll {
-                PelmetLog.log("livemirror: display \(id) always shows, skipped — no cover, no mirrors, its real pills show as they are")
-                return nil
+                side.showsAll = true
+                PelmetLog.log("livemirror: display \(id) always shows — covers Always Hidden only (the Hidden icons stay out), live")
+            } else {
+                PelmetLog.log("livemirror: display \(id) conceals, live\(appState.transitions.anchored ? " (held under the anchor)" : "")")
             }
-            PelmetLog.log("livemirror: display \(id) conceals, live\(appState.transitions.anchored ? " (held under the anchor)" : "")")
-            return Side(id: id, screen: screen, scDisplay: display)
+            return side
         }
-        guard !sides.isEmpty else { await abort("no display to film"); return }
+        // Nothing to film when every display shows all its icons.
+        guard sides.contains(where: { !$0.showsAll }) else { await abort("no display to film"); return }
         for side in sides {
             await measureMenus(side)
-            PelmetLog.log("livemirror: display \(side.id) menus end at \(side.menusRight > 0 ? "\(Int(side.menusRight))" : "- (none shown)"), cover may start at \(Int(coverLeft(for: side, right: chevronMinX(chevron, on: side) - 1)))")
+            if side.showsAll { await measureRunEdge(side) }
+            PelmetLog.log("livemirror: display \(side.id) menus end at \(side.menusRight > 0 ? "\(Int(side.menusRight))" : "- (none shown)"), cover may start at \(Int(coverLeft(for: side, right: coverEnd(chevron, on: side) - 1)))")
         }
         if let issue = prepIssue() { await abort("\(issue) (before the picture)"); return }
         await goLive(chevron: chevron, started: started, retake: false)
@@ -1218,7 +1282,9 @@ final class LiveMirror {
         var fresh: Set<CGDirectDisplayID> = []
         let pad = ConcealGhostOverlay.capturePadding
         for side in sides {
-            let right = chevronMinX(chevron, on: side) - 1
+            // A retake comes back to a bar whose Hidden icons may have moved.
+            if side.showsAll, retake { await measureRunEdge(side) }
+            let right = coverEnd(chevron, on: side) - 1
             let left = coverLeft(for: side, right: right)
             let shift = side.screen.frame.maxX - primaryMaxX
             if !retake, let keep = keptPictures[side.id], keep.generation == backdropGeneration,
@@ -1252,7 +1318,9 @@ final class LiveMirror {
         lastChevron = chevron
         PelmetLog.log("livemirror: chevron \(Int(before.minX)) → \(Int(chevron.minX)) after the picture\(captured ? " (capture indicator)" : "")")
         for side in sides {
-            let right = chevronMinX(chevron, on: side) - 1
+            // The capture indicator moved the cluster, the Hidden icons too.
+            if side.showsAll, captured { await measureRunEdge(side) }
+            let right = coverEnd(chevron, on: side) - 1
             // A picture taken just now holds the « and the extras mid-slide at
             // its right end (the capture indicator moves them while it is
             // taken): from where the cover ends it is bar background only, so
@@ -1271,6 +1339,9 @@ final class LiveMirror {
         if let issue = prepIssue() { await abort("\(issue) (covers up)"); return }
         ConcealGhostOverlay.liveModeBlocksCaptures = true
         PelmetLog.log("livemirror: covers up at \(ms())ms — \(sides.map { "d\($0.id) \(Int($0.coverMinX))..\(Int($0.coverMaxX))" }.joined(separator: ", "))")
+        for side in sides where side.showsAll {
+            PelmetLog.log("livemirror: display \(side.id) always shows — cover \(Int(side.coverMinX))..\(Int(side.coverMaxX)) ends at the Hidden icons (\(side.runEdge.map { "from \(Int($0))" } ?? "no Hidden or visible icon found, the « ends it"))")
+        }
         // A return from a reveal draws the mirrors now, from the kept stills.
         if !retake { for side in sides { seedMirrors(side) } }
 
@@ -1321,8 +1392,10 @@ final class LiveMirror {
         if let now = appState.chevronWindowFrame { lastChevron = now }
         if let chevron = lastChevron {
             for side in sides {
-                let right = chevronMinX(chevron, on: side) - 1
+                if side.showsAll { await measureRunEdge(side) }
+                let right = coverEnd(chevron, on: side) - 1
                 buildCover(side, left: side.coverMinX, right: right, why: "settled")
+                if side.showsAll { noteRun(side) }
             }
         }
         for side in sides { await refreshSide(side, why: "enter") }
@@ -1383,6 +1456,17 @@ final class LiveMirror {
 
     // MARK: Cover
 
+    /// One line per change of a show-all display's run: what the cover is
+    /// over (the Always Hidden icons, the pills' spot) and where the Hidden
+    /// icons it leaves out begin.
+    private func noteRun(_ side: Side) {
+        let always = side.alwaysRun.map { "\(Int($0.lowerBound))..\(Int($0.upperBound))" } ?? "none found"
+        let note = "\(Int(side.coverMinX))..\(Int(side.coverMaxX)) always \(always) edge \(side.runEdge.map { "\(Int($0))" } ?? "-")"
+        guard note != side.runNote else { return }
+        side.runNote = note
+        PelmetLog.log("livemirror: display \(side.id) always shows — covers Always Hidden only \(always) (cover \(Int(side.coverMinX))..\(Int(side.coverMaxX)), the Hidden icons stay out from \(side.runEdge.map { "\(Int($0))" } ?? "-"))")
+    }
+
     /// The cover over [`left`, `right`] (global Cocoa x) from the kept picture.
     /// The new one goes up before the old one comes down.
     @discardableResult
@@ -1391,6 +1475,10 @@ final class LiveMirror {
     /// up beneath them), and that cover goes once they are gone.
     private func buildCover(_ side: Side, left: CGFloat, right: CGFloat, why: String, keepMirrors: Bool = false) -> Bool {
         guard let picture = side.picture else { return false }
+        // The Hidden icons did not move (a display that shows every icon):
+        // nothing to end or grow.
+        if side.showsAll, why == "settled" || why == "chevron moved", side.cover != nil,
+           abs(left - side.coverMinX) < 0.5, abs(right - side.coverMaxX) < 0.5 { return true }
         // A shorter cover with the same left edge is the cover itself, ended
         // sooner: no new window, nothing moves, no frame without a cover.
         if why == "settled" || why == "chevron moved", let current = side.cover?.members.first, abs(left - side.coverMinX) < 0.5,
@@ -2444,7 +2532,7 @@ final class LiveMirror {
         for side in sides {
             side.trailing?.cancel()
             side.trailing = nil
-            if let chevron = lastChevron { side.predictedRight = chevronMinX(chevron, on: side) - 1 }
+            if let chevron = lastChevron { side.predictedRight = coverEnd(chevron, on: side) - 1 }
             for mirror in side.mirrors where !mirror.dropped {
                 mirror.provisional = true
                 mirror.look = nil
@@ -2455,7 +2543,9 @@ final class LiveMirror {
             }
             // The « slides back and the extras leave: the cover reaches to the
             // concealed « again, where the picture ends.
-            if let picture = side.picture { buildCover(side, left: side.coverMinX, right: picture.windowFrame.maxX, why: "retake") }
+            // (A display that shows every icon has its Hidden icons beyond the
+            // cover's end: growing it would hide them.)
+            if !side.showsAll, let picture = side.picture { buildCover(side, left: side.coverMinX, right: picture.windowFrame.maxX, why: "retake") }
         }
         // The assertion comes back; once the bar beneath is bare (the same
         // wait that lifts a cover) the pictures are taken, the old cover
@@ -2514,7 +2604,9 @@ final class LiveMirror {
             PelmetLog.log("livemirror: re-measure — chevron \(Int(last.minX)) → \(Int(chevron.minX))")
             lastChevron = chevron
             for side in sides {
-                buildCover(side, left: side.coverMinX, right: chevronMinX(chevron, on: side) - 1, why: "chevron moved")
+                if side.showsAll { await measureRunEdge(side) }
+                buildCover(side, left: side.coverMinX, right: coverEnd(chevron, on: side) - 1, why: "chevron moved")
+                if side.showsAll { noteRun(side) }
             }
         }
         for side in sides {
@@ -2602,8 +2694,11 @@ final class LiveMirror {
         // concealed « again, where the picture ends. The mirrors stay where
         // they stand while they go.
         for side in sides {
-            if let chevron = lastChevron { side.predictedRight = chevronMinX(chevron, on: side) - 1 }
-            if let picture = side.picture { buildCover(side, left: side.coverMinX, right: picture.windowFrame.maxX, why: "exit", keepMirrors: true) }
+            if let chevron = lastChevron { side.predictedRight = coverEnd(chevron, on: side) - 1 }
+            // (Not on a display that shows every icon: its Hidden icons stand
+            // right of the cover, and the cover stays as it is until the bar
+            // beneath is bare.)
+            if !side.showsAll, let picture = side.picture { buildCover(side, left: side.coverMinX, right: picture.windowFrame.maxX, why: "exit", keepMirrors: true) }
         }
         await appState.engine.holdLift(false)
         PelmetLog.log("livemirror: assertion back at \(Int(-started.timeIntervalSinceNow * 1000))ms")
