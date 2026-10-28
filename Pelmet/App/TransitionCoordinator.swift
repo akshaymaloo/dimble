@@ -1574,6 +1574,24 @@ final class TransitionCoordinator {
         }
     }
 
+    /// Live mode (spike) stands over the bars the anchor holds: its covers
+    /// are pictures of the same bare glass, up before this is called, and
+    /// the mirrors would sit beneath a held window. The held windows go;
+    /// the pictures stay, so the exit's `hold` puts them back up with no
+    /// capture while the live covers are still over the bar.
+    func releaseHeldForLive() {
+        guard !held.isEmpty else { return }
+        for (_, cover) in held { cover.dismiss() }
+        PelmetLog.log("held: \(held.values.map(\.ids).joined(separator: " ")) down for live mode — its covers stand in, the pictures are kept")
+        held = [:]
+        heldShownRun = nil
+        heldShownHoles = []
+    }
+
+    /// Anchored, where the held run starts (primary band): live mode's
+    /// covers reach at least this far left, the hidden icons being out.
+    var heldRunLeft: CGFloat? { anchored ? heldRunNow?.lowerBound : nil }
+
     /// The displays changed under a hold: its pictures sit at the old
     /// geometry and would eat clicks there. Anchored, they go back up
     /// once the displays have settled (`refreshHeld`).

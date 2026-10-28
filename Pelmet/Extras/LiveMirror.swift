@@ -1018,11 +1018,29 @@ final class LiveMirror {
         resetRunState()
     }
 
+    /// The bar is out for a reason of its own: a reveal, a section out
+    /// beyond the anchor, an anchor on its way. A display that shows every
+    /// icon keeps Hidden out on every bar (`TransitionCoordinator.anchored`)
+    /// and holds the displays that conceal under pictures of the bare bar:
+    /// that alone is no reason to wait. Live mode covers those displays
+    /// itself and leaves the one that shows all as it is.
+    private var barIsOut: Bool {
+        guard let appState else { return true }
+        if appState.isRevealed { return true }
+        let out = appState.currentRevealedSections
+        if out.isEmpty { return false }
+        let t = appState.transitions
+        return !(t.anchored && t.anchorTarget && out == t.anchoredSections && t.anchoredSections == [.hidden])
+    }
+
+    /// Hidden is out on every bar for a display that shows all icons.
+    private var underAnchor: Bool { appState?.transitions.anchored ?? false }
+
     private func cannotEnter() async -> String? {
         guard let appState else { return "no app state" }
         if Date() < retryNotBefore { return "no pill was found last time — holding off (a new activity ends the hold-off)" }
         if !ScreenRecordingAccess.isGranted { return "no Screen Recording" }
-        if appState.isRevealed || !appState.currentRevealedSections.isEmpty { return "the bar is out" }
+        if barIsOut { return "the bar is out" }
         if appState.isTransitioning { return "a transition runs" }
         if appState.panelShowsReveal { return "the panel is up" }
         if appState.liftHoldReason != nil { return "a lift has the bar" }
@@ -1051,10 +1069,13 @@ final class LiveMirror {
     private func coverLeft(for side: Side, right: CGFloat) -> CGFloat {
         let concealed = appState?.snapshot?.concealed.count ?? 0
         var left = right - CGFloat(concealed) * 44 - 360
+        let shift = side.screen.frame.maxX - primaryMaxX
         if let t = appState?.transitions, let strip = t.lastConcealedStripRect {
-            let shift = side.screen.frame.maxX - primaryMaxX
             left = min(left, min(strip.minX, t.widestStripMinX ?? strip.minX) + shift - 360)
         }
+        // Under the anchor the hidden icons are out, and the pill and the
+        // extras coming back push them left: the cover reaches past them.
+        if let held = appState?.transitions.heldRunLeft { left = min(left, held + shift - 360) }
         let floor = side.menusRight > 0 ? side.menusRight + 4 : side.screen.frame.minX + side.screen.frame.width * 0.3
         left = max(left, floor)
         if let notch = side.screen.auxiliaryTopRightArea?.minX { left = max(left, notch + 2) }
@@ -1112,7 +1133,7 @@ final class LiveMirror {
     private func prepIssue() -> String? {
         guard let appState else { return "no app state" }
         if standDown { return "a reveal came first" }
-        if appState.isRevealed || !appState.currentRevealedSections.isEmpty { return "the bar came out" }
+        if barIsOut { return "the bar came out" }
         if appState.isTransitioning { return "a transition started" }
         if appState.panelShowsReveal { return "the panel came up" }
         return nil
@@ -1139,11 +1160,13 @@ final class LiveMirror {
         appState.transitions.liveModeActive = true
         sides = NSScreen.screens.compactMap { screen in
             guard let id = screen.directDisplayID, let display = content.displays.first(where: { $0.displayID == id }) else { return nil }
-            // A display set to show every icon has nothing concealed to cover.
+            // A display set to show every icon has nothing concealed to cover,
+            // and its real pills show as they are (the assertion is down).
             if appState.settings.behavior(forDisplayUUID: screen.displayUUIDString) == .alwaysShowAll {
-                PelmetLog.log("livemirror: display \(id) shows every icon — left out")
+                PelmetLog.log("livemirror: display \(id) always shows, skipped — no cover, no mirrors, its real pills show as they are")
                 return nil
             }
+            PelmetLog.log("livemirror: display \(id) conceals, live\(appState.transitions.anchored ? " (held under the anchor)" : "")")
             return Side(id: id, screen: screen, scDisplay: display)
         }
         guard !sides.isEmpty else { await abort("no display to film"); return }
@@ -1186,7 +1209,9 @@ final class LiveMirror {
                 continue
             }
             let rect = CGRect(x: left - shift, y: 0, width: right - left, height: 40)
-            side.picture = await ConcealGhostOverlay.snapshotSet(of: rect, displays: [side.id], liveMirror: true).first
+            // Under the anchor the hidden icons are out on the bar: the bare
+            // bar (the system's bar window left out) is the concealed bar.
+            side.picture = await ConcealGhostOverlay.snapshotSet(of: rect, displays: [side.id], bare: underAnchor, liveMirror: true).first
             guard let picture = side.picture else { await abort("no picture of display \(side.id)"); return }
             side.pictureAt = Date()
             side.pictureGeneration = backdropGeneration
@@ -1232,6 +1257,8 @@ final class LiveMirror {
         // reveal waits for the start to settle (the assertion is dropped as
         // far as the engine is concerned, and `abort` puts it back).
         assertionDropped = true
+        // The covers are up: the held windows (the anchor's) make way.
+        appState.transitions.releaseHeldForLive()
         await appState.engine.holdLift(true)
         let dropped = ms()
         PelmetLog.log("livemirror: assertion down at \(dropped)ms")
