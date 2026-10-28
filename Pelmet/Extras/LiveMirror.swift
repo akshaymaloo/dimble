@@ -372,6 +372,10 @@ final class LiveMirror {
         /// pill slides when the capture indicator lights or goes out, and a
         /// still taken mid-slide has a cut edge.
         var lookCandidate: (look: PillTree.Look, since: Date)?
+        /// Where the pill stood when it was first seen (or last moved) while it
+        /// has no still: the first still waits until it has stood there 0.2 s,
+        /// a pill still sliding in was caught half-way by the first capture.
+        var placeCandidate: (frame: CGRect, since: Date, first: Date)?
         var misses = 0
         /// Discovery passes that did not find it (two in a row end it).
         var absent = 0
@@ -409,6 +413,8 @@ final class LiveMirror {
         var placedNote = ""
         var snapping = false
         var snapshots = 0
+        /// The last still of any kind: the slow graphic refresh counts from it.
+        var lastSnapshotAt = Date()
         /// The snapshot time the last "skipped" line was written for: one line
         /// per rate-limit window, not one per read.
         var skippedWindow: Date?
@@ -464,6 +470,13 @@ final class LiveMirror {
     static let textSnapshotInterval: TimeInterval = 30
     /// How long a changed look must hold still before a new still is taken.
     static let lookSettle: TimeInterval = 0.45
+    /// A pill with no still waits until it stands still this long.
+    static let firstSettle: TimeInterval = 0.2
+    /// A pill with a graphic area (a ring, a bar, a logo) gets a new still at
+    /// least this often even when nothing the AX tree shows has changed: a
+    /// progress bar can move without a text. One capture (~0.28 s of the dot,
+    /// ~50 ms of work) per interval, none when a text-triggered still came.
+    static let graphicRefresh: TimeInterval = 300
     private var textSnapAt: [CGDirectDisplayID: Date] = [:]
 
     init(appState: AppState) { self.appState = appState }
@@ -936,7 +949,8 @@ final class LiveMirror {
         for (mirror, tree) in live where mirror.look == nil && mirror.base.contents == nil {
             guard let still = kept[keptKey(side, mirror)] else { continue }
             let age = Int(Date().timeIntervalSince(still.at))
-            if age < 900, tree.look.change(from: still.look) == nil {
+            // A pill with a graphic area is not trusted past the refresh interval.
+            if age < (tree.images.isEmpty ? 900 : Int(Self.graphicRefresh)), tree.look.change(from: still.look) == nil {
                 CATransaction.begin(); CATransaction.setDisableActions(true)
                 mirror.base.contents = still.image
                 mirror.base.contentsGravity = .resize
@@ -963,10 +977,32 @@ final class LiveMirror {
                     mirror.lookCandidate = nil
                 }
             } else {
-                reasons.append(live.count > 1 ? "\(mirror.key) first (\(why))" : "first (\(why))")
+                // First still: the pill may still be sliding in (it returns
+                // ~0.35 s after the assertion goes), so it must stand at one
+                // place twice, 0.2 s apart; two seconds of moving is enough
+                // waiting (a pill that animates for good).
+                let place = tree.frame, now = Date()
+                let tag = live.count > 1 ? "\(mirror.key) " : ""
+                if let c = mirror.placeCandidate {
+                    if abs(c.frame.minX - place.minX) < 1.5, abs(c.frame.minY - place.minY) < 1.5 {
+                        if now.timeIntervalSince(c.since) >= Self.firstSettle { reasons.append("\(tag)first (\(why))") } else { settling = true }
+                    } else if now.timeIntervalSince(c.first) > 2 {
+                        reasons.append("\(tag)first (\(why), still moving)")
+                    } else {
+                        mirror.placeCandidate = (place, now, c.first)
+                        settling = true
+                    }
+                } else {
+                    mirror.placeCandidate = (place, now, now)
+                    settling = true
+                }
             }
         }
         if reasons.isEmpty, !settling, !side.snapping, let text = textTrigger(side, live) { reasons.append(text) }
+        if reasons.isEmpty, !settling, !side.snapping, Date().timeIntervalSince(side.lastSnapshotAt) >= Self.graphicRefresh,
+           live.contains(where: { !$0.tree.images.isEmpty && !$0.mirror.dropped }) {
+            reasons.append("graphic refresh (\(Int(Self.graphicRefresh / 60)) min, no text or size change seen)")
+        }
         if !reasons.isEmpty, !settling, !side.snapping {
             side.snapping = true
             _ = await snapshot(side, live, reason: reasons.joined(separator: "; "))
@@ -1038,7 +1074,22 @@ final class LiveMirror {
             PelmetLog.log("livemirror: snapshot on display \(side.id) failed — \(error.localizedDescription)")
             return false
         }
+        // Read again right after the capture: a pill that moved while it ran
+        // (sliding in, the capture indicator) was caught half-way.
+        let afterBox = ElementBox(list: shown.map(\.mirror.copy.element))
+        let after = await Task.detached(priority: .userInitiated) { afterBox.list.map { PillProbe.readTree($0) } }.value
+        for ((mirror, tree), now) in zip(shown, after) {
+            guard let now else { continue }
+            let moved = abs(now.frame.minX - tree.frame.minX) > 1.5 || abs(now.frame.minY - tree.frame.minY) > 1.5
+            if let why = now.look.change(from: tree.look) ?? (moved ? "moved \(Int(tree.frame.minX)) → \(Int(now.frame.minX))" : nil) {
+                PelmetLog.log("livemirror: snapshot dropped — \"\(mirror.key)\" moved during the capture (\(why)), again once it stands still")
+                mirror.placeCandidate = (now.frame, Date(), mirror.placeCandidate?.first ?? Date())
+                mirror.lookCandidate = nil
+                return false
+            }
+        }
         side.snapshots += 1
+        side.lastSnapshotAt = Date()
         let scale = side.scale
         let dumpDir = UserDefaults.standard.string(forKey: "pelmet.debug.liveMirrorDump")
         if let dumpDir { Self.dump(image, to: "\(dumpDir)/still-\(side.snapshots)-union.png") }
@@ -1062,6 +1113,7 @@ final class LiveMirror {
             mirror.look = tree.look
             mirror.snapTexts = texts
             mirror.lookCandidate = nil
+            mirror.placeCandidate = nil
             kept[keptKey(side, mirror)] = KeptStill(look: tree.look, image: blanked, at: Date(), texts: texts)
         }
         PelmetLog.log("livemirror: snapshot #\(side.snapshots) — \(reason) [display \(side.id), \(image.width)×\(image.height)px, \(Int(-started.timeIntervalSinceNow * 1000))ms, \(excluded.count) window(s) left out, \(shown.count) pill(s)]")
@@ -1465,7 +1517,7 @@ final class LiveMirror {
             // read every 2 s too; while a text moves (a countdown) or a look
             // settles they are read every tick, so the mirror skips no second.
             let now = Date()
-            let moving = side.mirrors.contains { ($0.textChangedAt.map { now.timeIntervalSince($0) < 5 } ?? false) || $0.lookCandidate != nil }
+            let moving = side.mirrors.contains { ($0.textChangedAt.map { now.timeIntervalSince($0) < 5 } ?? false) || $0.lookCandidate != nil || $0.placeCandidate != nil }
             let net = tickCount % Self.fallbackEvery == 0
             var looked = false
             if side.mirrors.isEmpty || side.needsDiscovery || net || now < lookEagerlyUntil {
