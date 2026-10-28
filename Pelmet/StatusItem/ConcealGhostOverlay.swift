@@ -833,6 +833,35 @@ final class ConcealGhostOverlay {
         return Pixels(context: context, pointer: data.assumingMemoryBound(to: UInt8.self), stride: stride)
     }
 
+    /// The same picture with every column from `x` on (global Cocoa points,
+    /// like `windowFrame`) replaced by a copy of the column just left of it:
+    /// the bar's own background, nothing else. A picture of the concealed bar
+    /// is taken while the capture indicator lights and moves the cluster at
+    /// the bar's right end, so its last columns hold the « and the extras
+    /// caught mid-slide (and the 6pt of padding past the requested edge holds
+    /// what stood next to it). The cover stops left of where the « settled; a
+    /// later cover from the same kept picture may reach further right (the
+    /// indicator gone, the « back at its resting place) and must show bar,
+    /// not those. Pixel-exact left of `x`: drawn in the picture's own colour
+    /// space, no conversion.
+    static func smeared(_ snap: BarSnapshot, from x: CGFloat) -> BarSnapshot {
+        let w = snap.image.width, h = snap.image.height
+        let scale = CGFloat(w) / snap.windowFrame.width
+        let x0 = Int(((x - snap.windowFrame.minX) * scale).rounded(.down))
+        guard x0 > 1, x0 < w,
+              let ctx = CGContext(
+                data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+                space: snap.image.colorSpace ?? CGColorSpace(name: CGColorSpace.sRGB)!,
+                bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue),
+              let column = snap.image.cropping(to: CGRect(x: x0 - 1, y: 0, width: 1, height: h))
+        else { return snap }
+        ctx.draw(snap.image, in: CGRect(x: 0, y: 0, width: w, height: h))
+        ctx.interpolationQuality = .none
+        ctx.draw(column, in: CGRect(x: x0, y: 0, width: w - x0, height: h))
+        guard let out = ctx.makeImage() else { return snap }
+        return BarSnapshot(image: out, windowFrame: snap.windowFrame, takenAt: snap.takenAt)
+    }
+
     /// Capture now and float immediately. Call `fadeOut()`/`dismiss()` once
     /// the swap beneath has been issued; a safety timeout fades regardless.
     static func begin(over rect: CGRect?, safety: TimeInterval = 0.5) async -> GhostSet? {
@@ -880,6 +909,11 @@ final class ConcealGhostOverlay {
             panel.hidesOnDeactivate = false
             // Up for a whole reveal: on every Space of its display.
             panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
+            // A cut, not the window server's default: ordered in it grows ~5pt
+            // and fades up over ~60ms, ordered out it shrinks 5pt and fades
+            // over ~170ms (a held cover on the bar must neither dim the bar
+            // under it nor move its edges). Measured, 2026-10-28.
+            panel.animationBehavior = .none
             window = panel
         } else {
             window = NSWindow(contentRect: frame, styleMask: .borderless, backing: .buffered, defer: false)
@@ -951,6 +985,17 @@ final class ConcealGhostOverlay {
     // MARK: Live mode (spike)
 
     var windowNumber: Int { window.windowNumber }
+
+    /// Live mode's cover (set by the live mirror). Everything under it is
+    /// meant to be gone, as the real icons are: a ghost (the fading copy of an
+    /// item Dimble hides) would stay above the cover and cross the mirror
+    /// that slides in (Smooth, a re-hide, ~100 ms, measured 2026-10-28).
+    var isLiveCover = false
+
+    /// A live cover is up over `rect` (global Cocoa points).
+    static func liveCover(over rect: NSRect) -> Bool {
+        registry.allObjects.contains { $0.isLiveCover && !$0.finished && $0.window.isVisible && $0.window.frame.intersects(rect) }
+    }
 
     /// Shortens the cover from the right, in place: the picture stays where it
     /// is and the window just ends sooner (a new window for a shorter cover

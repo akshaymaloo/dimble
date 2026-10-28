@@ -1170,6 +1170,7 @@ final class LiveMirror {
         // picture kept from before a reveal serves while the backdrop is the
         // one it was taken on: no capture, no indicator, no wait.
         var captured = false
+        var fresh: Set<CGDirectDisplayID> = []
         let pad = ConcealGhostOverlay.capturePadding
         for side in sides {
             let right = chevronMinX(chevron, on: side) - 1
@@ -1190,6 +1191,7 @@ final class LiveMirror {
             side.pictureAt = Date()
             side.pictureGeneration = backdropGeneration
             captured = true
+            fresh.insert(side.id)
             PelmetLog.log("livemirror: display \(side.id) picture \(Int(picture.windowFrame.minX))..\(Int(picture.windowFrame.maxX)) (wanted \(Int(left))..\(Int(right)))")
         }
         keptPictures = [:]
@@ -1204,6 +1206,17 @@ final class LiveMirror {
         PelmetLog.log("livemirror: chevron \(Int(before.minX)) → \(Int(chevron.minX)) after the picture\(captured ? " (capture indicator)" : "")")
         for side in sides {
             let right = chevronMinX(chevron, on: side) - 1
+            // A picture taken just now holds the « and the extras mid-slide at
+            // its right end (the capture indicator moves them while it is
+            // taken): from where the cover ends it is bar background only, so
+            // a cover that later reaches further right (a return, the
+            // indicator gone) never shows a boot-state item there.
+            if fresh.contains(side.id), let picture = side.picture {
+                side.picture = ConcealGhostOverlay.smeared(picture, from: right)
+                if let dir = UserDefaults.standard.string(forKey: "pelmet.debug.liveMirrorDump"), let scrubbed = side.picture {
+                    Self.dump(scrubbed.image, to: "\(dir)/picture-\(Int(Date().timeIntervalSince1970)).png")
+                }
+            }
             guard buildCover(side, left: coverLeft(for: side, right: right), right: right, why: "enter") else {
                 await abort("cover won't crop on display \(side.id)"); return
             }
@@ -1349,10 +1362,18 @@ final class LiveMirror {
             PelmetLog.log("livemirror: cover on display \(side.id) can't be built for \(Int(left))..\(Int(right)) (\(why)); picture \(Int(picture.windowFrame.minX))..\(Int(picture.windowFrame.maxX))")
             return false
         }
+        if let dir = UserDefaults.standard.string(forKey: "pelmet.debug.liveMirrorDump") {
+            Self.dump(cropped.image, to: "\(dir)/cover-\(Int(Date().timeIntervalSince1970))-\(Int(left))-\(Int(right)).png")
+        }
         let old = side.cover
         side.cover = cover
+        overlay.isLiveCover = true
         side.coverMinX = overlay.windowFrame.minX
         side.coverMaxX = overlay.windowFrame.maxX
+        // A fading copy of an item Dimble hid (Shortcuts, Siri...) is above the
+        // cover until its fade is over: it goes with the icons beneath the cover.
+        let ghosts = StatusItemFader.cutGhosts(under: overlay.windowFrame)
+        if ghosts > 0 { PelmetLog.log("livemirror: \(ghosts) fading item ghost(s) under the cover go with the icons beneath it (\(why))") }
         overlay.setClickHook { [weak self, weak side] point in
             guard let self, let side else { return }
             self.clicked(side, at: point)
