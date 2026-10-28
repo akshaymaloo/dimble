@@ -233,18 +233,50 @@ nonisolated enum PillProbe {
     /// Whether the expanded card is on screen: a MenuBarAgent window below
     /// the bar (the bar's own sits at y 0) holding a live-activity group.
     /// The card's window stays listed for the whole collapse (~0.8 s).
-    static func cardIsOpen() -> Bool {
-        guard let app = agentApp() else { return false }
+    static func cardIsOpen() -> Bool { cardProbe().open }
+
+    /// The same read with what it saw, for the log: the agent's windows with
+    /// their frames, a star on the one holding the live-activity group.
+    static func cardProbe() -> (open: Bool, detail: String) {
+        guard let app = agentApp() else { return (false, "no agent") }
+        AXUIElementSetMessagingTimeout(app, 0.6)
         func hasActivity(_ element: AXUIElement, _ depth: Int) -> Bool {
             if (attribute(element, kAXSubroleAttribute) as? String) == "AXLiveActivity" { return true }
             guard depth < 4 else { return false }
             return ((attribute(element, kAXChildrenAttribute) as? [AXUIElement]) ?? []).contains { hasActivity($0, depth + 1) }
         }
-        for window in (attribute(app, kAXWindowsAttribute) as? [AXUIElement]) ?? [] {
-            guard let frame = frame(of: window), frame.minY >= 20 else { continue }
-            if hasActivity(window, 0) { return true }
+        var raw: AnyObject?
+        let error = AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &raw)
+        let windows = (raw as? [AXUIElement]) ?? []
+        var open = false
+        var parts: [String] = []
+        for window in windows {
+            guard let frame = frame(of: window) else { parts.append("?"); continue }
+            let holds = frame.minY >= 20 && hasActivity(window, 0)
+            if holds { open = true }
+            parts.append("\(Int(frame.minX)),\(Int(frame.minY)) \(Int(frame.width))x\(Int(frame.height))\(holds ? "*" : "")")
         }
-        return false
+        return (open, "ax \(error == .success ? "ok" : "err \(error.rawValue)"), \(windows.count) window(s) [\(parts.joined(separator: "; "))]")
+    }
+
+    /// Presses the pill that sits in `bounds`, looked up fresh (the element
+    /// in hand may be a copy the agent has since replaced); the one in hand
+    /// is the fallback. Returns what happened, for the log, and the fresh copy.
+    static func press(in bounds: CGRect, kept: AXUIElement?) -> (result: String, fresh: PillCopy?) {
+        let fresh = copies().first { bounds.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY)) }
+        var notes: [String] = []
+        if let fresh {
+            let error = AXUIElementPerformAction(fresh.element, kAXPressAction as CFString)
+            if error == .success { return ("success (fresh pill)", fresh) }
+            notes.append("fresh pill error \(error.rawValue)")
+        } else {
+            notes.append("no pill found")
+        }
+        if let kept {
+            let error = AXUIElementPerformAction(kept, kAXPressAction as CFString)
+            notes.append(error == .success ? "kept pill success" : "kept pill error \(error.rawValue)")
+        }
+        return (notes.joined(separator: ", "), fresh)
     }
 
     static func readTree(_ pill: AXUIElement) -> PillTree? {
@@ -526,13 +558,17 @@ final class LiveMirror {
     /// second press collapses it, ~0.8s), or by the click outside it. Cancel
     /// actions are unsupported on the card, the pill and its window (error
     /// -25206) and an Escape posted to MenuBarAgent's pid does nothing.
-    private func pressPill(_ why: String) {
-        guard let pill = sides.compactMap(\.pill).first else { return }
+    @discardableResult
+    private func pressPill(_ why: String, side: Side? = nil) async -> String {
+        guard let side = side ?? sides.first(where: { $0.pill != nil }) ?? sides.first else { return "no display" }
+        let bounds = side.bounds
+        let kept = ElementBox(list: side.pill.map { [$0.element] } ?? [])
         let started = Date()
-        Task.detached(priority: .userInitiated) {
-            let result = AXUIElementPerformAction(pill.element, kAXPressAction as CFString)
-            PelmetLog.log("livemirror: card — AX press on the pill (\(why)) → \(result == .success ? "success" : "error \(result.rawValue)") in \(Int(-started.timeIntervalSinceNow * 1000))ms")
-        }
+        let (result, fresh) = await Task.detached(priority: .userInitiated) { PillProbe.press(in: bounds, kept: kept.list.first) }.value
+        if let fresh { side.pill = fresh }
+        let text = "\(result) in \(Int(-started.timeIntervalSinceNow * 1000))ms"
+        PelmetLog.log("livemirror: card — AX press on the pill (\(why)) → \(text)")
+        return text
     }
 
     private func cardIsOpen() async -> Bool {
@@ -549,7 +585,7 @@ final class LiveMirror {
             PelmetLog.log("livemirror: card open (\(why)) — the click closes it")
         } else {
             PelmetLog.log("livemirror: card open (\(why)) — closing it")
-            pressPill(why)
+            await pressPill(why)
         }
         for _ in 0..<14 {
             try? await Task.sleep(for: .milliseconds(100))
@@ -559,7 +595,7 @@ final class LiveMirror {
             }
         }
         PelmetLog.log("livemirror: card still open 1.4s after (\(why))\(mouseDismisses ? " — pressing the pill" : "")")
-        if mouseDismisses { pressPill(why) }
+        if mouseDismisses { await pressPill(why) }
     }
 
     private func startLoop() {
@@ -1078,7 +1114,7 @@ final class LiveMirror {
             PelmetLog.log("livemirror: click at \(Int(point.x)),\(Int(point.y)) on display \(side.id) — no mirror yet, swallowed")
             return
         }
-        guard rect.insetBy(dx: -2, dy: -4).contains(point), let pill = side.pill else {
+        guard rect.insetBy(dx: -2, dy: -4).contains(point) else {
             PelmetLog.log("livemirror: click at \(Int(point.x)),\(Int(point.y)) on display \(side.id) — outside the mirror (\(Int(rect.minX))..\(Int(rect.maxX))), swallowed")
             return
         }
@@ -1089,36 +1125,44 @@ final class LiveMirror {
         }
         Task { @MainActor in
             let at = Date()
-            if await self.cardIsOpen() {
+            // The card's state is read from AX on every click, never kept.
+            let probe = await Task.detached(priority: .userInitiated) { PillProbe.cardProbe() }.value
+            if probe.open {
                 // The click is already an outside interaction for the card
                 // and collapses it; a press on top interrupts that.
-                PelmetLog.log("livemirror: click on the mirror (display \(id)) — the card is open, the click closes it (no press)")
-                await self.confirmCardClosed(from: at)
+                PelmetLog.log("livemirror: click — card open=true action=close result=the click closes it, no press (display \(id); \(probe.detail))")
+                await self.confirmCardClosed(from: at, side: side)
                 return
             }
-            PelmetLog.log("livemirror: click on the mirror (display \(id)) — pressing the real pill")
-            self.pressPill("mirror click")
+            let result = await self.pressPill("mirror click", side: side)
+            PelmetLog.log("livemirror: click — card open=false action=press result=\(result) (display \(id); \(probe.detail))")
+            var last = probe
             for _ in 0..<12 {
                 try? await Task.sleep(for: .milliseconds(100))
-                if await self.cardIsOpen() {
+                last = await Task.detached(priority: .userInitiated) { PillProbe.cardProbe() }.value
+                if last.open {
                     PelmetLog.log("livemirror: card opened \(Int(-at.timeIntervalSinceNow * 1000))ms after the click")
                     return
                 }
             }
-            PelmetLog.log("livemirror: card did not open within 1.2s of the press")
+            PelmetLog.log("livemirror: card did not open within 1.2s of the press — \(last.detail)")
         }
     }
 
-    private func confirmCardClosed(from start: Date) async {
+    private func confirmCardClosed(from start: Date, side: Side) async {
+        var last = ""
         for _ in 0..<14 {
             try? await Task.sleep(for: .milliseconds(100))
-            if !(await cardIsOpen()) {
-                PelmetLog.log("livemirror: card closed \(Int(-start.timeIntervalSinceNow * 1000))ms after the click")
+            let probe = await Task.detached(priority: .userInitiated) { PillProbe.cardProbe() }.value
+            last = probe.detail
+            if !probe.open {
+                PelmetLog.log("livemirror: card closed \(Int(-start.timeIntervalSinceNow * 1000))ms after the click (\(probe.detail))")
                 return
             }
         }
-        PelmetLog.log("livemirror: card still open 1.4s after the click — pressing the pill")
-        pressPill("click fallback")
+        PelmetLog.log("livemirror: card still open 1.4s after the click — pressing the pill (\(last))")
+        let result = await pressPill("click fallback", side: side)
+        PelmetLog.log("livemirror: click — card open=true action=press (fallback) result=\(result)")
     }
 
     // MARK: Cover order
@@ -1244,7 +1288,7 @@ final class LiveMirror {
         // The card goes with the pill.
         if await cardIsOpen() {
             PelmetLog.log("livemirror: card open (exit) — closing it")
-            pressPill("exit")
+            await pressPill("exit")
         }
         if coverLifted {
             coverLifted = false
