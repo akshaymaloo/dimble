@@ -1189,6 +1189,17 @@ final class LiveMirror {
         return left
     }
 
+    /// The x range a cover's picture is cropped to (primary space, inside the
+    /// picture's padding), nil when `left..right` is too narrow to hold one.
+    /// A backwards `ClosedRange` traps, and a cover's edges can meet: the
+    /// floor (the frontmost app's menus, the notch) against a « that moved
+    /// left.
+    private func coverSpan(left: CGFloat, right: CGFloat, shift: CGFloat) -> ClosedRange<CGFloat>? {
+        let pad = ConcealGhostOverlay.capturePadding
+        guard right - left >= 2 * pad else { return nil }
+        return (left - shift + pad)...(right - shift - pad)
+    }
+
     /// The frontmost app's menus on `side`, read now.
     private func measureMenus(_ side: Side) async {
         guard let pid = NSWorkspace.shared.menuBarOwningApplication?.processIdentifier else { side.menusRight = 0; return }
@@ -1217,10 +1228,10 @@ final class LiveMirror {
     // MARK: Enter
 
     /// `holdOff`: the reason will be there next time too (no display to film,
-    /// no picture), so the loop does not try again at once: 5 s, doubling
-    /// each time in a row, to two minutes. A new activity or a start that
-    /// goes through ends the hold-off. Without it (something took the bar
-    /// meanwhile) the next quiet bar tries again.
+    /// no picture, no room for a cover), so the loop does not try again at
+    /// once: 5 s, doubling each time in a row, to two minutes. A new activity
+    /// or a start that goes through ends the hold-off. Without it (something
+    /// took the bar meanwhile) the next quiet bar tries again.
     private func abort(_ why: String, dropAssertion: Bool = false, holdOff: Bool = false) async {
         PelmetLog.log("livemirror: enter aborted — \(why)")
         if holdOff {
@@ -1318,16 +1329,18 @@ final class LiveMirror {
         // one it was taken on: no capture, no indicator, no wait.
         var captured = false
         var fresh: Set<CGDirectDisplayID> = []
-        let pad = ConcealGhostOverlay.capturePadding
         for side in sides {
             // A retake comes back to a bar whose Hidden icons may have moved.
             if side.showsAll, retake { await measureRunEdge(side) }
             let right = coverEnd(chevron, on: side) - 1
             let left = coverLeft(for: side, right: right)
             let shift = side.screen.frame.maxX - primaryMaxX
+            guard let span = coverSpan(left: left, right: right, shift: shift) else {
+                await abort("no room for a cover on display \(side.id) (\(Int(left))..\(Int(right)))", holdOff: true); return
+            }
             if !retake, let keep = keptPictures[side.id], keep.generation == backdropGeneration,
                Date().timeIntervalSince(keep.at) < Self.pictureMaxAge,
-               !ConcealGhostOverlay.cropped([keep.picture], toPrimaryX: (left - shift + pad)...(right - shift - pad)).isEmpty {
+               !ConcealGhostOverlay.cropped([keep.picture], toPrimaryX: span).isEmpty {
                 side.picture = keep.picture
                 side.pictureAt = keep.at
                 side.pictureGeneration = keep.generation
@@ -1526,8 +1539,10 @@ final class LiveMirror {
             return true
         }
         let shift = side.screen.frame.maxX - primaryMaxX
-        let pad = ConcealGhostOverlay.capturePadding
-        let span = (left - shift + pad)...(right - shift - pad)
+        guard let span = coverSpan(left: left, right: right, shift: shift) else {
+            PelmetLog.log("livemirror: cover on display \(side.id) can't be built for \(Int(left))..\(Int(right)) (\(why)) — too narrow")
+            return false
+        }
         guard let cropped = ConcealGhostOverlay.cropped([picture], toPrimaryX: span).first,
               let cover = ConcealGhostOverlay.begin(from: [cropped], safety: Self.coverSafety, holdsBar: true),
               let overlay = cover.members.first
