@@ -834,7 +834,7 @@ final class LiveMirror {
 
     private func cannotEnter() async -> String? {
         guard let appState else { return "no app state" }
-        if Date() < retryNotBefore { return "no pill was found last time — trying again in \(Int(retryNotBefore.timeIntervalSinceNow.rounded(.up)))s" }
+        if Date() < retryNotBefore { return "no pill was found last time — holding off (a new activity ends the hold-off)" }
         if !ScreenRecordingAccess.isGranted { return "no Screen Recording" }
         if appState.isRevealed || !appState.currentRevealedSections.isEmpty { return "the bar is out" }
         if appState.isTransitioning { return "a transition runs" }
@@ -958,7 +958,10 @@ final class LiveMirror {
             return Side(id: id, screen: screen, scDisplay: display)
         }
         guard !sides.isEmpty else { await abort("no display to film"); return }
-        for side in sides { await measureMenus(side) }
+        for side in sides {
+            await measureMenus(side)
+            PelmetLog.log("livemirror: display \(side.id) menus end at \(side.menusRight > 0 ? "\(Int(side.menusRight))" : "- (none shown)"), cover may start at \(Int(coverLeft(for: side, right: chevronMinX(chevron, on: side) - 1)))")
+        }
         if let issue = prepIssue() { await abort("\(issue) (before the picture)"); return }
 
         // 1. The picture of the concealed bar, each display from its left
@@ -1075,11 +1078,25 @@ final class LiveMirror {
         let me = ProcessInfo.processInfo.processIdentifier
         let wanted = Set(sides.compactMap { $0.cover?.members.first?.windowNumber })
         let foreign = Set(ConcealGhostOverlay.foreignBandWindows(intersecting: visual, bandHeight: side.picture?.windowFrame.height ?? 39).map(\.id))
+        let hostID = LiveActivityStatus.debugHost
+        let barLevel = Int(CGWindowLevelForKey(.mainMenuWindow))
         var out: [SCWindow] = []
         for attempt in 0..<12 {
             let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
             let ordinary = Set(ConcealGhostOverlay.ordinaryAppWindows(content?.windows ?? []).map(\.windowID))
-            out = content?.windows.filter { $0.owningApplication?.processID == me || foreign.contains($0.windowID) || ordinary.contains($0.windowID) } ?? []
+            out = content?.windows.filter { w in
+                if w.owningApplication?.processID == me || foreign.contains(w.windowID) || ordinary.contains(w.windowID) { return true }
+                // Harness runs only: the test pills sit over hidden icons the
+                // real layout would have moved aside, and the icons are drawn
+                // by the window server's "Menubar" window, above the pills'
+                // windows. That window is left out of their still (the
+                // capsules carry their own fill).
+                guard let host = hostID, w.frame.intersects(visual) else { return false }
+                if w.title == "Menubar" { return true }
+                guard w.windowLayer >= barLevel, let app = w.owningApplication,
+                      !app.bundleIdentifier.isEmpty, app.bundleIdentifier != host else { return false }
+                return true
+            } ?? []
             if wanted.isSubset(of: Set(out.map { Int($0.windowID) })) {
                 if attempt > 0 { PelmetLog.log("livemirror: cover windows listed after \(attempt) retry(ies)") }
                 break
@@ -1248,7 +1265,14 @@ final class LiveMirror {
     private func snapshot(_ side: Side, _ entries: [(mirror: PillMirror, tree: PillTree)], reason: String) async -> Bool {
         let shown = entries.filter { !$0.mirror.dropped }
         guard let first = shown.first else { return false }
-        let union = shown.dropFirst().reduce(first.tree.visual) { $0.union($1.tree.visual) }
+        // The capture rect sits on whole points: a fractional edge (a pill at
+        // y 7.5) makes ScreenCaptureKit widen the source to its pixel grid and
+        // scale the content to fit, which compresses it ~3% sideways with a
+        // black strip on the right, and the texts blanked by their AX frames
+        // would be off by up to 5 pt (measured, 2026-10-28).
+        let raw = shown.dropFirst().reduce(first.tree.visual) { $0.union($1.tree.visual) }
+        let union = CGRect(x: floor(raw.minX), y: floor(raw.minY),
+                           width: ceil(raw.maxX) - floor(raw.minX), height: ceil(raw.maxY) - floor(raw.minY))
         let started = Date()
         let excluded = await windowsToExclude(over: union, on: side)
         let filter = SCContentFilter(display: side.scDisplay, excludingWindows: excluded)
