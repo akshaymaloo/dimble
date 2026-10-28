@@ -374,6 +374,7 @@ final class LiveMirror {
         var mirrors: [PillMirror] = []
         var needsDiscovery = false
         var droppedNote = ""
+        var placedNote = ""
         var snapping = false
         var snapshots = 0
         /// The text last reported as skipped: one line per change, not per read.
@@ -1162,6 +1163,11 @@ final class LiveMirror {
             x -= gap
         }
         CATransaction.commit()
+        let placedNote = placed.filter { !$0.dropped }.compactMap { m in m.global.map { "\(m.key) \(Int($0.minX))..\(Int($0.maxX))" } }.joined(separator: ", ")
+        if placedNote != side.placedNote {
+            side.placedNote = placedNote
+            PelmetLog.log("livemirror: display \(side.id) mirrors [\(placedNote)] in the cover \(Int(side.coverMinX))..\(Int(side.coverMaxX)), gap \(Int(gap))pt")
+        }
     }
 
     // MARK: Watching the pills
