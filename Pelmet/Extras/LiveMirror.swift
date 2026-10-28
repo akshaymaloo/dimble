@@ -68,7 +68,21 @@ nonisolated struct PillTree: @unchecked Sendable {
     func isBackdrop(_ node: PillNode) -> Bool {
         node.isLeaf && node.role != "AXStaticText" && node.frame.width >= frame.width * 0.9 && node.frame.height >= frame.height * 0.9
     }
-    var texts: [PillNode] { nodes.filter { $0.role == "AXStaticText" && $0.frame.width > 0 }.sorted { $0.frame.minX < $1.frame.minX } }
+    var texts: [PillNode] { textNodes.sorted { $0.frame.minX < $1.frame.minX } }
+    /// The texts in tree order (what the quick read walks).
+    var textNodes: [PillNode] { nodes.filter { $0.role == "AXStaticText" && $0.frame.width > 0 } }
+    /// The same tree with the texts' values replaced, in tree order: what a
+    /// quick read (the pill's frame and each value, a handful of reads
+    /// against the whole tree's hundred) found.
+    func patched(with values: [String]) -> PillTree {
+        var i = 0
+        let out = nodes.map { node -> PillNode in
+            guard node.role == "AXStaticText", node.frame.width > 0, i < values.count else { return node }
+            defer { i += 1 }
+            return PillNode(element: node.element, role: node.role, key: node.key, value: values[i], frame: node.frame, isLeaf: node.isLeaf)
+        }
+        return PillTree(pill: pill, frame: frame, nodes: out)
+    }
     /// Logos and glyphs: every other leaf with a frame.
     var images: [PillNode] {
         nodes.filter { $0.isLeaf && $0.role != "AXStaticText" && $0.frame.width > 0 && !isBackdrop($0) }.sorted { $0.frame.minX < $1.frame.minX }
@@ -101,6 +115,61 @@ nonisolated struct PillTree: @unchecked Sendable {
     }
     var look: Look {
         Look(width: frame.width, items: images.map { ($0.key, CGRect(x: $0.frame.minX - frame.minX, y: $0.frame.minY - frame.minY, width: $0.frame.width, height: $0.frame.height)) })
+    }
+}
+
+/// One drawn text: its value and its frame (CG global).
+nonisolated struct TextBit: @unchecked Sendable {
+    var value: String
+    var frame: CGRect
+}
+
+/// "m:ss" and "h:mm:ss" texts, the clocks of a timer pill.
+nonisolated enum ClockText {
+    /// The seconds a clock text shows; nil for anything that is not one.
+    static func seconds(_ text: String) -> Int? {
+        let parts = text.split(separator: ":", omittingEmptySubsequences: false)
+        guard (2...3).contains(parts.count),
+              parts.allSatisfy({ !$0.isEmpty && $0.count <= 2 && $0.allSatisfy { $0.isASCII && $0.isNumber } })
+        else { return nil }
+        let n = parts.compactMap { Int($0) }
+        guard n.count == parts.count else { return nil }
+        return n.count == 2 ? n[0] * 60 + n[1] : n[0] * 3600 + n[1] * 60 + n[2]
+    }
+
+    /// `total` seconds in the form `like` uses (hours only when it has them).
+    static func text(_ total: Int, like: String) -> String {
+        let s = max(0, total)
+        if like.split(separator: ":").count == 3 || s >= 3600 { return String(format: "%d:%02d:%02d", s / 3600, (s / 60) % 60, s % 60) }
+        return String(format: "%d:%02d", s / 60, s % 60)
+    }
+}
+
+/// How one pill's clock text moves: which text it is, which way, and when
+/// it last changed, so the mirror reads it just after each change instead
+/// of on a poll, and carries it on by itself while the pill is not there.
+nonisolated struct ClockState {
+    /// Which of the pill's texts (in left-to-right order) is the clock.
+    var index: Int?
+    /// +1 counting up, -1 counting down, 0 not seen moving by a second.
+    var dir = 0
+    /// The clock's text and seconds at `tick`.
+    var text = ""
+    var seconds = 0
+    /// When that value appeared on the real pill (an estimate), and whether
+    /// the estimate is good to ~30 ms (a locked clock is read on it).
+    var tick: Date?
+    var locked = false
+    /// The change a locked read is waiting for, and when the next read is due.
+    var due: Date?
+    var next: Date?
+
+    /// The clock text `now`, counted on from `tick`; nil when its direction
+    /// is not known.
+    func extrapolated(at now: Date) -> String? {
+        guard dir != 0, let tick else { return nil }
+        let n = max(0, Int(floor(now.timeIntervalSince(tick) + 0.001)))
+        return ClockText.text(seconds + dir * n, like: text)
     }
 }
 
@@ -165,17 +234,23 @@ nonisolated enum PillProbe {
         return parts.joined(separator: " ")
     }
 
-    /// The tree in hand still stands: the pill's frame and each text's value
-    /// are as they were (three or four reads, against the whole tree's
-    /// hundred). A moved or retitled pill takes the full read.
-    static func unchanged(_ tree: PillTree, of element: AXUIElement) -> Bool {
+    enum Quick { case same, values([String]), reread }
+
+    /// The cheap read of a pill whose tree is in hand: its frame and each
+    /// text's value (three or four reads, against the whole tree's hundred).
+    /// The values may have moved (a clock ticking); a moved or restructured
+    /// pill takes the full read.
+    static func quick(_ tree: PillTree, of element: AXUIElement) -> Quick {
         guard CFEqual(tree.pill, element), let frame = frame(of: element),
               abs(frame.minX - tree.frame.minX) < 0.05, abs(frame.minY - tree.frame.minY) < 0.05, abs(frame.width - tree.frame.width) < 0.05
-        else { return false }
-        for node in tree.texts {
-            guard (attribute(node.element, kAXValueAttribute) as? String) == node.value else { return false }
+        else { return .reread }
+        let nodes = tree.textNodes
+        var values: [String] = []
+        for node in nodes {
+            guard let value = attribute(node.element, kAXValueAttribute) as? String else { return .reread }
+            values.append(value)
         }
-        return true
+        return values == nodes.map(\.value) ? .same : .values(values)
     }
 
     /// Frame and text of a copy already found; nil when it is gone.
@@ -341,8 +416,9 @@ nonisolated enum PillProbe {
         var found: [PillCopy] = []
         for app in agentApps() {
             AXUIElementSetMessagingTimeout(app, 0.6)
-            // The pills are the bar windows' own children (app > window > item).
-            collect(app, depth: 3, into: &found)
+            // The pills are the bar windows' own children (app > window > item):
+            // the items' own children are never read.
+            collect(app, depth: 2, into: &found)
         }
         return found
     }
@@ -419,10 +495,26 @@ final class LiveMirror {
         /// CG global: the pill's visual; Cocoa global: where its mirror stands.
         var visual: CGRect?
         var global: NSRect?
+        /// Drawn from memory (the kept still, the last texts) while its real
+        /// pill is not on the bar yet: nothing is read for it, nothing is
+        /// pressed, and it is adopted by the pill's discovery.
+        var provisional = false
+        /// Whether the container is meant to be on screen (the end state of
+        /// its motion).
+        var shown = false
+        /// The texts as last drawn, with their frames: what a memory keeps.
+        var bits: [TextBit] = []
+        /// The raw text values as last drawn, and when the pill was last read.
+        var values: [String] = []
+        var lastRead: Date?
+        var clock = ClockState()
+        /// A read of this mirror's pill is under way (the clock loop's).
+        var reading = false
 
         init(key: String, copy: PillCopy) {
             self.key = key; self.copy = copy
             container.addSublayer(base)
+            container.isHidden = true
         }
     }
 
@@ -430,7 +522,7 @@ final class LiveMirror {
     private final class Side {
         let id: CGDirectDisplayID
         let screen: NSScreen
-        let scDisplay: SCDisplay
+        var scDisplay: SCDisplay
         var picture: ConcealGhostOverlay.BarSnapshot?
         var cover: ConcealGhostOverlay.GhostSet?
         var coverMinX: CGFloat = 0
@@ -446,6 +538,12 @@ final class LiveMirror {
         var placedNote = ""
         var snapping = false
         var snapshots = 0
+        /// While seeded mirrors wait for their pills: where the « will stand
+        /// once the extras are back (the mirrors are laid out to it).
+        var predictedRight: CGFloat?
+        /// When the picture was taken, and under which backdrop.
+        var pictureAt = Date()
+        var pictureGeneration = 0
         /// The last still of any kind: the slow graphic refresh counts from it.
         var lastSnapshotAt = Date()
         /// The snapshot time the last "skipped" line was written for: one line
@@ -505,12 +603,43 @@ final class LiveMirror {
     private var handOverWatchdog: Task<Void, Never>?
     private var lastHoverNote = Date.distantPast
 
+    /// Counts what makes a picture of the bare bar untrue (a Space, the
+    /// appearance, the displays), also while live mode is off.
+    private var backdropGeneration = 0
+    /// The mirrors are on their way out (an exit, a hand-over): a layout
+    /// leaves their visibility alone.
+    private var mirrorsLeaving = false
+    private var clockLoop: Task<Void, Never>?
+    /// A retake is under way (the pictures again, the mirrors staying).
+    private var retaking = false
+
+    /// What a hand-over to a reveal takes along, so the return can draw the
+    /// mirrors at once: each pill's size, texts and clock, where the « stood,
+    /// and the pictures of the bare bar.
+    private struct Remembered {
+        var key: String
+        var name: String
+        var visual: CGRect
+        var bits: [(value: String, rel: CGRect)]
+        var clock: ClockState
+    }
+    private struct Memory { var chevronMinX: CGFloat; var pills: [Remembered] }
+    private var remembered: [CGDirectDisplayID: Memory] = [:]
+    private struct KeptPicture { var picture: ConcealGhostOverlay.BarSnapshot; var generation: Int; var at: Date }
+    private var keptPictures: [CGDirectDisplayID: KeptPicture] = [:]
+    /// A kept picture of the bare bar serves a return this long (the
+    /// backdrop's changes it can know of are counted by `backdropGeneration`).
+    static let pictureMaxAge: TimeInterval = 180
+    /// Debug: one log line per clock tick drawn, with the time it was drawn at.
+    static let clockTraceKey = "pelmet.debug.liveMirrorClockTrace"
+
     /// The last still of each display, kept across a reveal (not across the
     /// end of live mode): reused when the pill's look is unchanged, so the
     /// return to live mode takes no second capture.
     private struct KeptStill { var look: PillTree.Look; var image: CGImage; var at: Date; var texts: [String] }
     private var kept: [String: KeptStill] = [:]
-    private func keptKey(_ side: Side, _ mirror: PillMirror) -> String { "\(side.id)|\(mirror.key)" }
+    private func keptKey(_ side: Side, _ mirror: PillMirror) -> String { keptKey(side, key: mirror.key) }
+    private func keptKey(_ side: Side, key: String) -> String { "\(side.id)|\(key)" }
     /// Drawn graphics (a ring, a bar) usually move with the pill's text. A
     /// text change takes a new still, at most once per interval per display
     /// (a ticking countdown must not keep the capture dot lit); changes inside
@@ -544,6 +673,11 @@ final class LiveMirror {
             lookEagerlyUntil = Date().addingTimeInterval(3)
         }
         if loop == nil { startLoop() }
+        // The last activity ended: the mirror leaves now, not at the loop's
+        // next tick (`exit` ignores a second call).
+        if !running, isActive, !entering, !exiting, !handingOver {
+            Task { @MainActor [weak self] in await self?.exit("activity ended") }
+        }
     }
 
     /// A reveal asked for while live mode has the bar. Every reveal that
@@ -631,12 +765,14 @@ final class LiveMirror {
             setCoversShown(true, why: "hand-over")
         }
         PelmetLog.log("livemirror: \(named) — the bar goes to the normal reveal, pill and mirror away, cover up")
+        rememberAll()
+        // The mirrors leave the way the bar's own items do (the reveal
+        // animation's exit), under the cover that stays up.
+        mirrorsLeaving = true
         for side in sides {
             side.trailing?.cancel()
             side.trailing = nil
-            CATransaction.begin(); CATransaction.setDisableActions(true)
-            for mirror in side.mirrors { mirror.container.isHidden = true }
-            CATransaction.commit()
+            for mirror in side.mirrors { present(mirror, false) }
         }
         let mouse: Bool = { switch reason { case .click?, .doubleClick?, .statusItem?: true; default: false } }()
         Task { @MainActor in await self.closeCard(why: named, mouseDismisses: mouse) }
@@ -655,9 +791,26 @@ final class LiveMirror {
             guard let self, !Task.isCancelled, self.handingOver, !self.released else { return }
             PelmetLog.log("livemirror: no reveal came for the hand-over in \(Int(waited))s — live mode carries on")
             self.handingOver = false
-            for side in self.sides {
-                for mirror in side.mirrors { mirror.container.isHidden = mirror.dropped || self.missionControlUp }
+            self.mirrorsLeaving = false
+            for side in self.sides { self.layoutMirrors(side) }
+        }
+    }
+
+    /// What the mirrors and the pictures were when the bar went to a reveal.
+    private func rememberAll() {
+        remembered = [:]
+        keptPictures = [:]
+        for side in sides {
+            if let picture = side.picture, side.pictureGeneration == backdropGeneration {
+                keptPictures[side.id] = KeptPicture(picture: picture, generation: side.pictureGeneration, at: side.pictureAt)
             }
+            guard let chevron = lastChevron else { continue }
+            let pills = side.mirrors.filter { !$0.dropped && $0.visual != nil && $0.base.contents != nil }.map { m -> Remembered in
+                let v = m.visual!
+                return Remembered(key: m.key, name: m.copy.name, visual: v,
+                                  bits: m.bits.map { ($0.value, $0.frame.offsetBy(dx: -v.minX, dy: -v.minY)) }, clock: m.clock)
+            }
+            remembered[side.id] = Memory(chevronMinX: chevronMinX(chevron, on: side), pills: pills)
         }
     }
 
@@ -702,6 +855,8 @@ final class LiveMirror {
 
     /// What a run leaves behind when it ends, however it ends.
     private func resetRunState() {
+        mirrorsLeaving = false
+        retaking = false
         missionControlUp = false
         assertionDropped = false
         standDown = false
@@ -766,7 +921,10 @@ final class LiveMirror {
                 forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
             ) { [weak self] _ in
                 Task { @MainActor in
-                    guard let self, self.isActive, !self.exiting, !self.entering else { return }
+                    guard let self else { return }
+                    self.backdropGeneration += 1
+                    self.keptPictures = [:]
+                    guard self.isActive, !self.exiting, !self.entering else { return }
                     PelmetLog.log("livemirror: displays changed — leaving live mode, it re-enters")
                     await self.exit("displays changed")
                 }
@@ -775,12 +933,12 @@ final class LiveMirror {
         if spaceObserver == nil {
             spaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
                 forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main
-            ) { [weak self] _ in Task { @MainActor in await self?.backdropMayHaveChanged("the Space changed") } }
+            ) { [weak self] _ in Task { @MainActor in self?.backdropGeneration += 1; await self?.backdropMayHaveChanged("the Space changed") } }
         }
         if themeObserver == nil {
             themeObserver = DistributedNotificationCenter.default().addObserver(
                 forName: Notification.Name("AppleInterfaceThemeChangedNotification"), object: nil, queue: .main
-            ) { [weak self] _ in Task { @MainActor in await self?.backdropMayHaveChanged("the appearance changed") } }
+            ) { [weak self] _ in Task { @MainActor in self?.backdropGeneration += 1; await self?.backdropMayHaveChanged("the appearance changed") } }
         }
         if activateObserver == nil {
             // The menus on the left are the frontmost app's: a longer set
@@ -814,9 +972,18 @@ final class LiveMirror {
                 } else if self.isActive {
                     await self.tick()
                 }
-                try? await Task.sleep(for: Self.pollInterval)
+                try? await Task.sleep(for: self.nextPoll())
             }
         }
+    }
+
+    /// The loop's rest: quick while a pill waits for its first still or a
+    /// changed look settles (the still follows within a tick of being
+    /// ready), otherwise the usual quarter second.
+    private func nextPoll() -> Duration {
+        guard isActive, !entering, !exiting, !handingOver else { return Self.pollInterval }
+        let waiting = sides.contains { $0.mirrors.contains { !$0.dropped && !$0.provisional && ($0.placeCandidate != nil || $0.lookCandidate != nil) } }
+        return waiting ? .milliseconds(60) : Self.pollInterval
     }
 
     /// Everything `startLoop` started, ended: idle live mode costs nothing.
@@ -829,6 +996,8 @@ final class LiveMirror {
         if let o = spaceObserver { NSWorkspace.shared.notificationCenter.removeObserver(o); spaceObserver = nil }
         if let o = activateObserver { NSWorkspace.shared.notificationCenter.removeObserver(o); activateObserver = nil }
         if let o = themeObserver { DistributedNotificationCenter.default().removeObserver(o); themeObserver = nil }
+        clockLoop?.cancel(); clockLoop = nil
+        kept = [:]; remembered = [:]; keptPictures = [:]
         resetRunState()
     }
 
@@ -937,16 +1106,18 @@ final class LiveMirror {
         entering = true
         defer { entering = false }
         // After a re-hide the bar may still be at its reflow.
-        await appState.waitUntilQuiesced(interval: 0.3, deadline: 2, poll: .milliseconds(30))
+        let quietFrom = Date()
+        await appState.waitUntilQuiesced(interval: 0.2, deadline: 2, poll: .milliseconds(30))
         let started = Date()
         func ms() -> Int { Int(-started.timeIntervalSinceNow * 1000) }
-        guard var chevron = appState.chevronWindowFrame,
+        guard let chevron = appState.chevronWindowFrame,
               let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
         else { PelmetLog.log("livemirror: enter refused — no chevron or no shareable content"); return }
-        PelmetLog.log("livemirror: enter — chevron \(Int(chevron.minX))..\(Int(chevron.maxX)), \(NSScreen.screens.count) display(s)")
+        PelmetLog.log("livemirror: enter — chevron \(Int(chevron.minX))..\(Int(chevron.maxX)), \(NSScreen.screens.count) display(s), bar quiet after \(Int(started.timeIntervalSince(quietFrom) * 1000))ms")
         isActive = true
         standDown = false
         assertionDropped = false
+        mirrorsLeaving = false
         appState.transitions.liveModeActive = true
         sides = NSScreen.screens.compactMap { screen in
             guard let id = screen.directDisplayID, let display = content.displays.first(where: { $0.displayID == id }) else { return nil }
@@ -963,26 +1134,56 @@ final class LiveMirror {
             PelmetLog.log("livemirror: display \(side.id) menus end at \(side.menusRight > 0 ? "\(Int(side.menusRight))" : "- (none shown)"), cover may start at \(Int(coverLeft(for: side, right: chevronMinX(chevron, on: side) - 1)))")
         }
         if let issue = prepIssue() { await abort("\(issue) (before the picture)"); return }
+        await goLive(chevron: chevron, started: started, retake: false)
+    }
+
+    /// The pictures, the covers, the assertion and the pills: the start of
+    /// live mode, or with `retake` the same again under a new backdrop with
+    /// the mirrors staying on screen (they were made provisional, so the
+    /// pills' own take them over as they come back).
+    private func goLive(chevron first: NSRect, started: Date, retake: Bool) async {
+        guard let appState else { return }
+        var chevron = first
+        func ms() -> Int { Int(-started.timeIntervalSinceNow * 1000) }
 
         // 1. The picture of the concealed bar, each display from its left
         // limit to the «. Taking it lights the system's capture indicator,
-        // which moves the cluster: the « is read again once it has.
+        // which moves the cluster: the « is read again once it has. A
+        // picture kept from before a reveal serves while the backdrop is the
+        // one it was taken on: no capture, no indicator, no wait.
+        var captured = false
+        let pad = ConcealGhostOverlay.capturePadding
         for side in sides {
             let right = chevronMinX(chevron, on: side) - 1
             let left = coverLeft(for: side, right: right)
             let shift = side.screen.frame.maxX - primaryMaxX
+            if !retake, let keep = keptPictures[side.id], keep.generation == backdropGeneration,
+               Date().timeIntervalSince(keep.at) < Self.pictureMaxAge,
+               !ConcealGhostOverlay.cropped([keep.picture], toPrimaryX: (left - shift + pad)...(right - shift - pad)).isEmpty {
+                side.picture = keep.picture
+                side.pictureAt = keep.at
+                side.pictureGeneration = keep.generation
+                PelmetLog.log("livemirror: display \(side.id) picture kept from \(Int(Date().timeIntervalSince(keep.at)))s ago — no capture")
+                continue
+            }
             let rect = CGRect(x: left - shift, y: 0, width: right - left, height: 40)
             side.picture = await ConcealGhostOverlay.snapshotSet(of: rect, displays: [side.id], liveMirror: true).first
             guard let picture = side.picture else { await abort("no picture of display \(side.id)"); return }
+            side.pictureAt = Date()
+            side.pictureGeneration = backdropGeneration
+            captured = true
             PelmetLog.log("livemirror: display \(side.id) picture \(Int(picture.windowFrame.minX))..\(Int(picture.windowFrame.maxX)) (wanted \(Int(left))..\(Int(right)))")
         }
-        PelmetLog.log("livemirror: pictures at \(ms())ms")
-        try? await Task.sleep(for: .milliseconds(350))
-        if let issue = prepIssue() { await abort("\(issue) (after the picture)"); return }
+        keptPictures = [:]
+        PelmetLog.log("livemirror: pictures at \(ms())ms\(captured ? "" : " (kept)")")
+        if captured {
+            try? await Task.sleep(for: .milliseconds(350))
+            if let issue = prepIssue() { await abort("\(issue) (after the picture)"); return }
+        }
         let before = chevron
         chevron = appState.chevronWindowFrame ?? chevron
         lastChevron = chevron
-        PelmetLog.log("livemirror: chevron \(Int(before.minX)) → \(Int(chevron.minX)) after the picture (capture indicator)")
+        PelmetLog.log("livemirror: chevron \(Int(before.minX)) → \(Int(chevron.minX)) after the picture\(captured ? " (capture indicator)" : "")")
         for side in sides {
             let right = chevronMinX(chevron, on: side) - 1
             guard buildCover(side, left: coverLeft(for: side, right: right), right: right, why: "enter") else {
@@ -992,6 +1193,8 @@ final class LiveMirror {
         if let issue = prepIssue() { await abort("\(issue) (covers up)"); return }
         ConcealGhostOverlay.liveModeBlocksCaptures = true
         PelmetLog.log("livemirror: covers up at \(ms())ms — \(sides.map { "d\($0.id) \(Int($0.coverMinX))..\(Int($0.coverMaxX))" }.joined(separator: ", "))")
+        // A return from a reveal draws the mirrors now, from the kept stills.
+        if !retake { for side in sides { seedMirrors(side) } }
 
         // 2. The assertion goes: the hidden icons come back under the cover,
         // the extras right of the « and the pill after them. From here a
@@ -1004,20 +1207,35 @@ final class LiveMirror {
 
         // 3. Wait for the « to stop moving and the pill (with its children) to be there.
         let by = Date().addingTimeInterval(4)
+        let droppedAt = Date()
         var movedAt = Date(), seen = chevron
         var firstPill: Int?
-        while Date() < by {
+        func real(_ side: Side) -> Bool { side.mirrors.contains { !$0.provisional } }
+        func waiting(_ side: Side) -> Bool { side.mirrors.contains { $0.provisional } }
+        while Date() < by, wanted {
             if let now = appState.chevronWindowFrame, abs(now.minX - seen.minX) > 0.5 {
                 seen = now; movedAt = Date()
             }
-            for side in sides where side.mirrors.isEmpty {
+            for side in sides where !real(side) || waiting(side) {
                 await discoverPills(side)
-                if !side.mirrors.isEmpty { firstPill = firstPill ?? ms() }
+                if real(side) { firstPill = firstPill ?? ms() }
             }
-            if sides.allSatisfy({ !$0.mirrors.isEmpty }), Date().timeIntervalSince(movedAt) > 0.3 { break }
+            let still = Date().timeIntervalSince(movedAt) > 0.3
+            // Every pill back, or some back and the others given 1.5 s.
+            if sides.allSatisfy({ real($0) && !waiting($0) }), still { break }
+            if sides.allSatisfy({ real($0) }), still, Date().timeIntervalSince(droppedAt) > 1.5 { break }
             try? await Task.sleep(for: .milliseconds(60))
         }
         PelmetLog.log("livemirror: settled at \(ms())ms — chevron \(Int(chevron.minX)) → \(Int(seen.minX)), pill \(firstPill.map { "\($0)ms" } ?? "never seen")")
+        // A mirror drawn from memory whose pill did not come back has nothing to mirror.
+        for side in sides {
+            for mirror in side.mirrors where mirror.provisional {
+                PelmetLog.log("livemirror: display \(side.id) pill \"\(mirror.key)\" did not come back — its mirror leaves")
+                retire(mirror)
+            }
+            side.mirrors.removeAll { $0.provisional }
+            side.predictedRight = nil
+        }
 
         // 4. The cover shrinks to the « where it is now; the pill is drawn.
         if let now = appState.chevronWindowFrame { lastChevron = now }
@@ -1035,6 +1253,52 @@ final class LiveMirror {
             entering = false
             runPendingReveal("live mode has settled")
         }
+    }
+
+    /// A return from a reveal: the mirrors go up with the covers, drawn from
+    /// the kept stills and the last texts (a clock counted on to now), at the
+    /// place the pills will stand once the extras are back. The real pills
+    /// take them over as they show; a still taken meanwhile replaces the
+    /// kept one in place.
+    private func seedMirrors(_ side: Side) {
+        guard let memory = remembered[side.id] else { return }
+        remembered[side.id] = nil
+        let now = Date()
+        var made: [PillMirror] = []
+        var bitsOf: [String: [TextBit]] = [:]
+        for r in memory.pills {
+            guard let still = kept[keptKey(side, key: r.key)],
+                  now.timeIntervalSince(still.at) < (still.look.items.isEmpty ? 900 : Self.graphicRefresh) else { continue }
+            let mirror = PillMirror(key: r.key, copy: PillCopy(element: AXUIElementCreateSystemWide(), frame: r.visual, text: "", name: r.name))
+            mirror.provisional = true
+            mirror.visual = r.visual
+            mirror.base.contents = still.image
+            mirror.base.contentsGravity = .resize
+            mirror.look = still.look
+            mirror.snapTexts = still.texts
+            mirror.clock = r.clock
+            var bits = r.bits.map { TextBit(value: $0.value, frame: $0.rel.offsetBy(dx: r.visual.minX, dy: r.visual.minY)) }
+            if let i = r.clock.index, i < bits.count, r.clock.locked, let text = r.clock.extrapolated(at: now) { bits[i].value = text }
+            bitsOf[r.key] = bits
+            made.append(mirror)
+        }
+        guard !made.isEmpty else { return }
+        side.mirrors.append(contentsOf: made)
+        side.mirrors.sort { $0.copy.frame.minX < $1.copy.frame.minX }
+        side.predictedRight = memory.chevronMinX - 1
+        layoutMirrors(side)
+        for mirror in made {
+            drawTexts(mirror, bits: bitsOf[mirror.key] ?? [], side: side, why: "memory", readAt: now, bridge: true)
+            carryOn(mirror, now: now)
+        }
+        PelmetLog.log("livemirror: display \(side.id) mirrors from memory [\(made.map(\.key).joined(separator: ", "))] — the kept stills and the last texts, the pills' own come back")
+    }
+
+    /// A provisional mirror's clock is counted on by the clock loop.
+    private func carryOn(_ mirror: PillMirror, now: Date) {
+        guard mirror.clock.locked, let tick = mirror.clock.tick else { return }
+        mirror.clock.next = tick.addingTimeInterval(floor(now.timeIntervalSince(tick) + 0.001) + 1)
+        ensureClockLoop()
     }
 
     // MARK: Cover
@@ -1066,7 +1330,10 @@ final class LiveMirror {
         layoutMirrors(side)
         if why != "enter" { PelmetLog.log("livemirror: cover #\(overlay.id) on display \(side.id) \(Int(side.coverMinX))..\(Int(side.coverMaxX)) (\(why))") }
         if coverLifted { overlay.setShown(false) } else { logOrder(overlay, why: "cover \(why)") }
-        old?.dismiss()
+        // The old cover stays until the new one is on screen: taken off at
+        // once, the real pills showed for three frames (55 ms, measured on a
+        // return, round 6). Overlap, never chain.
+        if let old { DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { old.dismiss() } }
         return true
     }
 
@@ -1106,25 +1373,117 @@ final class LiveMirror {
         return out
     }
 
+    // MARK: Motion
+
+    static let enterCurve = CAMediaTimingFunction(controlPoints: 0.16, 1, 0.3, 1)
+    static let exitCurve = CAMediaTimingFunction(controlPoints: 0.55, 0, 0.8, 0.4)
+    static let fadeCurve = CAMediaTimingFunction(controlPoints: 0.42, 0, 0.58, 1)
+
+    private func animation(_ keyPath: String, from: CGFloat, to: CGFloat, _ duration: CFTimeInterval, _ curve: CAMediaTimingFunction) -> CABasicAnimation {
+        let a = CABasicAnimation(keyPath: keyPath)
+        a.fromValue = from
+        a.toValue = to
+        a.duration = duration
+        a.timingFunction = curve
+        return a
+    }
+
+    /// A mirror comes and goes the way the bar's own items do, by the
+    /// reveal animation the user chose: Smooth slides it out from behind the
+    /// « (96 pt over 0.32 s, easing out) and back in (64 pt over 0.24 s,
+    /// easing in), the cover's window ends at the « so the slide is clipped
+    /// there; Fade is opacity alone; Instant is none. Same style both ways,
+    /// the exit no longer than the entrance, the opposite curve (Design
+    /// Sense: the hide is designed, one motion verb per product).
+    private func present(_ mirror: PillMirror, _ on: Bool, move forced: AnimationRecipe.Move? = nil) {
+        let layer = mirror.container
+        let recipe = AnimationRecipe.recipe(for: appState?.settings.revealAnimation ?? .smooth)
+        func translation(_ l: CALayer?) -> CGFloat { CGFloat((l?.value(forKeyPath: "transform.translation.x") as? NSNumber)?.doubleValue ?? 0) }
+        if on {
+            guard !mirror.shown else { return }
+            mirror.shown = true
+            let leaving = layer.animation(forKey: "pelmetOutFade") != nil
+            let fromOpacity = leaving ? CGFloat(layer.presentation()?.opacity ?? 0) : 0
+            let fromX = leaving ? translation(layer.presentation()) : nil
+            CATransaction.begin(); CATransaction.setDisableActions(true)
+            layer.removeAnimation(forKey: "pelmetOutFade"); layer.removeAnimation(forKey: "pelmetOut")
+            layer.isHidden = false
+            layer.opacity = 1
+            layer.transform = CATransform3DIdentity
+            CATransaction.commit()
+            switch forced ?? recipe.entrance {
+            case .pop: break
+            case .fade(let d):
+                layer.add(animation("opacity", from: fromOpacity, to: 1, d, Self.fadeCurve), forKey: "pelmetInFade")
+            case .slide(let dx, let d):
+                layer.add(animation("transform.translation.x", from: fromX ?? dx, to: 0, d, Self.enterCurve), forKey: "pelmetIn")
+                layer.add(animation("opacity", from: fromOpacity, to: 1, min(d, 0.14), Self.enterCurve), forKey: "pelmetInFade")
+            }
+        } else {
+            guard mirror.shown else { layer.isHidden = true; return }
+            mirror.shown = false
+            let duration: CFTimeInterval, dx: CGFloat, curve: CAMediaTimingFunction
+            switch forced ?? recipe.exit {
+            case .pop:
+                CATransaction.begin(); CATransaction.setDisableActions(true)
+                layer.isHidden = true
+                CATransaction.commit()
+                return
+            case .fade(let d): duration = d; dx = 0; curve = Self.fadeCurve
+            case .slide(let x, let d): duration = d; dx = x; curve = Self.exitCurve
+            }
+            let fromOpacity = CGFloat(layer.presentation()?.opacity ?? 1)
+            let fromX = translation(layer.presentation())
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            CATransaction.setCompletionBlock { [weak mirror] in
+                guard let mirror, !mirror.shown else { return }
+                CATransaction.begin(); CATransaction.setDisableActions(true)
+                mirror.container.removeAnimation(forKey: "pelmetOutFade"); mirror.container.removeAnimation(forKey: "pelmetOut")
+                mirror.container.isHidden = true
+                mirror.container.opacity = 1
+                mirror.container.transform = CATransform3DIdentity
+                CATransaction.commit()
+            }
+            layer.removeAnimation(forKey: "pelmetInFade"); layer.removeAnimation(forKey: "pelmetIn")
+            layer.opacity = 0
+            if dx != 0 { layer.transform = CATransform3DMakeTranslation(dx, 0, 0) }
+            layer.add(animation("opacity", from: fromOpacity, to: 0, duration, curve), forKey: "pelmetOutFade")
+            if dx != 0 { layer.add(animation("transform.translation.x", from: fromX, to: dx, duration, curve), forKey: "pelmetOut") }
+            CATransaction.commit()
+        }
+    }
+
     // MARK: The mirrors
 
     /// Reads every pill's tree and brings the mirrors up to them: one new still
     /// of all the pills when a look or a text changed, the texts redrawn.
     private func refreshSide(_ side: Side, why: String, full: Bool = true) async {
-        guard isActive, !exiting, !side.mirrors.isEmpty else { return }
+        guard isActive, !exiting, !handingOver else { return }
         // The mirrors read are the ones held here: a discovery that runs
         // while the read waits may re-sort or drop mirrors, and a tree must
-        // never be paired with another pill's mirror (by index).
-        let read = side.mirrors
+        // never be paired with another pill's mirror (by index). A mirror
+        // drawn from memory has no pill to read yet.
+        let read = side.mirrors.filter { !$0.provisional }
+        guard !read.isEmpty else { return }
         let box = ElementBox(list: read.map(\.copy.element))
         let before = read.map(\.tree)
         let trees = await Task.detached(priority: .userInitiated) { () -> [PillTree?] in
             zip(box.list, before).map { element, was in
-                if !full, let was, PillProbe.unchanged(was, of: element) { return was }
+                // The quick read (frame and texts) serves unless a full one is
+                // asked for: a clock moving is no reason to read the tree.
+                if !full, let was {
+                    switch PillProbe.quick(was, of: element) {
+                    case .same: return was
+                    case .values(let values): return was.patched(with: values)
+                    case .reread: break
+                    }
+                }
                 return PillProbe.readTree(element)
             }
         }.value
-        guard isActive, !exiting, trees.count == read.count else { return }
+        let readAt = Date()
+        guard isActive, !exiting, !handingOver, trees.count == read.count else { return }
         var live: [(mirror: PillMirror, tree: PillTree)] = []
         for (mirror, tree) in zip(read, trees) {
             // Removed by a discovery meanwhile: nothing to bring up to date.
@@ -1218,7 +1577,12 @@ final class LiveMirror {
             _ = await snapshot(side, live, reason: reasons.joined(separator: "; "))
             side.snapping = false
         }
-        for (mirror, tree) in live { drawTexts(mirror, tree, side: side, why: why) }
+        for (mirror, tree) in live {
+            mirror.tree = tree
+            drawTexts(mirror, bits: tree.texts.map { TextBit(value: $0.value, frame: $0.frame) }, side: side, why: why, readAt: readAt)
+        }
+        // A mirror with its first still is shown (it may have waited for it).
+        layoutMirrors(side)
     }
 
     /// The pills' texts differ from the ones in the still: a reason to take
@@ -1322,9 +1686,18 @@ final class LiveMirror {
             }
             let blanked = Self.blanked(crop, rects: rects)
             if let dumpDir { Self.dump(blanked, to: "\(dumpDir)/still-\(side.snapshots)-\(mirror.key)-blanked.png") }
+            let had = mirror.base.contents
             CATransaction.begin(); CATransaction.setDisableActions(true)
             mirror.base.contents = blanked
             mirror.base.contentsGravity = .resize
+            // A still replacing one that is on screen dissolves into it.
+            if let had, mirror.shown {
+                let fade = CABasicAnimation(keyPath: "contents")
+                fade.fromValue = had
+                fade.toValue = blanked
+                fade.duration = 0.18
+                mirror.base.add(fade, forKey: "pelmetStill")
+            }
             CATransaction.commit()
             let texts = tree.texts.map(\.value)
             mirror.look = tree.look
@@ -1375,10 +1748,11 @@ final class LiveMirror {
 
     /// One pill's texts, drawn by Dimble at their AX frames. A value that
     /// names a team ("Senators 1") shows its last word when the frame is
-    /// the width of that alone.
-    private func drawTexts(_ mirror: PillMirror, _ tree: PillTree, side: Side, why: String) {
+    /// the width of that alone. `readAt` is when the pill was read.
+    private func drawTexts(_ mirror: PillMirror, bits nodes: [TextBit], side: Side, why: String, readAt: Date = Date(), bridge: Bool = false) {
         guard let visual = mirror.visual else { return }
-        let nodes = tree.texts
+        let values = nodes.map(\.value)
+        if !bridge { noteClock(mirror, new: values, at: readAt) }
         CATransaction.begin(); CATransaction.setDisableActions(true)
         while mirror.textLayers.count > nodes.count { mirror.textLayers.removeLast().removeFromSuperlayer() }
         while mirror.textLayers.count < nodes.count {
@@ -1406,8 +1780,14 @@ final class LiveMirror {
             layer.frame = CGRect(x: relX - 6, y: visual.height - relY - lineHeight / 2 + 0.5, width: node.frame.width + 12, height: lineHeight)
         }
         CATransaction.commit()
+        mirror.bits = nodes
+        mirror.values = values
+        if !bridge { mirror.lastRead = readAt }
         if shown != mirror.texts {
             if !mirror.texts.isEmpty {
+                if Defaults.traceClock {
+                    PelmetLog.log("livemirror: clocktrace \"\(mirror.key)\" \(mirror.texts) → \(shown) drawn (\(why), read \(Int(-readAt.timeIntervalSinceNow * 1000))ms ago)")
+                }
                 if Date().timeIntervalSince(mirror.textLoggedAt) >= 10 {
                     let more = mirror.textHeld > 0 ? ", \(mirror.textHeld) change(s) not logged before" : ""
                     PelmetLog.log("livemirror: display \(side.id) \"\(mirror.key)\" text \(mirror.texts) → \(shown) (seen by \(why)\(more))")
@@ -1417,6 +1797,11 @@ final class LiveMirror {
             mirror.texts = shown
             mirror.textChangedAt = Date()
         }
+    }
+
+    /// Debug switches read once per run.
+    private enum Defaults {
+        static let traceClock = UserDefaults.standard.bool(forKey: LiveMirror.clockTraceKey)
     }
 
     nonisolated private static func font(size: CGFloat, forDigits: Bool) -> NSFont {
@@ -1448,7 +1833,7 @@ final class LiveMirror {
             if g > 0, g < 60 { gaps.append(g) }
         }
         let gap = gaps.isEmpty ? Self.pillGap : gaps.sorted()[gaps.count / 2]
-        let right = side.coverMaxX - Self.gap
+        let right = min(side.coverMaxX, side.predictedRight ?? .greatestFiniteMagnitude) - Self.gap
         let left = side.coverMinX + 4
         func need(_ list: [PillMirror]) -> CGFloat { list.reduce(0) { $0 + $1.visual!.width } + gap * CGFloat(max(0, list.count - 1)) }
         var fit = placed
@@ -1467,11 +1852,16 @@ final class LiveMirror {
         for mirror in placed.reversed() {
             guard let visual = mirror.visual else { continue }
             mirror.dropped = !fit.contains { $0 === mirror }
-            if !handingOver { mirror.container.isHidden = mirror.dropped || missionControlUp }
-            guard !mirror.dropped else { mirror.global = nil; continue }
+            let leaving = handingOver || mirrorsLeaving
+            guard !mirror.dropped else {
+                mirror.global = nil
+                if !leaving { present(mirror, false) }
+                continue
+            }
             x -= visual.width
             let cg = cocoa(visual)
             let global = NSRect(x: x, y: cg.minY, width: visual.width, height: visual.height)
+            let was = mirror.global
             mirror.global = global
             mirror.container.frame = CGRect(x: global.minX - window.minX, y: global.minY - window.minY, width: visual.width, height: visual.height)
             mirror.base.frame = mirror.container.bounds
@@ -1480,6 +1870,18 @@ final class LiveMirror {
                 overlay.addLayer(mirror.container)
                 mirror.attached = true
             }
+            // A mirror that moves on screen (the « shifted, a pill came or
+            // went) slides to its place instead of jumping.
+            if let was, mirror.shown, !leaving, abs(was.minX - global.minX) > 0.5, abs(was.minX - global.minX) < 400 {
+                let slide = CABasicAnimation(keyPath: "position.x")
+                slide.isAdditive = true
+                slide.fromValue = was.minX - global.minX
+                slide.toValue = 0
+                slide.duration = 0.22
+                slide.timingFunction = Self.enterCurve
+                mirror.container.add(slide, forKey: "pelmetShift")
+            }
+            if !leaving { present(mirror, !missionControlUp && mirror.base.contents != nil) }
             x -= gap
         }
         CATransaction.commit()
@@ -1499,12 +1901,18 @@ final class LiveMirror {
         side.needsDiscovery = false
         let bounds = side.bounds
         let found = await Task.detached(priority: .userInitiated) { PillProbe.pills(in: bounds) }.value
-        let box = ElementBox(list: found.map(\.element))
+        // A pill already mirrored is counted by its name: its tree is not read
+        // again every pass. One not seen before is read, and counts when it
+        // shows a text or a logo (a copy with neither is no pill to mirror).
+        let known = Set(side.mirrors.filter { !$0.provisional }.map { $0.copy.name })
+        let unknown = found.filter { !known.contains($0.name) }
+        let box = ElementBox(list: unknown.map(\.element))
         let trees = await Task.detached(priority: .userInitiated) { () -> [PillTree?] in box.list.map { PillProbe.readTree($0) } }.value
-        var usable: [PillCopy] = []
-        for (copy, tree) in zip(found, trees) {
+        var usable = found.filter { known.contains($0.name) }
+        for (copy, tree) in zip(unknown, trees) {
             if let tree, !tree.texts.isEmpty || !tree.images.isEmpty { usable.append(copy) }
         }
+        usable.sort { $0.frame.minX < $1.frame.minX }
         let keys = PillProbe.keys(of: usable)
         let before = side.mirrors.map(\.key)
         var seen = Set<String>()
@@ -1513,12 +1921,18 @@ final class LiveMirror {
             if let mirror = side.mirrors.first(where: { $0.key == key }) {
                 mirror.copy = copy
                 mirror.absent = 0
+                if mirror.provisional {
+                    mirror.provisional = false
+                    mirror.tree = nil
+                    PelmetLog.log("livemirror: display \(side.id) pill \"\(key)\" is back — its mirror, drawn from memory, takes it over")
+                }
             } else {
                 side.mirrors.append(PillMirror(key: key, copy: copy))
             }
         }
-        for mirror in side.mirrors where !seen.contains(mirror.key) { mirror.absent += 1 }
-        for mirror in side.mirrors where mirror.absent >= 2 { mirror.container.removeFromSuperlayer() }
+        for mirror in side.mirrors where !seen.contains(mirror.key) && !mirror.provisional { mirror.absent += 1 }
+        let gone = side.mirrors.filter { $0.absent >= 2 }
+        for mirror in gone { retire(mirror) }
         side.mirrors.removeAll { $0.absent >= 2 }
         side.mirrors.sort { $0.copy.frame.minX < $1.copy.frame.minX }
         let after = side.mirrors.map(\.key)
@@ -1527,6 +1941,142 @@ final class LiveMirror {
             side.droppedNote = ""
             layoutMirrors(side)
         }
+    }
+
+    /// A mirror that is done leaves with the exit motion, then its layer goes.
+    private func retire(_ mirror: PillMirror) {
+        present(mirror, false)
+        let layer = mirror.container
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { layer.removeFromSuperlayer() }
+    }
+
+    // MARK: Clocks
+
+    /// A read starts this long before the instant a clock is due (the read
+    /// itself takes a few milliseconds, so it lands just after the tick); one
+    /// that finds the old value tries again every `clockRetry`.
+    private static let clockLead: TimeInterval = -0.010
+    private static let clockRetry: TimeInterval = 0.012
+
+    /// A pill's texts were read: which one is a clock, which way it counts
+    /// and, from reads close together, when it ticks (so the next reads wait
+    /// for it instead of polling). A text that moves by a second twice,
+    /// a second apart, is a clock; a score that moved once is not.
+    private func noteClock(_ mirror: PillMirror, new values: [String], at readAt: Date) {
+        var c = mirror.clock
+        let old = mirror.values
+        defer { mirror.clock = c; if c.next != nil { ensureClockLoop() } }
+        guard let i = values.indices.first(where: { ClockText.seconds(values[$0]) != nil }) else { c = ClockState(); return }
+        if c.index != i { c = ClockState(); c.index = i }
+        let b = ClockText.seconds(values[i])!
+        let gap = mirror.lastRead.map { readAt.timeIntervalSince($0) } ?? 99
+        let was = old.count == values.count ? ClockText.seconds(old[i]) : nil
+        if let a = was, a != b {
+            let delta = b - a
+            let est = readAt.addingTimeInterval(-min(gap, 1) / 2)
+            if gap > 0.3 {
+                // Reads far apart say nothing of the instant. A locked clock
+                // keeps its phase through a resync of a few seconds.
+                if c.locked, let prev = c.tick, abs(delta) <= 5 { c.tick = prev.addingTimeInterval(floor(readAt.timeIntervalSince(prev))) }
+                else if abs(delta) == 1 { c.dir = delta; c.tick = nil; c.locked = false }
+                else { c = ClockState(); c.index = i }
+            } else if abs(delta) == 1 {
+                if c.dir == delta, let prev = c.tick {
+                    let step = est.timeIntervalSince(prev), n = step.rounded()
+                    if n >= 1, abs(step - n) < (gap <= 0.06 ? 0.3 : 0.35) {
+                        if gap <= 0.06 { c.tick = est; c.locked = true }
+                        else if c.locked, abs(step - n) < 0.12 { c.tick = prev.addingTimeInterval(n) }
+                        else { c.tick = est; c.locked = false }
+                    } else { c.tick = est; c.locked = false }
+                } else {
+                    c.dir = delta; c.tick = est; c.locked = false
+                }
+            } else { c = ClockState(); c.index = i }
+        }
+        c.text = values[i]
+        c.seconds = b
+        // The next read.
+        guard c.dir != 0, let tick = c.tick else { c.next = nil; c.due = nil; return }
+        if c.locked {
+            let k = floor(readAt.timeIntervalSince(tick)) + 1
+            c.due = tick.addingTimeInterval(k)
+            c.next = c.due!.addingTimeInterval(Self.clockLead)
+        } else {
+            c.due = nil
+            c.next = max(readAt.addingTimeInterval(0.04), tick.addingTimeInterval(0.72))
+        }
+    }
+
+    /// Times the reads of the clocks that have a phase, and carries a clock
+    /// on while its pill is not there. Ends when nothing is timed.
+    private func ensureClockLoop() {
+        guard clockLoop == nil else { return }
+        clockLoop = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                guard let self, self.isActive else { break }
+                if self.handingOver || self.exiting {
+                    try? await Task.sleep(for: .milliseconds(200))
+                    continue
+                }
+                let timed = self.sides.flatMap { side in side.mirrors.compactMap { $0.clock.next != nil && !$0.dropped ? (side, $0) : nil } }
+                guard !timed.isEmpty else { break }
+                let now = Date().addingTimeInterval(0.002)
+                for (side, mirror) in timed where (mirror.clock.next ?? .distantFuture) <= now { await self.clockStep(side, mirror) }
+                let next = self.sides.flatMap(\.mirrors).compactMap { $0.dropped ? nil : $0.clock.next }.min()
+                let wait = next.map { max(0.004, min(1.0, $0.timeIntervalSinceNow)) } ?? 0.05
+                try? await Task.sleep(for: .seconds(wait))
+            }
+            self?.clockLoop = nil
+        }
+    }
+
+    /// One clock read that is due: a quick read of the pill (the pill's
+    /// frame and its texts), or, for a mirror whose pill is not there, the
+    /// clock counted on from its last tick.
+    private func clockStep(_ side: Side, _ mirror: PillMirror) async {
+        guard side.mirrors.contains(where: { $0 === mirror }) else { return }
+        let now = Date()
+        if mirror.provisional {
+            let c = mirror.clock
+            guard c.locked, let tick = c.tick, let i = c.index, i < mirror.bits.count, let text = c.extrapolated(at: now) else { mirror.clock.next = nil; return }
+            if mirror.bits[i].value != text {
+                var bits = mirror.bits
+                bits[i].value = text
+                drawTexts(mirror, bits: bits, side: side, why: "carried on", readAt: now, bridge: true)
+            }
+            mirror.clock.next = tick.addingTimeInterval(floor(now.timeIntervalSince(tick) + 0.001) + 1)
+            return
+        }
+        guard let tree = mirror.tree, !mirror.reading else { mirror.clock.next = now.addingTimeInterval(0.1); return }
+        mirror.reading = true
+        mirror.clock.next = nil
+        let box = ElementBox(list: [mirror.copy.element])
+        let result = await Task.detached(priority: .userInitiated) { PillProbe.quick(tree, of: box.list[0]) }.value
+        mirror.reading = false
+        guard isActive, !exiting, !handingOver, !mirror.provisional, side.mirrors.contains(where: { $0 === mirror }) else { return }
+        let readAt = Date()
+        switch result {
+        case .values(let v):
+            let patched = tree.patched(with: v)
+            mirror.tree = patched
+            drawTexts(mirror, bits: patched.texts.map { TextBit(value: $0.value, frame: $0.frame) }, side: side, why: "clock", readAt: readAt)
+        case .same:
+            mirror.lastRead = readAt
+        case .reread:
+            await refreshSide(side, why: "clock", full: true)
+        }
+        // Nothing set the next read: this one found no change.
+        guard mirror.clock.next == nil, mirror.clock.dir != 0, let tick = mirror.clock.tick else { return }
+        var c = mirror.clock
+        if c.locked, let due = c.due {
+            if readAt.timeIntervalSince(due) > 0.4 { c.locked = false; c.due = nil; c.next = readAt.addingTimeInterval(0.04) }
+            else { c.next = readAt.addingTimeInterval(Self.clockRetry) }
+        } else if readAt.timeIntervalSince(tick) > 2.6 {
+            c = ClockState(); c.index = mirror.clock.index
+        } else {
+            c.next = readAt.addingTimeInterval(0.04)
+        }
+        mirror.clock = c
     }
 
     // MARK: Clicks
@@ -1540,6 +2090,10 @@ final class LiveMirror {
         guard let mirror = visible.first(where: { !$0.container.isHidden && $0.global!.insetBy(dx: -2, dy: -4).contains(point) }) else {
             let span = visible.map { $0.global! }.reduce(visible[0].global!) { $0.union($1) }
             PelmetLog.log("livemirror: click at \(Int(point.x)),\(Int(point.y)) on display \(side.id) — outside the mirrors (\(Int(span.minX))..\(Int(span.maxX))), swallowed")
+            return
+        }
+        guard !mirror.provisional else {
+            PelmetLog.log("livemirror: click on \"\(mirror.key)\" — its pill is not back yet, swallowed")
             return
         }
         let id = side.id
@@ -1647,24 +2201,37 @@ final class LiveMirror {
         }
     }
 
-    /// Covers are checked about every second (Mission Control every 0.4 s), every 50ms while a transition runs.
+    /// Covers are checked about every second, every 50ms while a transition
+    /// runs. Mission Control is watched on its own, faster rest (`keeperRest`).
     private func startOrderKeeper() {
         guard orderKeeper == nil else { return }
         ConcealGhostOverlay.onNewCover = { [weak self] in self?.coverMade() }
         orderKeeper = Task { @MainActor [weak self] in
-            var rounds = 0
+            var lastEnforce = Date.distantPast
             while !Task.isCancelled {
                 guard let self else { return }
-                rounds += 1
                 let busy = ConcealGhostOverlay.coverCount > 1 || self.entering || self.exiting || self.handingOver
                 if self.isActive { self.watchMissionControl() }
-                if ConcealGhostOverlay.coverCount > 0, busy || rounds % 3 == 0 || !self.isActive,
+                let every: TimeInterval = busy ? 0.05 : (self.isActive ? 1.2 : 1.0)
+                if ConcealGhostOverlay.coverCount > 0, Date().timeIntervalSince(lastEnforce) >= every - 0.01,
                    !self.coverLifted || ConcealGhostOverlay.coverCount > 1 {
+                    lastEnforce = Date()
                     self.enforceOrder(busy ? "transition" : "keeper")
                 }
-                try? await Task.sleep(for: .milliseconds(busy ? 50 : (self.isActive ? 400 : 1000)))
+                try? await Task.sleep(for: self.keeperRest(busy: busy))
             }
         }
+    }
+
+    /// How long the keeper rests. Mission Control opens from a key, a swipe or
+    /// a hot corner, all input, so while the user has touched the Mac in the
+    /// last 3 s the window server is asked every 80 ms (a call is ~0.2 ms),
+    /// and every 400 ms otherwise (a scripted open has no input before it).
+    private func keeperRest(busy: Bool) -> Duration {
+        if busy { return .milliseconds(50) }
+        guard isActive else { return .milliseconds(1000) }
+        let idle = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: CGEventType(rawValue: ~0)!)
+        return idle < 3 ? .milliseconds(80) : .milliseconds(400)
     }
 
     /// Mission Control is up while the window server shows its "Spaces Bar"
@@ -1676,12 +2243,18 @@ final class LiveMirror {
     /// icon show for that long (measured, build 23).
     private var missionControlUp = false
     private static func missionControlIsUp() -> Bool {
-        guard let list = ConcealGhostOverlay.onScreenWindows() else { return false }
-        return list.contains { w in
-            guard (w[kCGWindowOwnerName as String] as? String) == "WindowManager" else { return false }
-            let name = w[kCGWindowName as String] as? String
-            return name == "Spaces Bar" || name == "ExposeShieldWindow"
+        guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) else { return false }
+        let ownerKey = Unmanaged.passUnretained(kCGWindowOwnerName).toOpaque(), nameKey = Unmanaged.passUnretained(kCGWindowName).toOpaque()
+        for i in 0..<CFArrayGetCount(list) {
+            let window = unsafeBitCast(CFArrayGetValueAtIndex(list, i), to: CFDictionary.self)
+            guard let owner = CFDictionaryGetValue(window, ownerKey),
+                  CFStringCompare(unsafeBitCast(owner, to: CFString.self), "WindowManager" as CFString, []) == .compareEqualTo,
+                  let name = CFDictionaryGetValue(window, nameKey)
+            else { continue }
+            let title = unsafeBitCast(name, to: CFString.self) as String
+            if title == "Spaces Bar" || title == "ExposeShieldWindow" { return true }
         }
+        return false
     }
 
     private func watchMissionControl() {
@@ -1689,20 +2262,93 @@ final class LiveMirror {
         guard up != missionControlUp, !entering, !exiting, !handingOver else { return }
         missionControlUp = up
         PelmetLog.log("livemirror: Mission Control \(up ? "is up — the mirrors step aside, the covers stay" : "is gone — the mirrors are back")")
-        for side in sides { for mirror in side.mirrors { mirror.container.isHidden = up || mirror.dropped } }
+        // A short fade: Mission Control is moving everything itself.
+        for side in sides {
+            for mirror in side.mirrors { present(mirror, !up && !mirror.dropped && mirror.base.contents != nil, move: .fade(0.12)) }
+        }
     }
 
     /// The backdrop under the cover can't be told from here without a
     /// capture: the Space and the appearance changing are the signals. The
-    /// cover is retaken by leaving live mode and entering again. The stills
-    /// go too: a pill's still carries the backdrop in its rounded corners
-    /// (green desktop around the pills on a black full-screen bar), so
-    /// they are taken again on the new Space, one capture.
+    /// pictures are taken again (`retake`) with the mirrors staying: they
+    /// carry on from their kept stills and last texts, and the new stills
+    /// replace the old ones in place (a still carries the backdrop in its
+    /// rounded corners, so a Space's stills are always taken again).
     private func backdropMayHaveChanged(_ reason: String) async {
-        try? await Task.sleep(for: .milliseconds(600))
+        try? await Task.sleep(for: .milliseconds(300))
         guard isActive, !handingOver, !entering, !exiting else { return }
         PelmetLog.log("livemirror: cover retake — \(reason)")
-        await exit("cover retake", keepStills: false)
+        await retake(reason)
+    }
+
+    private func retake(_ reason: String) async {
+        guard let appState, isActive, !entering, !exiting, !handingOver else { return }
+        entering = true
+        retaking = true
+        defer { entering = false; retaking = false }
+        let started = Date()
+        func ms() -> Int { Int(-started.timeIntervalSinceNow * 1000) }
+        let generation = backdropGeneration
+        liftedReturn?.cancel()
+        // The card goes with the pill.
+        let open = await cardProbe()
+        if open.open {
+            PelmetLog.log("livemirror: card open (retake) — closing it")
+            await pressPill("retake", name: open.owners.first { !$0.isEmpty })
+        }
+        guard isActive, !exiting, !handingOver, !standDown else { return }
+        if coverLifted {
+            coverLifted = false
+            setCoversShown(true, why: "retake")
+        }
+        // Every mirror carries on as it is: no pill is read for it until its
+        // pill is back, and its still is taken again then (the old one has
+        // the old backdrop in its corners).
+        kept = [:]
+        for side in sides {
+            side.trailing?.cancel()
+            side.trailing = nil
+            if let chevron = lastChevron { side.predictedRight = chevronMinX(chevron, on: side) - 1 }
+            for mirror in side.mirrors where !mirror.dropped {
+                mirror.provisional = true
+                mirror.look = nil
+                mirror.snapTexts = nil
+                mirror.lookCandidate = nil
+                mirror.placeCandidate = nil
+                if mirror.clock.locked { carryOn(mirror, now: Date()) }
+            }
+            // The « slides back and the extras leave: the cover reaches to the
+            // concealed « again, where the picture ends.
+            if let picture = side.picture { buildCover(side, left: side.coverMinX, right: picture.windowFrame.maxX, why: "retake") }
+        }
+        // The assertion comes back; once the bar beneath is bare (the same
+        // wait that lifts a cover) the pictures are taken, the old cover
+        // staying up until the new one is.
+        assertionDropped = false
+        standDown = false
+        await appState.engine.holdLift(false)
+        PelmetLog.log("livemirror: retake — assertion back at \(ms())ms")
+        await appState.waitUntilQuiesced(interval: 0.15, deadline: 2, poll: .milliseconds(30))
+        let deadline = Date().addingTimeInterval(AppTiming.clockBlinkCoverDeadline)
+        while Date() < deadline, await appState.engine.concealedItemsStillVisible() {
+            try? await Task.sleep(for: .milliseconds(60))
+        }
+        await appState.waitUntilQuiesced(interval: 0.15, deadline: 1, poll: .milliseconds(30))
+        PelmetLog.log("livemirror: retake — bar bare at \(ms())ms")
+        guard wanted else { return }
+        if let issue = prepIssue() { await abort("\(issue) (retake)"); return }
+        guard let chevron = appState.chevronWindowFrame,
+              let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+        else { await abort("retake — no chevron or no shareable content"); return }
+        for side in sides {
+            if let display = content.displays.first(where: { $0.displayID == side.id }) { side.scDisplay = display }
+            await measureMenus(side)
+        }
+        await goLive(chevron: chevron, started: started, retake: true)
+        // Another change while this one ran: the pictures are not true yet.
+        if generation != backdropGeneration, isActive, !exiting {
+            Task { @MainActor [weak self] in await self?.backdropMayHaveChanged("the backdrop changed again") }
+        }
     }
 
     /// The « (or the item) asked for a reveal: the cover goes, the real bar
@@ -1740,20 +2386,29 @@ final class LiveMirror {
             // read every 2 s too; while a text moves (a countdown) or a look
             // settles they are read every tick, so the mirror skips no second.
             let now = Date()
-            let moving = side.mirrors.contains { ($0.textChangedAt.map { now.timeIntervalSince($0) < 5 } ?? false) || $0.lookCandidate != nil || $0.placeCandidate != nil }
+            // A pill whose clock has a phase is read where it ticks (`clockLoop`),
+            // not here.
+            let moving = side.mirrors.contains { m in
+                guard !m.provisional else { return false }
+                return (m.clock.next == nil && (m.textChangedAt.map { now.timeIntervalSince($0) < 5 } ?? false)) || m.lookCandidate != nil || m.placeCandidate != nil
+            }
+            // Quick reads (the frame and the texts) every 2 s as the net, the
+            // pills looked for every 4 s, the whole tree read every 10 s.
             let net = tickCount % Self.fallbackEvery == 0
+            let discoverNet = tickCount % (Self.fallbackEvery * 2) == 0
+            let deep = tickCount % (Self.fallbackEvery * 5) == 0
             var looked = false
-            if side.mirrors.isEmpty || side.needsDiscovery || net || now < lookEagerlyUntil {
+            if !side.mirrors.contains(where: { !$0.provisional }) || side.needsDiscovery || discoverNet || now < lookEagerlyUntil {
                 await discoverPills(side)
                 looked = true
             }
-            if !side.mirrors.isEmpty, moving || net || looked { await refreshSide(side, why: looked ? "found" : "poll", full: net || looked) }
+            if side.mirrors.contains(where: { !$0.provisional }), moving || net || looked { await refreshSide(side, why: looked ? "found" : "poll", full: deep) }
         }
         for side in sides { side.cover?.keepUp(for: Self.coverSafety) }
         // The assertion is down for the pill's sake: with no pill to mirror
         // (the log said an activity runs, the bar shows none) live mode has
         // nothing to do and leaves, and waits longer each time in a row.
-        let anyPill = sides.contains { $0.mirrors.contains { !$0.dropped && $0.misses < 3 } }
+        let anyPill = sides.contains { $0.mirrors.contains { !$0.dropped && $0.misses < 3 && !$0.provisional } }
         if anyPill {
             noPillSince = nil
             emptyStrikes = 0
@@ -1780,14 +2435,18 @@ final class LiveMirror {
 
     // MARK: Exit
 
-    func exit(_ reason: String, keepStills: Bool = false) async {
+    func exit(_ reason: String) async {
         guard let appState, isActive, !exiting else { return }
         exiting = true
         defer { exiting = false }
         let started = Date()
         PelmetLog.log("livemirror: exit — \(reason)")
+        // The mirrors leave first, the way the bar's own items do (the reveal
+        // animation's exit); the cover stays up until the bar beneath is back.
+        mirrorsLeaving = true
+        for side in sides { for mirror in side.mirrors { present(mirror, false) } }
         liftedReturn?.cancel()
-        if !keepStills { kept = [:] }
+        kept = [:]; remembered = [:]; keptPictures = [:]
         // The card goes with the pill.
         let open = await cardProbe()
         if open.open {
@@ -1804,9 +2463,11 @@ final class LiveMirror {
             PelmetLog.log("livemirror: display \(side.id) \(side.snapshots) snapshot(s) this run")
         }
         // The « slides back and the extras leave: the cover reaches to the
-        // concealed « again, where the picture ends.
+        // concealed « again, where the picture ends. The mirrors stay where
+        // they stand while they go.
         for side in sides {
-            if let picture = side.picture { buildCover(side, left: side.coverMinX, right: picture.windowFrame.maxX - (side.screen.frame.maxX - primaryMaxX) + (side.screen.frame.maxX - primaryMaxX), why: "exit") }
+            if let chevron = lastChevron { side.predictedRight = chevronMinX(chevron, on: side) - 1 }
+            if let picture = side.picture { buildCover(side, left: side.coverMinX, right: picture.windowFrame.maxX, why: "exit") }
         }
         await appState.engine.holdLift(false)
         PelmetLog.log("livemirror: assertion back at \(Int(-started.timeIntervalSinceNow * 1000))ms")
@@ -1816,6 +2477,7 @@ final class LiveMirror {
         appState.transitions.liveModeActive = false
         ConcealGhostOverlay.liveModeBlocksCaptures = false
         resetRunState()
+        mirrorsLeaving = true
         await appState.transitions.endLive(covers: sides.compactMap(\.cover))
         sides = []
         isActive = false
