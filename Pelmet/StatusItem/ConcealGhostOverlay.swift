@@ -999,7 +999,10 @@ final class ConcealGhostOverlay {
     /// finished picture), weakly: the live-mode rule keeps all of them below
     /// the foreign surfaces, whoever made them.
     private static let registry = NSHashTable<ConcealGhostOverlay>.weakObjects()
-    static func register(_ overlay: ConcealGhostOverlay) { registry.add(overlay) }
+    static func register(_ overlay: ConcealGhostOverlay) { registry.add(overlay); onNewCover?() }
+    /// Told whenever a cover is made: the live mirror checks the order at
+    /// once and again shortly after, not at its next idle tick.
+    static var onNewCover: (() -> Void)?
     static var coverCount: Int { registry.allObjects.filter { !$0.finished }.count }
 
     /// Puts every cover that sits above a foreign surface back below it;

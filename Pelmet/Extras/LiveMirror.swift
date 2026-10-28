@@ -364,6 +364,10 @@ final class LiveMirror {
         var texts: [String] = []
         var snapTexts: [String]?
         var textChangedAt: Date?
+        /// When a text change was last logged, and how many came since: a
+        /// ticking timer is one line every 10 s, not one a second.
+        var textLoggedAt = Date.distantPast
+        var textHeld = 0
         /// A changed look waits until two reads half a second apart agree: the
         /// pill slides when the capture indicator lights or goes out, and a
         /// still taken mid-slide has a cut edge.
@@ -405,8 +409,9 @@ final class LiveMirror {
         var placedNote = ""
         var snapping = false
         var snapshots = 0
-        /// The text last reported as skipped: one line per change, not per read.
-        var skippedText = ""
+        /// The snapshot time the last "skipped" line was written for: one line
+        /// per rate-limit window, not one per read.
+        var skippedWindow: Date?
         /// The one trailing snapshot waiting for the rate limit to pass.
         var trailing: Task<Void, Never>?
 
@@ -988,9 +993,8 @@ final class LiveMirror {
         let interval = Self.textSnapshotInterval
         if let last = textSnapAt[side.id], Date().timeIntervalSince(last) < interval {
             let wait = interval - Date().timeIntervalSince(last)
-            let signature = live.map { $0.tree.texts.map(\.value).joined(separator: " ") }.joined(separator: "|")
-            if side.skippedText != signature {
-                side.skippedText = signature
+            if side.skippedWindow != last {
+                side.skippedWindow = last
                 PelmetLog.log("livemirror: snapshot skipped — rate limit (text \(change), next in \(Int(wait.rounded(.up)))s)")
             }
             if side.trailing == nil {
@@ -1134,7 +1138,13 @@ final class LiveMirror {
         }
         CATransaction.commit()
         if shown != mirror.texts {
-            if !mirror.texts.isEmpty { PelmetLog.log("livemirror: display \(side.id) \"\(mirror.key)\" text \(mirror.texts) → \(shown) (seen by \(why))") }
+            if !mirror.texts.isEmpty {
+                if Date().timeIntervalSince(mirror.textLoggedAt) >= 10 {
+                    let more = mirror.textHeld > 0 ? ", \(mirror.textHeld) change(s) not logged before" : ""
+                    PelmetLog.log("livemirror: display \(side.id) \"\(mirror.key)\" text \(mirror.texts) → \(shown) (seen by \(why)\(more))")
+                    mirror.textLoggedAt = Date(); mirror.textHeld = 0
+                } else { mirror.textHeld += 1 }
+            }
             mirror.texts = shown
             mirror.textChangedAt = Date()
         }
@@ -1348,9 +1358,23 @@ final class LiveMirror {
         }
     }
 
+    /// A cover (a reveal's strip, a held bar) was just made: its order is
+    /// checked now, and twice more while the window server settles, instead
+    /// of waiting out the keeper's idle second.
+    private func coverMade() {
+        guard isActive || handingOver || entering else { return }
+        Task { @MainActor [weak self] in
+            for delay in [0, 40, 120] {
+                if delay > 0 { try? await Task.sleep(for: .milliseconds(delay == 40 ? 40 : 80)) }
+                self?.enforceOrder("new cover")
+            }
+        }
+    }
+
     /// Covers are checked every second, every 50ms while a transition runs.
     private func startOrderKeeper() {
         guard orderKeeper == nil else { return }
+        ConcealGhostOverlay.onNewCover = { [weak self] in self?.coverMade() }
         orderKeeper = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
