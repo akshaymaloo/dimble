@@ -839,8 +839,10 @@ final class ConcealGhostOverlay {
         if holdsBar {
             let panel = HeldBarPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
             panel.hidesOnDeactivate = false
-            // Up for a whole reveal: on every Space of its display.
-            panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
+            // Up for a whole reveal: on every Space of its display. Transient,
+            // not stationary: a stationary one stayed in Mission Control, a
+            // dark band over the Spaces bar (#108).
+            panel.collectionBehavior = [.canJoinAllSpaces, .transient, .ignoresCycle]
             window = panel
         } else {
             window = NSWindow(contentRect: frame, styleMask: .borderless, backing: .buffered, defer: false)
