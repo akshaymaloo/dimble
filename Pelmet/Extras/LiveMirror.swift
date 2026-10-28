@@ -159,6 +159,19 @@ nonisolated enum PillProbe {
         return parts.joined(separator: " ")
     }
 
+    /// The tree in hand still stands: the pill's frame and each text's value
+    /// are as they were (three or four reads, against the whole tree's
+    /// hundred). A moved or retitled pill takes the full read.
+    static func unchanged(_ tree: PillTree, of element: AXUIElement) -> Bool {
+        guard CFEqual(tree.pill, element), let frame = frame(of: element),
+              abs(frame.minX - tree.frame.minX) < 0.05, abs(frame.minY - tree.frame.minY) < 0.05, abs(frame.width - tree.frame.width) < 0.05
+        else { return false }
+        for node in tree.texts {
+            guard (attribute(node.element, kAXValueAttribute) as? String) == node.value else { return false }
+        }
+        return true
+    }
+
     /// Frame and text of a copy already found; nil when it is gone.
     static func read(_ element: AXUIElement) -> (frame: CGRect, text: String)? {
         guard let frame = frame(of: element), frame.width > 0 else { return nil }
@@ -285,7 +298,8 @@ nonisolated enum PillProbe {
         let app = AXUIElementCreateApplication(agent.processIdentifier)
         AXUIElementSetMessagingTimeout(app, 0.6)
         var found: [PillCopy] = []
-        collect(app, depth: 8, into: &found)
+        // The pills are the bar windows' own children (app > window > item).
+        collect(app, depth: 3, into: &found)
         return found
     }
 
@@ -855,11 +869,15 @@ final class LiveMirror {
 
     /// Reads every pill's tree and brings the mirrors up to them: one new still
     /// of all the pills when a look or a text changed, the texts redrawn.
-    private func refreshSide(_ side: Side, why: String) async {
+    private func refreshSide(_ side: Side, why: String, full: Bool = true) async {
         guard isActive, !exiting, !side.mirrors.isEmpty else { return }
         let box = ElementBox(list: side.mirrors.map(\.copy.element))
+        let before = side.mirrors.map(\.tree)
         let trees = await Task.detached(priority: .userInitiated) { () -> [PillTree?] in
-            box.list.map { PillProbe.readTree($0) }
+            zip(box.list, before).map { element, was in
+                if !full, let was, PillProbe.unchanged(was, of: element) { return was }
+                return PillProbe.readTree(element)
+            }
         }.value
         guard isActive, !exiting, trees.count == side.mirrors.count else { return }
         var live: [(mirror: PillMirror, tree: PillTree)] = []
@@ -1307,7 +1325,7 @@ final class LiveMirror {
         }
     }
 
-    /// Covers are checked every 250ms, every 50ms while a transition runs.
+    /// Covers are checked every second, every 50ms while a transition runs.
     private func startOrderKeeper() {
         guard orderKeeper == nil else { return }
         orderKeeper = Task { @MainActor [weak self] in
@@ -1317,7 +1335,7 @@ final class LiveMirror {
                 if ConcealGhostOverlay.coverCount > 0, !self.coverLifted || ConcealGhostOverlay.coverCount > 1 {
                     self.enforceOrder(busy ? "transition" : "keeper")
                 }
-                try? await Task.sleep(for: .milliseconds(busy ? 50 : 250))
+                try? await Task.sleep(for: .milliseconds(busy ? 50 : 1000))
             }
         }
     }
@@ -1375,7 +1393,7 @@ final class LiveMirror {
                 await discoverPills(side)
                 looked = true
             }
-            if !side.mirrors.isEmpty, moving || net || looked { await refreshSide(side, why: looked ? "found" : "poll") }
+            if !side.mirrors.isEmpty, moving || net || looked { await refreshSide(side, why: looked ? "found" : "poll", full: net || looked) }
         }
         for side in sides { side.cover?.keepUp(for: Self.coverSafety) }
         if Date().timeIntervalSince(lastSummaryAt) > 10 {
