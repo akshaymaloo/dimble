@@ -371,6 +371,8 @@ final class LiveMirror {
     private var tickCount = 0
     private var screenObserver: NSObjectProtocol?
     private var spaceObserver: NSObjectProtocol?
+    private var orderKeeper: Task<Void, Never>?
+    private var pendingReveal: RevealReason?
     private var themeObserver: NSObjectProtocol?
 
     /// A reveal the live mirror handed the bar to (`beginHandOver`): the
@@ -407,7 +409,17 @@ final class LiveMirror {
     /// the editor, a policy) is held off while live mode has the bar.
     func intercepts(reveal reason: RevealReason) -> Bool {
         guard isActive else { return false }
-        if handingOver { return false }
+        if handingOver || exiting { return false }
+        if entering {
+            switch reason {
+            case .hover, .statusItem, .click, .doubleClick, .hotkey:
+                pendingReveal = reason
+                PelmetLog.log("livemirror: reveal(\(reason)) asked while live mode starts — it runs once live mode has settled")
+            default:
+                PelmetLog.log("livemirror: reveal(\(reason)) blocked — live mode has the bar")
+            }
+            return true
+        }
         switch reason {
         case .hover:
             if pointerOnMirror() {
@@ -572,6 +584,7 @@ final class LiveMirror {
                 forName: Notification.Name("AppleInterfaceThemeChangedNotification"), object: nil, queue: .main
             ) { [weak self] _ in Task { @MainActor in await self?.backdropMayHaveChanged("the appearance changed") } }
         }
+        startOrderKeeper()
         loop = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
@@ -746,6 +759,12 @@ final class LiveMirror {
         }
         PelmetLog.log("livemirror: live at \(ms())ms (assertion down \(dropped)ms)")
         lastSummaryAt = Date()
+        if let reason = pendingReveal {
+            pendingReveal = nil
+            PelmetLog.log("livemirror: running the reveal(\(reason)) asked while live mode started")
+            entering = false
+            if reason == .hover { appState.reveal([.hidden], reason: .hover) } else { appState.toggle(reason: reason) }
+        }
     }
 
     // MARK: Cover
@@ -1065,7 +1084,9 @@ final class LiveMirror {
         }
         let id = side.id
         // The cover was ordered front by the click: back under Sconce at once.
-        DispatchQueue.main.async { [weak self] in self?.enforceOrder("click") }
+        for ms in [0, 20, 60, 120] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(ms)) { [weak self] in self?.enforceOrder("click +\(ms)ms") }
+        }
         Task { @MainActor in
             let at = Date()
             if await self.cardIsOpen() {
@@ -1116,14 +1137,27 @@ final class LiveMirror {
         }
     }
 
-    /// The window server's order, not ours: a foreign surface that sits
-    /// below a cover goes back above it.
+    /// The window server's order, not ours: a cover that sits above a
+    /// foreign surface (a click orders it in front of its level; a strip made
+    /// while Sconce's window was being redrawn) goes back below it.
     private func enforceOrder(_ why: String) {
-        guard isActive, !coverLifted, let list = ConcealGhostOverlay.onScreenWindows() else { return }
-        for side in sides {
-            guard let overlay = side.cover?.members.first, let below = overlay.foreignBelowMe(in: list) else { continue }
-            let now = overlay.orderBelowForeign()
-            PelmetLog.log("livemirror: cover order — corrected, was above \(below.owner) \(below.id); now below \(now.map { "\($0.owner) \($0.id)" } ?? "?") (\(why))")
+        for line in ConcealGhostOverlay.keepBelowForeign() {
+            PelmetLog.log("livemirror: cover order — corrected, \(line) (\(why))")
+        }
+    }
+
+    /// Covers are checked every 250ms, every 50ms while a transition runs.
+    private func startOrderKeeper() {
+        guard orderKeeper == nil else { return }
+        orderKeeper = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                guard let self else { return }
+                let busy = ConcealGhostOverlay.coverCount > 1 || self.entering || self.exiting || self.handingOver
+                if ConcealGhostOverlay.coverCount > 0, !self.coverLifted || ConcealGhostOverlay.coverCount > 1 {
+                    self.enforceOrder(busy ? "transition" : "keeper")
+                }
+                try? await Task.sleep(for: .milliseconds(busy ? 50 : 250))
+            }
         }
     }
 
@@ -1168,7 +1202,6 @@ final class LiveMirror {
                 buildCover(side, left: side.coverMinX, right: chevronMinX(chevron, on: side) - 1, why: "chevron moved")
             }
         }
-        enforceOrder("tick")
         for side in sides {
             if side.pill == nil || tickCount % Self.fallbackEvery == 0 {
                 if side.pill == nil {

@@ -911,6 +911,7 @@ final class ConcealGhostOverlay {
         }
         window.displayIfNeeded()
         if countsAsStrip { Self.activeStripCount += 1 }
+        Self.register(self)
         PelmetLog.log("ghost: \(holdsBar ? "held bar" : "strip") #\(id) up \(Int(frame.width))×\(Int(frame.height)) @x=\(Int(frame.minX)) safety \(Int(safety * 1000))ms")
         // Safety: never leave a stale cover if the caller's task dies.
         // Strong self on purpose: a cover nobody held any more (#52, a
@@ -992,6 +993,27 @@ final class ConcealGhostOverlay {
         beneathID = nil
         window.orderFrontRegardless()
         return nil
+    }
+
+    /// Every cover alive (the live mirror's, a reveal's strip, a held bar, a
+    /// finished picture), weakly: the live-mode rule keeps all of them below
+    /// the foreign surfaces, whoever made them.
+    private static let registry = NSHashTable<ConcealGhostOverlay>.weakObjects()
+    static func register(_ overlay: ConcealGhostOverlay) { registry.add(overlay) }
+    static var coverCount: Int { registry.allObjects.filter { !$0.finished }.count }
+
+    /// Puts every cover that sits above a foreign surface back below it;
+    /// says which it moved.
+    static func keepBelowForeign() -> [String] {
+        let covers = registry.allObjects.filter { !$0.finished }
+        guard !covers.isEmpty, let list = onScreenWindows() else { return [] }
+        var moved: [String] = []
+        for cover in covers {
+            guard let above = cover.foreignBelowMe(in: list) else { continue }
+            let now = cover.orderBelowForeign()
+            moved.append("#\(cover.id) was above \(above.owner) \(above.id), now below \(now.map { "\($0.owner) \($0.id)" } ?? "?")")
+        }
+        return moved
     }
 
     /// A foreign surface over the strip that has slipped below this cover
