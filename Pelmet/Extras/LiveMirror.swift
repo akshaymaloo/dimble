@@ -614,6 +614,11 @@ final class LiveMirror {
     private var noPillSince: Date?
     private var emptyStrikes = 0
     private var retryNotBefore = Date.distantPast
+    /// Why live mode holds off until `retryNotBefore`, for the log.
+    private var holdOffWhy = ""
+    /// Starts called off for a reason that would call off the next one too
+    /// (`abort(holdOff:)`), in a row: each waits longer, up to two minutes.
+    private var abortStrikes = 0
     static let noPillGrace: TimeInterval = 10
 
     /// A reveal the live mirror handed the bar to (`beginHandOver`): the
@@ -721,7 +726,7 @@ final class LiveMirror {
         // a few seconds (its pill shows a moment after the log line).
         if count != activityCount {
             if isActive { PelmetLog.log("livemirror: activities \(activityCount) → \(count), looking for the pills") }
-            if count > activityCount { retryNotBefore = .distantPast; emptyStrikes = 0 }
+            if count > activityCount { retryNotBefore = .distantPast; emptyStrikes = 0; abortStrikes = 0 }
             activityCount = count
             lookEagerlyUntil = Date().addingTimeInterval(3)
         }
@@ -1103,8 +1108,14 @@ final class LiveMirror {
 
     private func cannotEnter() async -> String? {
         guard let appState else { return "no app state" }
-        if Date() < retryNotBefore { return "no pill was found last time — holding off (a new activity ends the hold-off)" }
+        if Date() < retryNotBefore { return holdOffWhy }
         if !ScreenRecordingAccess.isGranted { return "no Screen Recording" }
+        // Nothing to film when every display shows all its icons (`enter`
+        // would only call the start off, again and again).
+        let conceals = NSScreen.screens.contains {
+            appState.settings.behavior(forDisplayUUID: $0.displayUUIDString) != .alwaysShowAll
+        }
+        if !conceals { return "no display conceals — every display shows all its icons" }
         if barIsOut { return "the bar is out" }
         if appState.isTransitioning { return "a transition runs" }
         if appState.panelShowsReveal { return "the panel is up" }
@@ -1205,8 +1216,19 @@ final class LiveMirror {
 
     // MARK: Enter
 
-    private func abort(_ why: String, dropAssertion: Bool = false) async {
+    /// `holdOff`: the reason will be there next time too (no display to film,
+    /// no picture), so the loop does not try again at once: 5 s, doubling
+    /// each time in a row, to two minutes. A new activity or a start that
+    /// goes through ends the hold-off. Without it (something took the bar
+    /// meanwhile) the next quiet bar tries again.
+    private func abort(_ why: String, dropAssertion: Bool = false, holdOff: Bool = false) async {
         PelmetLog.log("livemirror: enter aborted — \(why)")
+        if holdOff {
+            abortStrikes += 1
+            let hold = min(120, 5 * pow(2, Double(abortStrikes - 1)))
+            retryNotBefore = Date().addingTimeInterval(hold)
+            holdOffWhy = "the last start was called off (\(why)) — holding off \(Int(hold))s (a new activity ends the hold-off)"
+        }
         for side in sides { side.cover?.dismiss() }
         sides = []
         // The assertion goes back if it was let go (a start that gave up
@@ -1270,7 +1292,7 @@ final class LiveMirror {
             return side
         }
         // Nothing to film when every display shows all its icons.
-        guard sides.contains(where: { !$0.showsAll }) else { await abort("no display to film"); return }
+        guard sides.contains(where: { !$0.showsAll }) else { await abort("no display to film", holdOff: true); return }
         for side in sides {
             await measureMenus(side)
             if side.showsAll { await measureRunEdge(side) }
@@ -1316,7 +1338,7 @@ final class LiveMirror {
             // Under the anchor the hidden icons are out on the bar: the bare
             // bar (the system's bar window left out) is the concealed bar.
             side.picture = await ConcealGhostOverlay.snapshotSet(of: rect, displays: [side.id], bare: underAnchor, liveMirror: true).first
-            guard let picture = side.picture else { await abort("no picture of display \(side.id)"); return }
+            guard let picture = side.picture else { await abort("no picture of display \(side.id)", holdOff: true); return }
             side.pictureAt = Date()
             side.pictureGeneration = backdropGeneration
             captured = true
@@ -1346,7 +1368,7 @@ final class LiveMirror {
                 side.picture = ConcealGhostOverlay.smeared(picture, from: right)
             }
             guard buildCover(side, left: coverLeft(for: side, right: right), right: right, why: "enter") else {
-                await abort("cover won't crop on display \(side.id)"); return
+                await abort("cover won't crop on display \(side.id)", holdOff: true); return
             }
         }
         if let issue = prepIssue() { await abort("\(issue) (covers up)"); return }
@@ -1413,6 +1435,7 @@ final class LiveMirror {
         }
         for side in sides { await refreshSide(side, why: "enter") }
         PelmetLog.log("livemirror: live at \(ms())ms (assertion down \(dropped)ms)")
+        abortStrikes = 0
         lastSummaryAt = Date()
         noPillSince = Date()
         if pendingReveal != nil {
@@ -2558,7 +2581,7 @@ final class LiveMirror {
         if let issue = prepIssue() { await abort("\(issue) (retake)"); return }
         guard let chevron = appState.chevronWindowFrame,
               let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-        else { await abort("retake — no chevron or no shareable content"); return }
+        else { await abort("retake — no chevron or no shareable content", holdOff: true); return }
         for side in sides {
             if let display = content.displays.first(where: { $0.displayID == side.id }) { side.scDisplay = display }
             await measureMenus(side)
@@ -2638,6 +2661,7 @@ final class LiveMirror {
                 emptyStrikes += 1
                 let hold = min(600, 60 * pow(2, Double(emptyStrikes - 1)))
                 retryNotBefore = Date().addingTimeInterval(hold)
+                holdOffWhy = "no pill was found last time — holding off (a new activity ends the hold-off)"
                 PelmetLog.log("livemirror: no pill to mirror for \(Int(Self.noPillGrace))s — leaving live mode, not trying again for \(Int(hold))s")
                 await exit("no pill to mirror")
                 return
