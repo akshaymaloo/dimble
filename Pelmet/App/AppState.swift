@@ -1104,7 +1104,7 @@ final class AppState {
     // MARK: - Intents (UI + monitors call these)
 
     func toggle(reason: RevealReason, sections: Set<PelmetCore.Section> = [.hidden]) {
-        if liveMirror.intercepts(reveal: reason) { return }
+        if liveMirror.intercepts(reveal: reason, sections: sections, how: .toggle) { return }
         // A chevron click on a display that shows all icons opens Always
         // Hidden there, in that display's "Show hidden icons in" (#96). A plain toggle
         // asked for nothing when anchored, and closed the icons that display
@@ -1160,7 +1160,7 @@ final class AppState {
     }
 
     func reveal(_ sections: Set<PelmetCore.Section>, reason: RevealReason) {
-        if liveMirror.intercepts(reveal: reason) { return }
+        if liveMirror.intercepts(reveal: reason, sections: sections, how: .reveal) { return }
         if anchoredShowAllAsksNothing(sections, reason) { return }
         PerfTrace.markTrigger("\(reason)")
         // The panel is up and this needs the real bar (⌘↩ in Search, an
@@ -1178,7 +1178,7 @@ final class AppState {
     /// once it is all out. A reveal that left Always Hidden in widens to
     /// include it instead of closing: the key asked for more, not less.
     func toggleAll(reason: RevealReason) {
-        if liveMirror.intercepts(reveal: reason) { return }
+        if liveMirror.intercepts(reveal: reason, sections: [.hidden, .alwaysHidden], how: .toggleAll) { return }
         let all: Set<PelmetCore.Section> = [.hidden, .alwaysHidden]
         // Off the anchor (no Screen Recording), a display that shows all
         // icons has its Hidden out as the policy's own bar reveal (#96). A

@@ -359,6 +359,9 @@ final class ExtrasManager {
             status.stop()
             liveActivityStatus = nil
             lastLiveActivityActive = false
+            // Live mode follows the item: with the item off nothing says an
+            // activity ended, so it is told here.
+            appState?.liveActivitiesChanged(running: false, count: 0)
         }
         if newSpecs.contains(where: { $0.kind == .cameraMicIndicator }) {
             if sharePlayStatus == nil {

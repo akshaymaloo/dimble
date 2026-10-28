@@ -325,7 +325,7 @@ final class TransitionCoordinator {
 
     /// Where the concealed strip last sat — icons reappear in the same spot,
     /// so this rect is the reveal cover's footprint (Instant/Fade styles).
-    private var lastConcealedStripRect: CGRect?
+    private(set) var lastConcealedStripRect: CGRect?
 
     /// Empty-strip snapshot pre-captured while the bar idles concealed — the
     /// reveal path floats it synchronously instead of paying ~100ms+ of SCK
@@ -394,7 +394,7 @@ final class TransitionCoordinator {
     /// hidden-only conceal remembers a short strip; the next full reveal
     /// then slid the always-hidden cluster in UNCOVERED left of it (Sconce's
     /// bar: cover 249px @1352, items landing from 1075 — 2026-09-05).
-    private var widestStripMinX: CGFloat?
+    private(set) var widestStripMinX: CGFloat?
     /// Concealable items in the last engine snapshot — the floor for the
     /// cover's width before any full conceal has measured the real strip.
     private var concealableCount = 0
