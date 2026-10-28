@@ -168,6 +168,14 @@ nonisolated private func axPillCallback(_ observer: AXObserver, _ element: AXUIE
 
 nonisolated enum PillProbe {
     static let identifierPrefix = "live-activity-pill-"
+    /// Debug: mirror the pill whose AXDescription is this ("myVW") when
+    /// several activities run; empty = the first one found.
+    static var preferredName: String { UserDefaults.standard.string(forKey: "pelmet.debug.liveMirrorPill") ?? "" }
+    static func picks(_ copy: PillCopy, in bounds: CGRect, named: String? = nil) -> Bool {
+        guard bounds.contains(CGPoint(x: copy.frame.midX, y: copy.frame.midY)) else { return false }
+        let wanted = named ?? preferredName
+        return wanted.isEmpty || copy.name == wanted
+    }
 
     static func attribute(_ element: AXUIElement, _ name: String) -> AnyObject? {
         var value: AnyObject?
@@ -262,8 +270,8 @@ nonisolated enum PillProbe {
     /// Presses the pill that sits in `bounds`, looked up fresh (the element
     /// in hand may be a copy the agent has since replaced); the one in hand
     /// is the fallback. Returns what happened, for the log, and the fresh copy.
-    static func press(in bounds: CGRect, kept: AXUIElement?) -> (result: String, fresh: PillCopy?) {
-        let fresh = copies().first { bounds.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY)) }
+    static func press(in bounds: CGRect, named: String?, kept: AXUIElement?) -> (result: String, fresh: PillCopy?) {
+        let fresh = copies().first { picks($0, in: bounds, named: named) }
         var notes: [String] = []
         if let fresh {
             let error = AXUIElementPerformAction(fresh.element, kAXPressAction as CFString)
@@ -370,6 +378,11 @@ final class LiveMirror {
         var snapshots = 0
         var texts: [String] = []
         var textChangedAt: Date?
+        /// The pill's AX texts as of the last still: a change in them is what
+        /// the text-triggered snapshot compares against.
+        var snapTexts: [String]?
+        /// The one trailing snapshot waiting for the rate limit to pass.
+        var trailing: Task<Void, Never>?
         var misses = 0
         /// The mirror: the still with the texts blanked, and the texts over it.
         let container = CALayer()
@@ -419,8 +432,14 @@ final class LiveMirror {
     /// The last still of each display, kept across a reveal (not across the
     /// end of live mode): reused when the pill's look is unchanged, so the
     /// return to live mode takes no second capture.
-    private struct KeptStill { var look: PillTree.Look; var image: CGImage; var at: Date }
+    private struct KeptStill { var look: PillTree.Look; var image: CGImage; var at: Date; var texts: [String] }
     private var kept: [CGDirectDisplayID: KeptStill] = [:]
+    /// Drawn graphics (a ring, a bar) usually move with the pill's text. A
+    /// text change takes a new still, at most once per interval per display
+    /// (a ticking countdown must not keep the capture dot lit); changes inside
+    /// the window coalesce into one trailing snapshot. Kept across live mode.
+    static let textSnapshotInterval: TimeInterval = 30
+    private var textSnapAt: [CGDirectDisplayID: Date] = [:]
 
     init(appState: AppState) { self.appState = appState }
 
@@ -498,6 +517,8 @@ final class LiveMirror {
         PelmetLog.log("livemirror: reveal(\(reason)) — the bar goes to the normal reveal, pill and mirror away, cover up")
         for side in sides {
             side.refresh?.cancel()
+            side.trailing?.cancel()
+            side.trailing = nil
             side.observer?.stop()
             side.observer = nil
             CATransaction.begin(); CATransaction.setDisableActions(true)
@@ -563,8 +584,9 @@ final class LiveMirror {
         guard let side = side ?? sides.first(where: { $0.pill != nil }) ?? sides.first else { return "no display" }
         let bounds = side.bounds
         let kept = ElementBox(list: side.pill.map { [$0.element] } ?? [])
+        let name = side.pill?.name
         let started = Date()
-        let (result, fresh) = await Task.detached(priority: .userInitiated) { PillProbe.press(in: bounds, kept: kept.list.first) }.value
+        let (result, fresh) = await Task.detached(priority: .userInitiated) { PillProbe.press(in: bounds, named: name, kept: kept.list.first) }.value
         if let fresh { side.pill = fresh }
         let text = "\(result) in \(Int(-started.timeIntervalSinceNow * 1000))ms"
         PelmetLog.log("livemirror: card — AX press on the pill (\(why)) → \(text)")
@@ -763,7 +785,7 @@ final class LiveMirror {
                 let copies = await Task.detached(priority: .userInitiated) { PillProbe.copies() }.value
                 for copy in copies {
                     let mid = CGPoint(x: copy.frame.midX, y: copy.frame.midY)
-                    if let side = sides.first(where: { $0.bounds.contains(mid) }), side.pill == nil {
+                    if let side = sides.first(where: { $0.bounds.contains(mid) && PillProbe.picks(copy, in: $0.bounds) }), side.pill == nil {
                         let tree = await Task.detached(priority: .userInitiated) { () -> PillTree? in
                             PillProbe.readTree(copy.element)
                         }.value
@@ -872,12 +894,14 @@ final class LiveMirror {
                 side.base.contentsGravity = .resize
                 CATransaction.commit()
                 side.look = still.look
+                side.snapTexts = still.texts
                 PelmetLog.log("livemirror: still reused — the look is unchanged since \(age)s, no capture")
             }
         }
-        let reason: String?
+        var reason: String?
         if let old = side.look, side.base.contents != nil { reason = look.change(from: old) }
         else { reason = "first (\(why))" }
+        if reason == nil, side.base.contents != nil, !side.snapping { reason = textTrigger(side, tree) }
         if let reason, !side.snapping {
             side.snapping = true
             if await snapshot(side, tree, reason: reason) { side.look = look }
@@ -887,6 +911,33 @@ final class LiveMirror {
         side.visual = tree.visual
         layoutMirror(side)
         drawTexts(side, tree, why: why)
+    }
+
+    /// The pill's text differs from the one in the still: a reason to take
+    /// a new still now, or nil (nothing changed, or the rate limit holds it
+    /// back and a trailing snapshot is waiting).
+    private func textTrigger(_ side: Side, _ tree: PillTree) -> String? {
+        let now = tree.texts.map(\.value)
+        guard let was = side.snapTexts, now != was else { return nil }
+        let change = "\(was.joined(separator: " ")) → \(now.joined(separator: " "))"
+        let interval = Self.textSnapshotInterval
+        if let last = textSnapAt[side.id], Date().timeIntervalSince(last) < interval {
+            let wait = interval - Date().timeIntervalSince(last)
+            PelmetLog.log("livemirror: snapshot skipped — rate limit (text \(change), next in \(Int(wait.rounded(.up)))s)")
+            if side.trailing == nil {
+                side.trailing = Task { @MainActor [weak self, weak side] in
+                    try? await Task.sleep(for: .seconds(wait))
+                    guard !Task.isCancelled, let self, let side else { return }
+                    side.trailing = nil
+                    await self.refreshPill(side, why: "trailing snapshot")
+                }
+            }
+            return nil
+        }
+        textSnapAt[side.id] = Date()
+        side.trailing?.cancel()
+        side.trailing = nil
+        return "text changed (\(change))"
     }
 
     /// One still of the pill, the texts blanked out of it.
@@ -925,7 +976,9 @@ final class LiveMirror {
         side.base.contents = blanked
         side.base.contentsGravity = .resize
         CATransaction.commit()
-        kept[side.id] = KeptStill(look: tree.look, image: blanked, at: Date())
+        let texts = tree.texts.map(\.value)
+        side.snapTexts = texts
+        kept[side.id] = KeptStill(look: tree.look, image: blanked, at: Date(), texts: texts)
         PelmetLog.log("livemirror: snapshot #\(side.snapshots) — \(reason) [display \(side.id), \(image.width)×\(image.height)px, \(Int(-started.timeIntervalSinceNow * 1000))ms, \(excluded.count) window(s) left out]")
         return true
     }
@@ -1247,10 +1300,13 @@ final class LiveMirror {
             }
         }
         for side in sides {
-            if side.pill == nil || tickCount % Self.fallbackEvery == 0 {
+            // The net is read every 2 s; while the text is moving (a countdown)
+            // it is read every tick, so the mirror does not skip a second.
+            let textMoving = side.textChangedAt.map { Date().timeIntervalSince($0) < 5 } ?? false
+            if side.pill == nil || textMoving || tickCount % Self.fallbackEvery == 0 {
                 if side.pill == nil {
                     let copies = await Task.detached(priority: .userInitiated) { PillProbe.copies() }.value
-                    if let copy = copies.first(where: { side.bounds.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY)) }) {
+                    if let copy = copies.first(where: { PillProbe.picks($0, in: side.bounds) }) {
                         PelmetLog.log("livemirror: pill found on display \(side.id) at tick")
                         side.pill = copy
                         side.observer?.stop()
@@ -1296,6 +1352,8 @@ final class LiveMirror {
         }
         for side in sides {
             side.refresh?.cancel()
+            side.trailing?.cancel()
+            side.trailing = nil
             side.observer?.stop()
             side.observer = nil
             PelmetLog.log("livemirror: display \(side.id) \(side.snapshots) snapshot(s) this run")
