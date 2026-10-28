@@ -19,13 +19,13 @@ Everything below the one-time setup is: bump version → run script → publish.
      --key ~/Downloads/AuthKey_XXXX.p8 --key-id XXXX --issuer <issuer-uuid>
    ```
 
-3. **Sparkle EdDSA keys** — after the first build fetches Sparkle via SPM:
-
-   ```sh
-   # find the tools in DerivedData
-   find ~/Library/Developer/Xcode/DerivedData -path '*Sparkle/bin/generate_keys' -print -quit
-   <that path>          # generates keys, stores private key in login keychain
-   ```
+3. **Sparkle EdDSA keys** — use `bin/generate_keys` from a verified Sparkle
+   release archive. Download the SPM artifact for the revision pinned in
+   `project.yml`, check its SHA-256 against that revision's `Package.swift`,
+   then extract it into a fresh directory. `scripts/release.sh` carries the
+   same pinned version and checksum. Never discover signing tools by scanning
+   shared DerivedData. Run the verified `generate_keys` to generate keys and
+   store the private key in the login keychain.
 
    It prints the **public** key: paste it into `project.yml` as `SUPublicEDKey`
    (replacing the `REPLACE_WITH_…` placeholder) and re-run `xcodegen`. The
@@ -53,6 +53,13 @@ Everything below the one-time setup is: bump version → run script → publish.
    `CFBundleVersion`, so it must strictly increase) in `project.yml`.
 2. `scripts/release.sh` — archives, exports with Developer ID, notarizes +
    staples app and DMG, writes `build/releases/Dimble-<v>.dmg` + `appcast.xml`.
+   It uses isolated build output and checksum-verified Sparkle tools, fails on
+   Gatekeeper or appcast errors, and verifies the DMG's Ed25519 signature against
+   the public key in the exported app. Keep the Sparkle revision in
+   `project.yml` and the artifact version/checksum in the script in sync.
+   `SKIP_NOTARIZE=1` is only for local smoke runs; it still requires a valid
+   update signature. Run the offline release checks with
+   `python3 -m unittest discover -s scripts/tests`.
 3. Tag and publish: create GitHub release `v<version>` with the DMG and the
    `*.delta` files attached (release.sh points each delta at its build's
    release tag, never at gh-pages).

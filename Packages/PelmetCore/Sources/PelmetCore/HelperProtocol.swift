@@ -48,6 +48,20 @@ public enum HelperCommand: Codable, Sendable {
     /// The complete list; the helper diffs against what it hosts.
     case sync([HostedItem])
     case quit
+
+    public var isValid: Bool {
+        switch self {
+        case .quit: return true
+        case .sync(let items):
+            return items.count <= 256 && Set(items.map(\.title)).count == items.count
+                && items.allSatisfy {
+                    !$0.title.isEmpty && $0.title.utf8.count <= 256 && $0.text.utf8.count <= 1024
+                        && $0.alpha.isFinite && (0...1).contains($0.alpha)
+                        && ($0.length.map { $0.isFinite && (0...1024).contains($0) } ?? true)
+                        && ($0.imagePNG?.count ?? 0) <= 256 * 1024
+                }
+        }
+    }
 }
 
 /// Helper → main.
@@ -59,6 +73,25 @@ public enum HelperEvent: Codable, Sendable {
     case clicked(bundle: String, title: String, rightButton: Bool, x: Double, y: Double)
     /// The user ⌘-dragged the item off the bar; the helper already unhosted it.
     case draggedOff(bundle: String, title: String)
+
+    public var bundle: String {
+        switch self {
+        case .ready(let bundle), .hosted(let bundle, _), .clicked(let bundle, _, _, _, _),
+             .draggedOff(let bundle, _): return bundle
+        }
+    }
+
+    public func isAuthorized(peer: String, items: [HostedItem]) -> Bool {
+        guard bundle == peer else { return false }
+        switch self {
+        case .ready: return true
+        case .hosted(_, let title): return items.contains { $0.title == title }
+        case .clicked(_, let title, _, let x, let y):
+            return x.isFinite && y.isFinite && items.contains { $0.title == title }
+        case .draggedOff(_, let title):
+            return items.contains { $0.title == title && $0.removable }
+        }
+    }
 }
 
 public enum HelperWire {
@@ -67,6 +100,7 @@ public enum HelperWire {
     }
 
     public static func decode<T: Decodable>(_ type: T.Type, from data: Data) -> T? {
-        try? JSONDecoder().decode(type, from: data)
+        guard data.count <= HelperLink.maximumMessageBytes else { return nil }
+        return try? JSONDecoder().decode(type, from: data)
     }
 }
