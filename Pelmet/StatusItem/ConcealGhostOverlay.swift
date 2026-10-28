@@ -52,9 +52,16 @@ enum AlphaFade {
 @MainActor
 /// A held bar's window: the clicks on the covered run are the bar's (#88).
 private final class HeldBarPanel: NSPanel {
+    /// Live mode (spike): takes every click on the picture; the mirror's
+    /// forwards it to the real pill.
+    var clickHook: ((NSPoint) -> Void)?
     override func sendEvent(_ event: NSEvent) {
         switch event.type {
         case .leftMouseDown:
+            if let clickHook {
+                clickHook(convertPoint(toScreen: event.locationInWindow))
+                return
+            }
             ConcealGhostOverlay.onHeldBarClick?(screen?.directDisplayID, event.clickCount)
         case .leftMouseUp, .rightMouseDown, .rightMouseUp, .otherMouseDown, .otherMouseUp:
             break
@@ -82,6 +89,8 @@ final class ConcealGhostOverlay {
     /// keep the single-cover call shape.
     struct GhostSet {
         fileprivate let overlays: [ConcealGhostOverlay]
+        /// Live mode (spike): the covers, to hang a mirror in each.
+        var members: [ConcealGhostOverlay] { overlays }
         /// The covers' ids as they read in the `ghost:` lines, "#3 #4".
         var ids: String { overlays.map { "#\($0.id)" }.joined(separator: " ") }
         /// Still on screen: not dismissed, faded or timed out.
@@ -394,11 +403,17 @@ final class ConcealGhostOverlay {
     /// own windows left out. The bar is clear glass: what is left matches
     /// the empty bar pixel for pixel, window shadows under it included
     /// (2026-10-19, three displays, max diff 0 outside the glyphs).
+    /// Live mode (spike): the live mirror's cover is over the bar and the
+    /// assertion is down, so any other picture would film the hidden icons
+    /// or the mirror itself. Everyone else's capture runs uncovered.
+    static var liveModeBlocksCaptures = false
+
     static func snapshotSet(
         of rect: CGRect?, excludingOwnWindows: Bool = false, ownWindows: [SCWindow]? = nil, primaryOnly: Bool = false,
-        displays: Set<CGDirectDisplayID>? = nil, bare: Bool = false
+        displays: Set<CGDirectDisplayID>? = nil, bare: Bool = false, liveMirror: Bool = false
     ) async -> [BarSnapshot] {
         guard let rect, rect.width > 8 else { return [] }
+        if liveModeBlocksCaptures, !liveMirror { return [] }
         if let closed = menuClosedAt {
             let remaining = menuFadeHold - Date().timeIntervalSince(closed)
             if remaining > 0 {
@@ -906,6 +921,30 @@ final class ConcealGhostOverlay {
 
     func passClicks(_ through: Bool) {
         window.ignoresMouseEvents = through || countsAsStrip
+    }
+
+    // MARK: Live mode (spike)
+
+    var windowNumber: Int { window.windowNumber }
+    var windowFrame: NSRect { window.frame }
+
+    /// Every click on the picture goes to `hook` (global Cocoa point).
+    func setClickHook(_ hook: ((NSPoint) -> Void)?) {
+        (window as? HeldBarPanel)?.clickHook = hook
+    }
+
+    /// A layer over the picture, in the picture's own coordinates.
+    func addLayer(_ layer: CALayer) {
+        guard let root = window.contentView?.layer else { return }
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        root.addSublayer(layer)
+        CATransaction.commit()
+    }
+
+    /// Out of the way (the real bar shows) or back over it, no animation.
+    func setShown(_ shown: Bool) {
+        guard !finished else { return }
+        if shown { window.orderFrontRegardless() } else { window.orderOut(nil) }
     }
 
     /// One decrement per overlay, however it ends.

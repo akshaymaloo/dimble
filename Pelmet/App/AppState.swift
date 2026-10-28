@@ -93,6 +93,9 @@ final class AppState {
     }
 
     @ObservationIgnored lazy var transitions = TransitionCoordinator(appState: self, engine: engine)
+    /// Live mode (spike): the Live Activities pill mirrored beside the «
+    /// while the bar reads concealed (`-pelmet.debug.liveMirror YES`).
+    @ObservationIgnored lazy var liveMirror = LiveMirror(appState: self)
     @ObservationIgnored private lazy var barPresenter = BarPresenter(transitions: transitions)
     /// The hidden icons as tiles under the chevron (docs/PANEL-PLAN.md §5).
     @ObservationIgnored lazy var panelPresenter = PanelPresenter(appState: self)
@@ -1101,6 +1104,7 @@ final class AppState {
     // MARK: - Intents (UI + monitors call these)
 
     func toggle(reason: RevealReason, sections: Set<PelmetCore.Section> = [.hidden]) {
+        if liveMirror.intercepts(reveal: reason) { return }
         // A chevron click on a display that shows all icons opens Always
         // Hidden there, in that display's "Show hidden icons in" (#96). A plain toggle
         // asked for nothing when anchored, and closed the icons that display
@@ -1156,6 +1160,7 @@ final class AppState {
     }
 
     func reveal(_ sections: Set<PelmetCore.Section>, reason: RevealReason) {
+        if liveMirror.intercepts(reveal: reason) { return }
         if anchoredShowAllAsksNothing(sections, reason) { return }
         PerfTrace.markTrigger("\(reason)")
         // The panel is up and this needs the real bar (⌘↩ in Search, an
@@ -1173,6 +1178,7 @@ final class AppState {
     /// once it is all out. A reveal that left Always Hidden in widens to
     /// include it instead of closing: the key asked for more, not less.
     func toggleAll(reason: RevealReason) {
+        if liveMirror.intercepts(reveal: reason) { return }
         let all: Set<PelmetCore.Section> = [.hidden, .alwaysHidden]
         // Off the anchor (no Screen Recording), a display that shows all
         // icons has its Hidden out as the policy's own bar reveal (#96). A
@@ -2032,6 +2038,7 @@ final class AppState {
     /// puts it back at once: the lift's state is read here, not asked of the
     /// engine, which is mid-converge for the whole reveal.
     func liftHideForLiveActivities() {
+        if liveMirror.intercepts(reveal: .statusItem) { return }
         let all: Set<PelmetCore.Section> = [.hidden, .alwaysHidden]
         if transitions.liftUp {
             PelmetLog.log("liveactivity: click with the bar lifted — concealing")
@@ -2062,6 +2069,12 @@ final class AppState {
     /// From the lift's click until its reveal is asked for (the picture
     /// it keeps first).
     private var liftStarting = false
+
+    /// The Live Activities item saw an activity start or end (live mode,
+    /// spike): `LiveMirror` enters or leaves when the bar allows.
+    func liveActivitiesChanged(running: Bool) {
+        liveMirror.activitiesChanged(running: running)
+    }
 
     /// A lift's re-hide has come to rest (`TransitionCoordinator.endLift`):
     /// the reads it held look at the bar again, and Camera & mic, kept on

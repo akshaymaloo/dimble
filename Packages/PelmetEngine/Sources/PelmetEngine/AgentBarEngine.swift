@@ -253,8 +253,29 @@ public actor AgentBarEngine: MenuBarEngine {
         await converge()
     }
 
+    /// Live mode (spike): the assertion stays down across conceals and
+    /// narrows, so the pill keeps showing while the bar reads concealed
+    /// under the app's cover. Only `holdLift(false)` ends it.
+    private var keepsLift = false
+
+    /// Live mode's two ends: down, the assertion goes and stays gone;
+    /// up, the assertion comes back in one swap.
+    public func holdLift(_ on: Bool) async {
+        if on {
+            keepsLift = true
+            if !lifted {
+                lifted = true
+                PelmetLog.log("lift: the assertion goes for live mode — Live Activities back")
+            }
+        } else {
+            keepsLift = false
+            endLift("live mode over")
+        }
+        await converge()
+    }
+
     private func endLift(_ why: String) {
-        guard lifted else { return }
+        guard lifted, !keepsLift else { return }
         lifted = false
         PelmetLog.log("lift: over (\(why)), the assertion comes back")
     }

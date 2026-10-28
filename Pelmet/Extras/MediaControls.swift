@@ -1118,6 +1118,7 @@ final class ExtrasManager {
     }
 
     private func liveActivityChanged() {
+        appState?.liveActivitiesChanged(running: !(liveActivityStatus?.active.isEmpty ?? true))
         guard let spec = specs.values.first(where: { $0.kind == .liveActivity }),
               let item = items[spec.id] else { return }
         let active = !(liveActivityStatus?.active.isEmpty ?? true)

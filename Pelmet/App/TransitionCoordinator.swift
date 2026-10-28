@@ -502,6 +502,7 @@ final class TransitionCoordinator {
     /// reflows under its cover. Nil once that cover is down. Only while the
     /// bar is out or settling, so a lift no conceal ended can't hold them.
     var liftHoldReason: String? {
+        if liveModeActive { return "the live mirror has the bar" }
         if liftEnding { return "the bar is settling from a Live Activities lift" }
         guard lifted, appState?.currentRevealedSections.isEmpty == false else { return nil }
         return "a Live Activities lift has the bar"
@@ -512,7 +513,42 @@ final class TransitionCoordinator {
     /// leaves the bar at the lift and comes back after the re-hide, parked
     /// wherever the agent puts it, and Apply drags it home (2.5s after the
     /// re-hide, 2026-10-27). Two camera glyphs for the lift's length instead.
-    var liftKeepsCameraItem: Bool { lifted || liftEnding }
+    var liftKeepsCameraItem: Bool { lifted || liftEnding || liveModeActive }
+
+    // MARK: - Live mode (spike)
+
+    /// The live mirror holds the bar: the assertion is down under its
+    /// cover (`LiveMirror`). Reads wait and held pictures stand still, the
+    /// way they do for a lift.
+    var liveModeActive = false
+
+    /// The end of live mode, the lift's re-hide tail: the assertion is
+    /// already back (`engine.holdLift(false)`); once the bar beneath has
+    /// come to rest under `cover` the held pictures go up and it lifts.
+    func endLive(covers: [ConcealGhostOverlay.GhostSet]) async {
+        liftEnding = true
+        liftEndGeneration += 1
+        let generation = liftEndGeneration
+        defer {
+            if generation == liftEndGeneration {
+                liftEnding = false
+                appState?.liftSettled()
+            }
+        }
+        guard let appState else { for cover in covers { cover.dismiss() }; return }
+        let started = Date()
+        await appState.waitUntilQuiesced(interval: 0.15, deadline: 2, poll: .milliseconds(30))
+        let deadline = Date().addingTimeInterval(AppTiming.clockBlinkCoverDeadline)
+        while Date() < deadline, await appState.engine.concealedItemsStillVisible() {
+            try? await Task.sleep(for: .milliseconds(60))
+        }
+        let gone = Int(-started.timeIntervalSinceNow * 1000)
+        try? await Task.sleep(for: .seconds(AppTiming.exitCoverHold))
+        await appState.waitUntilQuiesced(interval: 0.15, deadline: 1, poll: .milliseconds(30))
+        await hold(appState.barsKeptConcealed)
+        for cover in covers { cover.dismiss() }
+        PelmetLog.log("livemirror: exit cover \(covers.map(\.ids).joined(separator: " ") ) down — concealed gone at \(gone)ms, lifted at \(Int(-started.timeIntervalSinceNow * 1000))ms")
+    }
 
     /// From the conceal or narrow that ends a lift until the bar beneath
     /// has come to rest (`endLift`), cover or not.
@@ -1559,7 +1595,7 @@ final class TransitionCoordinator {
         guard let appState, !passInFlight else { return }
         // A lift's re-hide cover is over the bar: what moves beneath it is
         // the reflow it hides, and it re-holds before it lifts.
-        guard liftCover == nil else { return }
+        guard liftCover == nil, !liveModeActive else { return }
         // One read of the window list for every bar and the backdrop.
         var windows: [[String: Any]]?
         let want = appState.barsKeptConcealed(windows: &windows)
