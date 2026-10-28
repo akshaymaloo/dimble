@@ -536,9 +536,19 @@ final class LiveMirror {
         let me = ProcessInfo.processInfo.processIdentifier
         let wanted = Set(sides.compactMap { $0.cover?.members.first?.windowNumber })
         var own: [SCWindow] = []
+        // Other apps' surfaces over the pill's spot (Sconce's notch glass
+        // draws its glyphs over it) come out of the film too: the pill is
+        // drawn beneath them.
+        var foreign = Set<CGWindowID>()
+        for side in sides {
+            guard let pill = side.pillFrame else { continue }
+            for hit in ConcealGhostOverlay.foreignBandWindows(intersecting: pill, bandHeight: side.picture?.windowFrame.height ?? 39) {
+                foreign.insert(hit.id)
+            }
+        }
         for attempt in 0..<12 {
             let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-            own = content?.windows.filter { $0.owningApplication?.processID == me } ?? []
+            own = content?.windows.filter { $0.owningApplication?.processID == me || foreign.contains($0.windowID) } ?? []
             let have = Set(own.map { Int($0.windowID) })
             if wanted.isSubset(of: have) {
                 if attempt > 0 { PelmetLog.log("livemirror: cover windows listed after \(attempt) retry(ies)") }
@@ -550,7 +560,7 @@ final class LiveMirror {
             do { try await side.stream.exclude(own, on: side.scDisplay) }
             catch { PelmetLog.log("livemirror: exclusion on display \(side.id) failed — \(error.localizedDescription)") }
         }
-        PelmetLog.log("livemirror: \(own.count) own window(s) left out of the streams")
+        PelmetLog.log("livemirror: \(own.count) window(s) left out of the streams (\(foreign.count) foreign)")
     }
 
     // MARK: Pill and mirror
@@ -570,6 +580,7 @@ final class LiveMirror {
         }
         await retarget(side)
         layoutMirror(side)
+        await excludeOwnWindows()
     }
 
     private func retarget(_ side: Side) async {
@@ -724,6 +735,7 @@ final class LiveMirror {
                 }
                 await retarget(side)
                 layoutMirror(side)
+                await excludeOwnWindows()
             }
         }
         for side in sides { side.cover?.keepUp(for: Self.coverSafety) }

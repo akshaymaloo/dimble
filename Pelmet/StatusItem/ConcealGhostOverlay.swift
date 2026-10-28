@@ -318,6 +318,8 @@ final class ConcealGhostOverlay {
     }
 
     private let window: NSWindow
+    /// The foreign surface this cover slipped in beneath, if any.
+    private var beneathID: CGWindowID?
     private let imageView: NSImageView
     private var finished = false
     private var stoodDown = false
@@ -850,6 +852,7 @@ final class ConcealGhostOverlay {
         let shot = snapshot.image
         Self.nextID += 1
         id = Self.nextID
+        beneathID = beneath
         countsAsStrip = !holdsBar
         if holdsBar {
             let panel = HeldBarPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
@@ -944,7 +947,8 @@ final class ConcealGhostOverlay {
     /// Out of the way (the real bar shows) or back over it, no animation.
     func setShown(_ shown: Bool) {
         guard !finished else { return }
-        if shown { window.orderFrontRegardless() } else { window.orderOut(nil) }
+        if !shown { window.orderOut(nil); return }
+        if let beneathID { window.order(.below, relativeTo: Int(beneathID)) } else { window.orderFrontRegardless() }
     }
 
     /// One decrement per overlay, however it ends.
