@@ -1,6 +1,6 @@
 // LiveMirror.swift
-// Live mode (spike, `-pelmet.debug.liveMirror YES`): while a Live Activity
-// runs, the pill shows beside the « and the hidden icons stay hidden.
+// Live mode (the "Show Live Activities" setting, on by default): while a Live
+// Activity runs, the pill shows beside the « and the hidden icons stay hidden.
 //
 // MenuBarAgent takes the pill off the bar under any hide assertion, so live
 // mode holds none: the assertion goes (`engine.holdLift`), the icons it hid
@@ -23,7 +23,9 @@
 // which lifts once the bar beneath has settled
 // (`TransitionCoordinator.endLive`).
 //
-// Every step logs with a `livemirror:` prefix.
+// It never asks for Screen Recording: without it live mode waits and the
+// pill stays off the bar. Turning the setting off leaves live mode the way
+// an ended activity does. Every step logs with a `livemirror:` prefix.
 
 import AppKit
 import ApplicationServices
@@ -455,10 +457,10 @@ nonisolated enum PillProbe {
 
 @MainActor
 final class LiveMirror {
-    static let flagKey = "pelmet.debug.liveMirror"
+    /// The "Show Live Activities" setting.
+    private var enabled: Bool { appState?.settings.showLiveActivities ?? false }
     /// Debug: while true live mode is left (or not entered), for cycling it by hand.
     static let suspendKey = "pelmet.debug.liveMirrorSuspend"
-    static var enabled: Bool { UserDefaults.standard.bool(forKey: flagKey) }
 
     private static let pollInterval = Duration.milliseconds(250)
     /// The AX fallback read, in ticks: the observer is the way in, this is the net.
@@ -584,6 +586,9 @@ final class LiveMirror {
     private(set) var isActive = false
     private var entering = false, exiting = false
     private var wanted = false
+    /// What the watcher last said, whatever the setting: turning the setting
+    /// on picks it up (`settingChanged`).
+    private var reported = (running: false, count: 0)
     private var loop: Task<Void, Never>?
     private var lastChevron: NSRect?
     private var coverLifted = false
@@ -684,7 +689,7 @@ final class LiveMirror {
     /// A conceal landed (the re-hide after a reveal): live mode that waits to
     /// come back looks now, not at the loop's next quarter second.
     func kick() {
-        guard Self.enabled, wanted, loop != nil, !isActive, !entering, !exiting, !handingOver, !kicking else { return }
+        guard enabled, wanted, loop != nil, !isActive, !entering, !exiting, !handingOver, !kicking else { return }
         kicking = true
         Task { @MainActor [weak self] in
             guard let self else { return }
@@ -698,7 +703,23 @@ final class LiveMirror {
     }
 
     func activitiesChanged(running: Bool, count: Int = 0) {
-        guard Self.enabled else { return }
+        reported = (running, count)
+        // With the setting off the watcher may still run (the item follows
+        // it): live mode takes no part.
+        follow(running: running && enabled, count: enabled ? count : 0, why: "activity ended")
+    }
+
+    /// The setting changed (`AppState.settingsChanged`, so often): turned
+    /// on, live mode picks up what the watcher last said; turned off, it
+    /// leaves the way an ended activity does.
+    func settingChanged() {
+        let running = enabled && reported.running
+        guard running != wanted else { return }
+        PelmetLog.log("livemirror: the setting turned \(enabled ? "on" : "off")")
+        follow(running: running, count: enabled ? reported.count : 0, why: "setting turned off")
+    }
+
+    private func follow(running: Bool, count: Int, why: String) {
         if running != wanted { PelmetLog.log("livemirror: activities \(running ? "running" : "none") — wanted \(running)") }
         wanted = running
         // An activity started or ended: the pills are looked for every tick for
@@ -709,11 +730,12 @@ final class LiveMirror {
             activityCount = count
             lookEagerlyUntil = Date().addingTimeInterval(3)
         }
-        if loop == nil { startLoop() }
+        // (Nothing runs and no loop: nothing to start, or to stop again.)
+        if loop == nil, running { startLoop() }
         // The last activity ended: the mirror leaves now, not at the loop's
         // next tick (`exit` ignores a second call).
         if !running, isActive, !entering, !exiting, !handingOver {
-            Task { @MainActor [weak self] in await self?.exit("activity ended") }
+            Task { @MainActor [weak self] in await self?.exit(why) }
         }
     }
 
@@ -1018,10 +1040,10 @@ final class LiveMirror {
             while !Task.isCancelled {
                 guard let self else { return }
                 let suspended = UserDefaults.standard.bool(forKey: Self.suspendKey)
-                let desired = self.wanted && !suspended && Self.enabled
+                let desired = self.wanted && !suspended && self.enabled
                 if self.entering || self.exiting || self.handingOver {
                     // a step is running
-                } else if !self.wanted || !Self.enabled, !self.isActive {
+                } else if !self.wanted || !self.enabled, !self.isActive {
                     // Nothing to mirror and nothing held: no loop, no keeper,
                     // no observers until an activity starts again.
                     self.stopLoop()
@@ -1034,7 +1056,7 @@ final class LiveMirror {
                         await self.enter()
                     }
                 } else if !desired, self.isActive {
-                    await self.exit(suspended ? "suspended (debug)" : (Self.enabled ? "activity ended" : "flag turned off"))
+                    await self.exit(suspended ? "suspended (debug)" : (self.enabled ? "activity ended" : "setting turned off"))
                 } else if self.isActive {
                     await self.tick()
                 }

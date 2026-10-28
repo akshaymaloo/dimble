@@ -102,7 +102,9 @@ final class ExtrasManager {
     /// Whether a SharePlay session with no call is live, alive while a
     /// Camera & mic item exists.
     private var sharePlayStatus: SharePlayStatus?
-    /// The Live Activities running, alive while a Live Activities item exists.
+    /// The Live Activities running, alive while a Live Activities item exists
+    /// or live mode is on (the "Show Live Activities" setting): one watcher
+    /// serves both.
     private var liveActivityStatus: LiveActivityStatus?
     private var lastLiveActivityActive = false
     /// One clock per media item drawing the animated bars (see ExtraGlyphs).
@@ -348,7 +350,8 @@ final class ExtrasManager {
             status.stop()
             focusStatus = nil
         }
-        if newSpecs.contains(where: { $0.kind == .liveActivity }) {
+        let hasLiveActivityItem = newSpecs.contains { $0.kind == .liveActivity }
+        if hasLiveActivityItem || appState?.settings.showLiveActivities == true {
             if liveActivityStatus == nil {
                 let status = LiveActivityStatus()
                 status.onChange = { [weak self] in self?.liveActivityChanged() }
@@ -358,11 +361,12 @@ final class ExtrasManager {
         } else if let status = liveActivityStatus {
             status.stop()
             liveActivityStatus = nil
-            lastLiveActivityActive = false
-            // Live mode follows the item: with the item off nothing says an
-            // activity ended, so it is told here.
+            // With the item and live mode both off nothing says an activity
+            // ended, so live mode is told here (it forgets what it was told).
             appState?.liveActivitiesChanged(running: false, count: 0)
         }
+        // The item's edge tracking starts over when it goes, watcher or not.
+        if !hasLiveActivityItem { lastLiveActivityActive = false }
         if newSpecs.contains(where: { $0.kind == .cameraMicIndicator }) {
             if sharePlayStatus == nil {
                 let status = SharePlayStatus()

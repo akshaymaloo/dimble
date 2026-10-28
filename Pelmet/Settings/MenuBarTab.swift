@@ -1131,7 +1131,30 @@ private struct PelmetItemsStrip: View {
             .pelmetCardSurface()
 
             systemExtras
+
+            liveActivities
         }
+    }
+
+    /// Live mode (`LiveMirror`): independent of the Live Activities item
+    /// above, which only shows that one runs. It needs Screen Recording for
+    /// the picture it holds the bar under, so the line says so without it.
+    private var liveActivities: some View {
+        SettingToggleRow(
+            title: "Show Live Activities",
+            caption: appState.screenRecordingGranted
+                ? "While one runs, its pill shows next to the « and the system icons Dimble hides come back."
+                : "While one runs, its pill shows next to the « and the system icons Dimble hides come back. Without Screen Recording, the pill stays hidden.",
+            isOn: Binding(
+                get: { appState.settings.showLiveActivities },
+                set: {
+                    appState.settings.showLiveActivities = $0
+                    appState.settingsChanged()
+                }
+            )
+        )
+        .pelmetCardSurface()
+        .settingAnchor("liveActivities")
     }
 
     /// Apple's Now Playing, camera controls, AirDrop, Focus and Timer hide

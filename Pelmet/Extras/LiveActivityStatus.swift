@@ -1,6 +1,7 @@
 // LiveActivityStatus.swift
-// Which Live Activities are running, for Dimble's Live Activities item
-// (#106). MenuBarAgent takes their pills off the bar under any hide
+// Which Live Activities are running, for live mode (the "Show Live Activities"
+// setting) and Dimble's Live Activities item (#106). One watcher serves both,
+// alive while either is on (`ExtrasManager.sync`). MenuBarAgent takes their pills off the bar under any hide
 // assertion, and what an activity shows is for Apple's own processes only
 // (the session and chrono services check private entitlements). The agent
 // does narrate each one's start and end to the unified log, naming the app

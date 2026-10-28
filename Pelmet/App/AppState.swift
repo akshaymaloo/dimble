@@ -93,8 +93,8 @@ final class AppState {
     }
 
     @ObservationIgnored lazy var transitions = TransitionCoordinator(appState: self, engine: engine)
-    /// Live mode (spike): the Live Activities pill mirrored beside the «
-    /// while the bar reads concealed (`-pelmet.debug.liveMirror YES`).
+    /// Live mode: the Live Activities pill mirrored beside the « while the
+    /// bar reads concealed (the "Show Live Activities" setting).
     @ObservationIgnored lazy var liveMirror = LiveMirror(appState: self)
     @ObservationIgnored private lazy var barPresenter = BarPresenter(transitions: transitions)
     /// The hidden icons as tiles under the chevron (docs/PANEL-PLAN.md §5).
@@ -2071,8 +2071,8 @@ final class AppState {
     /// it keeps first).
     private var liftStarting = false
 
-    /// The Live Activities item saw an activity start or end (live mode,
-    /// spike): `LiveMirror` enters or leaves when the bar allows.
+    /// The Live Activities watcher saw an activity start or end: `LiveMirror`
+    /// enters or leaves when the bar allows, if the setting is on.
     func liveActivitiesChanged(running: Bool, count: Int = 0) {
         liveMirror.activitiesChanged(running: running, count: count)
     }
@@ -2285,6 +2285,9 @@ final class AppState {
         // when not): through the Apply door like any own item entering the
         // bar, one hidden-cursor drag while the user is still at the toggle.
         let previousOwnIDs = Set((extras?.managedItemIDs ?? []) + (separators?.managedItemIDs ?? []))
+        // Before the extras sync: a setting turned off leaves live mode for
+        // its own reason, ahead of the watcher stopping under it.
+        liveMirror.settingChanged()
         separators?.sync(with: settings.separators)
         extras?.sync(with: settings.extraItems)
         pruneOrderEditsForRemovedOwnItems()

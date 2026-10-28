@@ -19605,6 +19605,64 @@
         }
       }
     },
+    "Show Live Activities": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Live-Aktivitäten anzeigen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar Actividades en directo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afficher les Activités en direct"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostra Attività in tempo reale"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ライブアクティビティを表示"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "실시간 현황 표시"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar Atividades ao Vivo"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показывать активности Live"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示实时活动"
+          }
+        }
+      }
+    },
     "Show Names": {
       "localizations": {
         "de": {
@@ -25053,6 +25111,122 @@
           "stringUnit": {
             "state": "translated",
             "value": "备份期间"
+          }
+        }
+      }
+    },
+    "While one runs, its pill shows next to the « and the system icons Dimble hides come back.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solange eine läuft, erscheint ihre Kapsel neben dem « und die Systemsymbole, die Dimble ausblendet, kommen zurück."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mientras hay una en curso, su cápsula aparece junto al « y vuelven los iconos del sistema que Dimble oculta."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pendant qu’une est en cours, sa capsule s’affiche à côté du « et les icônes système que Dimble masque reviennent."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mentre ne è in corso una, la sua capsula appare accanto al « e tornano le icone di sistema che Dimble nasconde."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "実行中は、そのカプセルが « の横に表示され、Dimble が隠しているシステムアイコンも戻ります。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "실시간 현황이 진행되는 동안 그 캡슐이 « 옆에 표시되고, Dimble이 숨긴 시스템 아이콘이 돌아옵니다."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enquanto uma está em andamento, sua cápsula aparece ao lado do « e os ícones do sistema que o Dimble oculta voltam."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пока она идёт, её капсула появляется рядом с «, а системные значки, которые скрывает Dimble, возвращаются."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有实时活动进行时，它的胶囊会显示在 « 旁边，Dimble 隐藏的系统图标也会重新出现。"
+          }
+        }
+      }
+    },
+    "While one runs, its pill shows next to the « and the system icons Dimble hides come back. Without Screen Recording, the pill stays hidden.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solange eine läuft, erscheint ihre Kapsel neben dem « und die Systemsymbole, die Dimble ausblendet, kommen zurück. Ohne Bildschirmaufnahme bleibt die Kapsel ausgeblendet."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mientras hay una en curso, su cápsula aparece junto al « y vuelven los iconos del sistema que Dimble oculta. Sin la grabación de pantalla, la cápsula sigue oculta."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pendant qu’une est en cours, sa capsule s’affiche à côté du « et les icônes système que Dimble masque reviennent. Sans l’enregistrement de l’écran, la capsule reste masquée."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mentre ne è in corso una, la sua capsula appare accanto al « e tornano le icone di sistema che Dimble nasconde. Senza la registrazione schermo, la capsula resta nascosta."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "実行中は、そのカプセルが « の横に表示され、Dimble が隠しているシステムアイコンも戻ります。画面収録がないと、カプセルは隠れたままです。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "실시간 현황이 진행되는 동안 그 캡슐이 « 옆에 표시되고, Dimble이 숨긴 시스템 아이콘이 돌아옵니다. 화면 기록이 없으면 캡슐은 숨겨진 채로 있습니다."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enquanto uma está em andamento, sua cápsula aparece ao lado do « e os ícones do sistema que o Dimble oculta voltam. Sem a gravação de tela, a cápsula continua oculta."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пока она идёт, её капсула появляется рядом с «, а системные значки, которые скрывает Dimble, возвращаются. Без записи экрана капсула остаётся скрытой."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有实时活动进行时，它的胶囊会显示在 « 旁边，Dimble 隐藏的系统图标也会重新出现。没有录屏权限时，胶囊会保持隐藏。"
           }
         }
       }
