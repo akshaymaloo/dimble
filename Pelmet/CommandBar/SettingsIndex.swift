@@ -69,6 +69,8 @@ enum SettingsIndex {
 
             menuBar("systemExtras", String(localized: "System extras"),
                     ["now playing", "camera", "airdrop", "focus", "timer", "collateral"]),
+            menuBar("liveActivities", String(localized: "Show Live Activities"),
+                    ["live activity", "live mode", "pill", "dynamic island", "timer", "call", "screen recording"]),
 
             panel("hiddenIconsIn", String(localized: "Show hidden icons in"),
                   ["panel", "grid", "row", "notch", "overflow", "dropdown", "tray", "layout", "per display", "monitor", "external"]),

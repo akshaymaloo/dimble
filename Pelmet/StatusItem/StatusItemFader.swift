@@ -125,6 +125,22 @@ enum StatusItemFader {
     /// The agent's glide of an attached-ahead item is over by ~250ms.
     private static let glideDelay: TimeInterval = 0.3
 
+    /// The ghosts fading right now, weakly: live mode's cover takes the ones
+    /// under it off (`cutGhosts`), as it does the real icons beneath it.
+    private static let ghosts = NSHashTable<NSWindow>.weakObjects()
+
+    /// Orders out every fading ghost that touches `rect` (global Cocoa points);
+    /// returns how many.
+    @discardableResult
+    static func cutGhosts(under rect: NSRect) -> Int {
+        var cut = 0
+        for ghost in ghosts.allObjects where ghost.isVisible && ghost.frame.intersects(rect) {
+            ghost.orderOut(nil)
+            cut += 1
+        }
+        return cut
+    }
+
     /// Snapshot the button and fade the snapshot at its old screen position.
     static func showFadingGhost(for item: NSStatusItem) {
         guard
@@ -138,6 +154,9 @@ enum StatusItemFader {
         image.addRepresentation(rep)
 
         let screenRect = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
+        // Live mode's cover is up over the slot: the glyph is gone with the
+        // icons beneath the cover, not a fading copy drawn above it.
+        if ConcealGhostOverlay.liveCover(over: screenRect) { return }
         let ghost = NSWindow(
             contentRect: screenRect,
             styleMask: .borderless,
@@ -154,6 +173,7 @@ enum StatusItemFader {
         imageView.wantsLayer = true
         ghost.contentView = imageView
         ghost.orderFrontRegardless()
+        ghosts.add(ghost)
         AlphaFade.run(imageView, to: 0, duration: fadeDuration, controlPoints: hideCurve) {
             ghost.orderOut(nil)
         }

@@ -33,6 +33,14 @@ enum AppTiming {
     /// Camera & mic relay (#68): longest Apple's pill may take to rejoin
     /// the AX tree after the drop before the relay gives up on it.
     static let audioVideoPillWait: TimeInterval = 1
+    /// Live Activities lift (#106): the re-hide cover's watchdog, past its
+    /// longest settle (2s quiet + 1.5s for the concealed items + the
+    /// agent's fade + 1s quiet again).
+    static let liftCoverSafety: TimeInterval = 6
+    /// A picture of the concealed bar taken at the lift's click reaches this
+    /// far left of the idle one: the extras and the pills the lift lets
+    /// back push the icons left (the capture stops at the notch).
+    static let liftPictureLeftRoom: CGFloat = 200
     /// Notification Center's panel slides in over ~100ms from Pelmet's
     /// press; the blink cover crossfades from the bare still to the
     /// under-panel one over that slide, starting at the press.

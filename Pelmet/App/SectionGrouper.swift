@@ -69,6 +69,7 @@ final class SectionGrouper {
     private var driftSeen: (ids: Set<ItemID>, since: ContinuousClock.Instant)?
     private var lastDriftPass: ContinuousClock.Instant?
     private var lastDriftWaiting: String?
+    private var lastLiftWaiting: String?
     private var observers: [NSObjectProtocol] = []
     private var menuDepth = 0
     private var menuBeganAt: Date?
@@ -209,6 +210,20 @@ final class SectionGrouper {
             note("group: no chevron on the bar — nothing to group against")
             return
         }
+        // A Live Activities lift (#106) has the system's extras and pills in
+        // the bar until its re-hide settles: an order read of it is no
+        // drift of the user's (`order: drift` fired mid-lift, 2026-10-27),
+        // and nothing is moved against it. Said once, looked at on the beat:
+        // the gate is the lift's own state, gone with its re-hide.
+        if let lift = appState.liftHoldReason {
+            if lastLiftWaiting != lift {
+                lastLiftWaiting = lift
+                PelmetLog.log("order: waiting — \(lift)")
+            }
+            schedule(after: AppTiming.groupingDebounce)
+            return
+        }
+        lastLiftWaiting = nil
         // Sides read now are not where the icons sit: look on the beat.
         guard !appState.barInFlux else {
             schedule(after: AppTiming.groupingDebounce)

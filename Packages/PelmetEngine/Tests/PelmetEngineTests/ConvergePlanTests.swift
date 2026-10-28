@@ -266,4 +266,22 @@ import PelmetCore
         #expect(!plan.dropAssertion)
         #expect(plan.allowedBundles.contains("com.sindresorhus.Velja"))
     }
+
+    /// #106: Live Activity pills only come back with no assertion at all,
+    /// so a lift drops it over steady extras and an Always Hidden still in.
+    @Test func aLiftDropsTheAssertionWhateverStaysAssigned() {
+        let plan = ConvergePlan.compute(
+            model: model([velja: .alwaysHidden, sound: .hidden]),
+            liveIDs: [velja, sound],
+            carriedConcealed: [],
+            runningBundles: ["com.sindresorhus.Velja"],
+            revealedSections: [.hidden],
+            steadyExtras: true,
+            lifted: true,
+            exemptBundles: exempt
+        )
+        #expect(plan.dropAssertion)
+        #expect(plan.concealed.isEmpty)
+        #expect(plan.allowedBundles.isEmpty)
+    }
 }

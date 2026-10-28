@@ -1065,6 +1065,11 @@ private struct PelmetItemsStrip: View {
                     isOn: hasKind(.cameraMicIndicator)
                 ) { toggleKind(.cameraMicIndicator, on: $0) }
                 PelmetItemRow(
+                    symbol: ExtrasManager.liveActivitySymbol, title: "Live Activities",
+                    caption: "See when a Live Activity is running and bring it back in a click.",
+                    isOn: hasKind(.liveActivity)
+                ) { toggleKind(.liveActivity, on: $0) }
+                PelmetItemRow(
                     symbol: "siri", title: "Siri",
                     caption: "Siri, as an icon you can move. Replaces Apple's while it's on.",
                     isOn: hasKind(.siri)
@@ -1126,7 +1131,30 @@ private struct PelmetItemsStrip: View {
             .pelmetCardSurface()
 
             systemExtras
+
+            liveActivities
         }
+    }
+
+    /// Live mode (`LiveMirror`): independent of the Live Activities item
+    /// above, which only shows that one runs. It needs Screen Recording for
+    /// the picture it holds the bar under, so the line says so without it.
+    private var liveActivities: some View {
+        SettingToggleRow(
+            title: "Show Live Activities",
+            caption: appState.screenRecordingGranted
+                ? "While one runs, its pill shows next to the « and the system icons Dimble hides come back."
+                : "While one runs, its pill shows next to the « and the system icons Dimble hides come back. Without Screen Recording, the pill stays hidden.",
+            isOn: Binding(
+                get: { appState.settings.showLiveActivities },
+                set: {
+                    appState.settings.showLiveActivities = $0
+                    appState.settingsChanged()
+                }
+            )
+        )
+        .pelmetCardSurface()
+        .settingAnchor("liveActivities")
     }
 
     /// Apple's Now Playing, camera controls, AirDrop, Focus and Timer hide

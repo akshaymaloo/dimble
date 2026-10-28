@@ -105,6 +105,9 @@ public actor AgentBarEngine: MenuBarEngine {
     /// collateral-hidden extras (Now Playing, camera pill, AirDrop, Focus)
     /// consistently gone, so the bar never reflows around them.
     private var steadyExtras = SettingsDefaults.hideSystemExtras
+    /// A reveal that let the assertion go too (`reveal(_:liftingAssertion:)`,
+    /// #106), until the conceal or narrow after it.
+    private var lifted = false
     private var assertion: AssessmentAssertion?
     /// The allowlist/concealable pair the active assertion was built with.
     /// Converging to an equivalent state is a NO-OP — without this,
@@ -234,10 +237,62 @@ public actor AgentBarEngine: MenuBarEngine {
         await converge()
     }
 
+    /// `reveal` that also lets the assertion go, whatever stays assigned
+    /// where (#106): MenuBarAgent takes every Live Activity pill off the bar
+    /// under any assertion, allow-all included, so the pills only come back
+    /// with none held. Everything the assertion hid comes back with them,
+    /// Always Hidden and the system extras too. Converges in between keep it
+    /// dropped; the conceal or narrow that ends the reveal takes it back in
+    /// the same swap. Empty `sections` lifts a bar that is out already.
+    public func reveal(_ sections: Set<Section>, liftingAssertion: Bool) async {
+        if liftingAssertion, !lifted {
+            lifted = true
+            PelmetLog.log("lift: the assertion goes with the reveal — Live Activities back")
+        }
+        revealedSections.formUnion(sections)
+        await converge()
+    }
+
+    /// Live mode: the assertion stays down across conceals and
+    /// narrows, so the pill keeps showing while the bar reads concealed
+    /// under the app's cover. Only `holdLift(false)` ends it.
+    private var keepsLift = false
+
+    /// Live mode's two ends: down, the assertion goes and stays gone;
+    /// up, the assertion comes back in one swap.
+    public func holdLift(_ on: Bool) async {
+        if on {
+            keepsLift = true
+            if !lifted {
+                lifted = true
+                PelmetLog.log("lift: the assertion goes for live mode — Live Activities back")
+            }
+        } else {
+            keepsLift = false
+            endLift("live mode over")
+        }
+        await converge()
+    }
+
+    /// Live mode hands the bar to a normal reveal: the hold and the lift end
+    /// with no converge of their own; the reveal's converge is the one swap
+    /// (the assertion comes back with the sections' bundles allowed).
+    public func releaseLiftHold() {
+        keepsLift = false
+        endLift("live mode handed to a reveal")
+    }
+
+    private func endLift(_ why: String) {
+        guard lifted, !keepsLift else { return }
+        lifted = false
+        PelmetLog.log("lift: over (\(why)), the assertion comes back")
+    }
+
     /// Take back every revealed section but these, the rest staying out:
     /// one swap. `reveal` only adds, so narrowing by a conceal and a fresh
     /// reveal reflowed the bar twice.
     public func narrowReveal(to sections: Set<Section>) async {
+        endLift("narrow")
         revealedSections.formIntersection(sections)
         await converge()
     }
@@ -281,6 +336,7 @@ public actor AgentBarEngine: MenuBarEngine {
     /// `conceal()` that also takes back icons Show in Menu Bar brought out on
     /// their own, in one swap instead of two.
     public func conceal(releasing items: Set<ItemID>) async {
+        endLift("conceal")
         revealedItems.subtract(items)
         // Nothing revealed but items: no section changes, the extras stay.
         companionMuted = revealedSections.isEmpty && !revealedItems.isEmpty
@@ -469,6 +525,7 @@ public actor AgentBarEngine: MenuBarEngine {
             revealedSections: revealedSections,
             revealedItems: revealedItems.union(ruleShownItems),
             steadyExtras: steadyExtras,
+            lifted: lifted,
             exemptBundles: Self.identityExemptBundles
         )
         timing.planMS = Self.ms(since: phase)
@@ -485,7 +542,7 @@ public actor AgentBarEngine: MenuBarEngine {
 
         if plan.dropAssertion {
             timing.outcome = .dropped
-            await dropAssertionPath(plan: plan, epoch: epoch)
+            await dropAssertionPath(plan: plan, snapshot: snapshot, epoch: epoch)
             return
         }
         // With steadyExtras on, an empty concealable set still holds an
@@ -593,9 +650,23 @@ public actor AgentBarEngine: MenuBarEngine {
     }
 
     /// Nothing to hide and extras are allowed back: drop the assertion.
-    private func dropAssertionPath(plan: ConvergePlan, epoch: Int) async {
+    private func dropAssertionPath(plan: ConvergePlan, snapshot: EngineSnapshot, epoch: Int) async {
         invalidateAssertion()
         notifyReflowCompanion()
+        if lifted {
+            // A lift's walk blocks on the agent's reflow, and this one brings
+            // every icon and extra back: the reveal settled 683–734ms after
+            // the drop (2026-10-27), the rehide countdown and a second click
+            // waiting on it. Stamped and walked behind, as a swap is: nothing
+            // is concealed now, and the items the drop brings are not in the
+            // mirror yet, so it is not at rest.
+            setAsideConcealed = plan.setAside
+            lastSnapshot = EngineSnapshot(
+                items: snapshot.items, concealed: [], takenAt: Date(), shownAlone: shownAlone, itemsAtRest: false
+            )
+            Task { await self.walkAfterSwap(concealable: [], epoch: epoch, what: "drop") }
+            return
+        }
         let after = await refreshSnapshot()
         guard epoch == convergeEpoch else { return }
         setAsideConcealed = plan.setAside
@@ -766,11 +837,11 @@ public actor AgentBarEngine: MenuBarEngine {
     /// poll: when it already shows every concealable bundle gone there is
     /// nothing to poll for. A newer converge owns the state (and walks for
     /// itself) once the epoch has moved.
-    private func walkAfterSwap(concealable: Set<String>, epoch: Int) async {
+    private func walkAfterSwap(concealable: Set<String>, epoch: Int, what: String = "swap") async {
         guard epoch == convergeEpoch else { return }
         let started = Date()
         let after = await refreshSnapshot()
-        PelmetLog.log("converge: post-swap walk \(Self.ms(since: started))ms (background)")
+        PelmetLog.log("converge: post-\(what) walk \(Self.ms(since: started))ms (background)")
         guard epoch == convergeEpoch else { return }
         let stillVisible = after.items.contains { item in
             guard let bundle = item.id.bundleID else { return false }

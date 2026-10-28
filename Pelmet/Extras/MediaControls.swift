@@ -102,6 +102,11 @@ final class ExtrasManager {
     /// Whether a SharePlay session with no call is live, alive while a
     /// Camera & mic item exists.
     private var sharePlayStatus: SharePlayStatus?
+    /// The Live Activities running, alive while a Live Activities item exists
+    /// or live mode is on with Screen Recording granted (the "Show Live
+    /// Activities" setting): one watcher serves both.
+    private var liveActivityStatus: LiveActivityStatus?
+    private var lastLiveActivityActive = false
     /// One clock per media item drawing the animated bars (see ExtraGlyphs).
     private var animators: [UUID: ExtraAnimator] = [:]
     /// Play/pause state the media glyph shows. Click intent drives it (players
@@ -173,6 +178,8 @@ final class ExtrasManager {
         switch spec.kind {
         case .cameraMicIndicator:
             return lastCameraIndicatorVisible
+        case .liveActivity:
+            return lastLiveActivityActive
         case .mediaControls:
             return spec.resolvedShowRule != .whenActive || (cameraMicMonitor?.mediaRelevant ?? true)
         case .appLauncher:
@@ -343,6 +350,7 @@ final class ExtrasManager {
             status.stop()
             focusStatus = nil
         }
+        syncLiveActivityWatcher()
         if newSpecs.contains(where: { $0.kind == .cameraMicIndicator }) {
             if sharePlayStatus == nil {
                 let status = SharePlayStatus()
@@ -418,6 +426,22 @@ final class ExtrasManager {
                     appState?.cancelOwnItemPlacement(itemID)
                 }
                 lastCameraIndicatorVisible = visible
+            case .liveActivity:
+                // An indicator like Camera & mic: in the bar only while an
+                // activity runs, its section deciding where, not whether.
+                // A start comes from the phone or another app, not from a
+                // hand at the bar: placed at the next reveal settle, never
+                // dragged now.
+                let active = !(liveActivityStatus?.active.isEmpty ?? true)
+                visible = active
+                updateLiveActivityGlyph(item, spec: spec)
+                let itemID = Self.itemID(for: spec)
+                if active, !lastLiveActivityActive {
+                    appState?.placeOwnItemAtNextReveal(itemID)
+                } else if !active, lastLiveActivityActive {
+                    appState?.cancelOwnItemPlacement(itemID)
+                }
+                lastLiveActivityActive = active
             case .mediaControls:
                 let audioActive = cameraMicMonitor?.audioOutputActive ?? false
                 if audioActive != lastAudioOutputActive {
@@ -605,7 +629,7 @@ final class ExtrasManager {
                 // The running edge has its own placement walk; only a plain
                 // launcher (or one already running) rides the section.
                 guard spec.resolvedShowRule != .whenActive || Self.isRunning(spec) else { continue }
-            case .cameraMicIndicator: continue  // hardware-driven
+            case .cameraMicIndicator, .liveActivity: continue  // driven by what runs
             }
             guard revealing.contains(model.section(of: Self.itemID(for: spec))) else { continue }
             StatusItemFader.attach(item, shownLength: Self.shownLength(for: spec))
@@ -688,6 +712,7 @@ final class ExtrasManager {
         case .timer: return pelmetTimer?.isActive ?? false
         case .focus: return spec.resolvedShowRule == .whenActive && focusStatus?.active != nil
         case .timeMachine: return spec.resolvedShowRule == .whenActive && (timeMachine?.status.running ?? false)
+        case .liveActivity: return !(liveActivityStatus?.active.isEmpty ?? true)
         default: return false
         }
     }
@@ -736,9 +761,10 @@ final class ExtrasManager {
 
     // MARK: Item construction
 
-    /// Square for glyph-only items; the timer grows with its countdown.
+    /// Square for glyph-only items; the timer grows with its countdown, Live
+    /// Activities with their count.
     private static func shownLength(for spec: ExtraItemSpec) -> CGFloat {
-        spec.kind == .timer ? NSStatusItem.variableLength : NSStatusItem.squareLength
+        spec.kind == .timer || spec.kind == .liveActivity ? NSStatusItem.variableLength : NSStatusItem.squareLength
     }
 
     private func makeItem(for spec: ExtraItemSpec) -> NSStatusItem {
@@ -812,8 +838,13 @@ final class ExtrasManager {
         case .siri: "siri"
         case .focus: "moon.fill"
         case .quickNote: "note.text"
+        case .liveActivity: liveActivitySymbol
         }
     }
+
+    /// Live Activities whose app the Mac doesn't have (the iPhone's, which
+    /// is most of them) wear the platter Apple draws them in.
+    static let liveActivitySymbol = "platter.filled.top.iphone"
 
     // MARK: App launchers
 
@@ -1048,7 +1079,75 @@ final class ExtrasManager {
         case .timer: updateTimerGlyph(item, spec: spec)
         case .timeMachine: updateTimeMachineGlyph(item, spec: spec)
         case .focus: updateFocusGlyph(item, spec: spec)
+        case .liveActivity: updateLiveActivityGlyph(item, spec: spec)
         case .shortcut, .appLauncher, .userSwitching, .shortcutsMenu, .siri, .quickNote: break
+        }
+    }
+
+    /// The latest activity's app icon, in colour like a launcher's, when
+    /// the Mac has the app; the platter when it doesn't (an iPhone app) or
+    /// the log hasn't named it. More than one: how many, beside it.
+    private func updateLiveActivityGlyph(_ item: NSStatusItem, spec: ExtraItemSpec) {
+        guard let button = item.button else { return }
+        let active = liveActivityStatus?.active ?? []
+        let bundleID = active.last?.bundleID
+        setGlyph(item, id: spec.id, key: "liveActivity:\(bundleID ?? "")") {
+            bundleID.flatMap { Self.appIcon(for: ExtraItemSpec(kind: .liveActivity, bundleID: $0), size: 18) }
+                ?? NSImage(systemSymbolName: Self.liveActivitySymbol, accessibilityDescription: spec.itemTitle)
+        }
+        if active.count > 1 {
+            let size = NSFont.menuBarFont(ofSize: 0).pointSize
+            button.attributedTitle = NSAttributedString(
+                string: " \(active.count)",
+                attributes: [.font: NSFont.monospacedDigitSystemFont(ofSize: size, weight: .regular)]
+            )
+            button.imagePosition = .imageLeading
+        } else {
+            button.title = ""
+            button.imagePosition = .imageOnly
+        }
+    }
+
+    /// The watcher lives for the item, or for live mode alone while it can
+    /// start: a log stream and an eight-hour replay are not spent on a Mac
+    /// where Screen Recording keeps live mode from ever entering. The grant
+    /// arriving (`screenRecordingChanged`) starts it.
+    private func syncLiveActivityWatcher() {
+        let hasItem = specs.values.contains { $0.kind == .liveActivity }
+        let liveMode = appState?.settings.showLiveActivities == true && ScreenRecordingAccess.isGranted
+        if hasItem || liveMode {
+            if liveActivityStatus == nil {
+                let status = LiveActivityStatus()
+                status.onChange = { [weak self] in self?.liveActivityChanged() }
+                liveActivityStatus = status
+                status.start()
+            }
+        } else if let status = liveActivityStatus {
+            status.stop()
+            liveActivityStatus = nil
+            // With the item off and live mode off or unable to start nothing
+            // says an activity ended, so live mode is told here (it forgets
+            // what it was told).
+            appState?.liveActivitiesChanged(running: false, count: 0)
+        }
+        // The item's edge tracking starts over when it goes, watcher or not.
+        if !hasItem { lastLiveActivityActive = false }
+    }
+
+    /// Screen Recording was granted or lost (`AppState.refreshScreenRecording`).
+    func screenRecordingChanged() {
+        syncLiveActivityWatcher()
+    }
+
+    private func liveActivityChanged() {
+        appState?.liveActivitiesChanged(running: !(liveActivityStatus?.active.isEmpty ?? true), count: liveActivityStatus?.active.count ?? 0)
+        guard let spec = specs.values.first(where: { $0.kind == .liveActivity }),
+              let item = items[spec.id] else { return }
+        let active = !(liveActivityStatus?.active.isEmpty ?? true)
+        if active != lastLiveActivityActive {
+            applyCurrent()  // the visibility edge
+        } else {
+            updateLiveActivityGlyph(item, spec: spec)  // another app, another count
         }
     }
 
@@ -1230,7 +1329,7 @@ final class ExtrasManager {
             return rightClick ? .onBar : .nothing
         case .cameraMicIndicator:
             return rightClick ? .nothing : .live
-        case .airdrop, .shortcut, .quickNote:
+        case .airdrop, .shortcut, .quickNote, .liveActivity:
             return .nothing
         case .timer:
             return pelmetTimer?.state == .done && !rightClick ? .nothing : .onBar
@@ -1285,6 +1384,10 @@ final class ExtrasManager {
             openAirDrop()
         case .quickNote:
             QuickNote.open()
+        case .liveActivity:
+            // The real pills, live and clickable: only the bar with no
+            // assertion held shows them (#106).
+            appState?.liftHideForLiveActivities()
         case .shortcut:
             if let name = spec.shortcutName {
                 runShortcut(named: name)

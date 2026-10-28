@@ -52,9 +52,16 @@ enum AlphaFade {
 @MainActor
 /// A held bar's window: the clicks on the covered run are the bar's (#88).
 private final class HeldBarPanel: NSPanel {
+    /// Live mode: takes every click on the picture; the mirror's
+    /// forwards it to the real pill.
+    var clickHook: ((NSPoint) -> Void)?
     override func sendEvent(_ event: NSEvent) {
         switch event.type {
         case .leftMouseDown:
+            if let clickHook {
+                clickHook(convertPoint(toScreen: event.locationInWindow))
+                return
+            }
             ConcealGhostOverlay.onHeldBarClick?(screen?.directDisplayID, event.clickCount)
         case .leftMouseUp, .rightMouseDown, .rightMouseUp, .otherMouseDown, .otherMouseUp:
             break
@@ -82,6 +89,8 @@ final class ConcealGhostOverlay {
     /// keep the single-cover call shape.
     struct GhostSet {
         fileprivate let overlays: [ConcealGhostOverlay]
+        /// Live mode: the covers, to hang a mirror in each.
+        var members: [ConcealGhostOverlay] { overlays }
         /// The covers' ids as they read in the `ghost:` lines, "#3 #4".
         var ids: String { overlays.map { "#\($0.id)" }.joined(separator: " ") }
         /// Still on screen: not dismissed, faded or timed out.
@@ -309,6 +318,8 @@ final class ConcealGhostOverlay {
     }
 
     private let window: NSWindow
+    /// The foreign surface this cover slipped in beneath, if any.
+    private var beneathID: CGWindowID?
     private let imageView: NSImageView
     private var finished = false
     private var stoodDown = false
@@ -394,11 +405,24 @@ final class ConcealGhostOverlay {
     /// own windows left out. The bar is clear glass: what is left matches
     /// the empty bar pixel for pixel, window shadows under it included
     /// (2026-10-19, three displays, max diff 0 outside the glyphs).
+    /// Live mode: the live mirror's cover is over the bar and the
+    /// assertion is down, so any other picture would film the hidden icons
+    /// or the mirror itself. Everyone else's capture runs uncovered.
+    static var liveModeBlocksCaptures = false
+
+    /// Windows of ordinary apps (layers below the Dock's): never part of a
+    /// picture of the bar that has to stay true for minutes.
+    static func ordinaryAppWindows(_ windows: [SCWindow]) -> [SCWindow] {
+        let me = ProcessInfo.processInfo.processIdentifier
+        return windows.filter { $0.windowLayer >= 0 && $0.windowLayer < 20 && $0.owningApplication?.processID != me }
+    }
+
     static func snapshotSet(
         of rect: CGRect?, excludingOwnWindows: Bool = false, ownWindows: [SCWindow]? = nil, primaryOnly: Bool = false,
-        displays: Set<CGDirectDisplayID>? = nil, bare: Bool = false
+        displays: Set<CGDirectDisplayID>? = nil, bare: Bool = false, liveMirror: Bool = false
     ) async -> [BarSnapshot] {
         guard let rect, rect.width > 8 else { return [] }
+        if liveModeBlocksCaptures, !liveMirror { return [] }
         if let closed = menuClosedAt {
             let remaining = menuFadeHold - Date().timeIntervalSince(closed)
             if remaining > 0 {
@@ -493,8 +517,22 @@ final class ConcealGhostOverlay {
                     PelmetLog.log("ghost: capture leaves out \(foreign.map(\.owner).joined(separator: ", ")) (\(excluded.count) window(s))")
                 }
             }
+            if liveMirror {
+                // A cover that stays up for minutes must not hold a window's
+                // edge or the shadow it casts into the bar's last rows: the
+                // picture is the bar over the wallpaper, no window in it.
+                if content == nil {
+                    content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+                }
+                let ordinary = ordinaryAppWindows(content?.windows ?? []).filter { $0.frame.intersects(bounds) }
+                if !ordinary.isEmpty {
+                    excluded += ordinary
+                    PelmetLog.log("livemirror: picture leaves out \(ordinary.count) ordinary window(s) and every shadow")
+                }
+            }
             let filter = SCContentFilter(display: display, excludingWindows: excluded)
             let config = SCStreamConfiguration()
+            if liveMirror { config.ignoreShadowsDisplay = true }
             config.sourceRect = capture
             // The display's own scale — a hardcoded ×2 half-sized the strip
             // on 1× externals.
@@ -795,6 +833,35 @@ final class ConcealGhostOverlay {
         return Pixels(context: context, pointer: data.assumingMemoryBound(to: UInt8.self), stride: stride)
     }
 
+    /// The same picture with every column from `x` on (global Cocoa points,
+    /// like `windowFrame`) replaced by a copy of the column just left of it:
+    /// the bar's own background, nothing else. A picture of the concealed bar
+    /// is taken while the capture indicator lights and moves the cluster at
+    /// the bar's right end, so its last columns hold the « and the extras
+    /// caught mid-slide (and the 6pt of padding past the requested edge holds
+    /// what stood next to it). The cover stops left of where the « settled; a
+    /// later cover from the same kept picture may reach further right (the
+    /// indicator gone, the « back at its resting place) and must show bar,
+    /// not those. Pixel-exact left of `x`: drawn in the picture's own colour
+    /// space, no conversion.
+    static func smeared(_ snap: BarSnapshot, from x: CGFloat) -> BarSnapshot {
+        let w = snap.image.width, h = snap.image.height
+        let scale = CGFloat(w) / snap.windowFrame.width
+        let x0 = Int(((x - snap.windowFrame.minX) * scale).rounded(.down))
+        guard x0 > 1, x0 < w,
+              let ctx = CGContext(
+                data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+                space: snap.image.colorSpace ?? CGColorSpace(name: CGColorSpace.sRGB)!,
+                bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue),
+              let column = snap.image.cropping(to: CGRect(x: x0 - 1, y: 0, width: 1, height: h))
+        else { return snap }
+        ctx.draw(snap.image, in: CGRect(x: 0, y: 0, width: w, height: h))
+        ctx.interpolationQuality = .none
+        ctx.draw(column, in: CGRect(x: x0, y: 0, width: w - x0, height: h))
+        guard let out = ctx.makeImage() else { return snap }
+        return BarSnapshot(image: out, windowFrame: snap.windowFrame, takenAt: snap.takenAt)
+    }
+
     /// Capture now and float immediately. Call `fadeOut()`/`dismiss()` once
     /// the swap beneath has been issued; a safety timeout fades regardless.
     static func begin(over rect: CGRect?, safety: TimeInterval = 0.5) async -> GhostSet? {
@@ -835,14 +902,23 @@ final class ConcealGhostOverlay {
         let shot = snapshot.image
         Self.nextID += 1
         id = Self.nextID
+        beneathID = beneath
         countsAsStrip = !holdsBar
         if holdsBar {
             let panel = HeldBarPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
             panel.hidesOnDeactivate = false
             // Up for a whole reveal: on every Space of its display. Transient,
             // not stationary: a stationary one stayed in Mission Control, a
-            // dark band over the Spaces bar (#108).
+            // dark band over the Spaces bar (#108). The window server hides it
+            // with the bar; whether it's back before the bar on the way out
+            // (live mode's covers must be, LiveMirror.missionControlUp) is
+            // still to measure.
             panel.collectionBehavior = [.canJoinAllSpaces, .transient, .ignoresCycle]
+            // A cut, not the window server's default: ordered in it grows ~5pt
+            // and fades up over ~60ms, ordered out it shrinks 5pt and fades
+            // over ~170ms (a held cover on the bar must neither dim the bar
+            // under it nor move its edges). Measured, 2026-10-28.
+            panel.animationBehavior = .none
             window = panel
         } else {
             window = NSWindow(contentRect: frame, styleMask: .borderless, backing: .buffered, defer: false)
@@ -874,6 +950,7 @@ final class ConcealGhostOverlay {
         }
         window.displayIfNeeded()
         if countsAsStrip { Self.activeStripCount += 1 }
+        Self.register(self)
         PelmetLog.log("ghost: \(holdsBar ? "held bar" : "strip") #\(id) up \(Int(frame.width))×\(Int(frame.height)) @x=\(Int(frame.minX)) safety \(Int(safety * 1000))ms")
         // Safety: never leave a stale cover if the caller's task dies.
         // Strong self on purpose: a cover nobody held any more (#52, a
@@ -908,6 +985,123 @@ final class ConcealGhostOverlay {
 
     func passClicks(_ through: Bool) {
         window.ignoresMouseEvents = through || countsAsStrip
+    }
+
+    // MARK: Live mode
+
+    var windowNumber: Int { window.windowNumber }
+
+    /// Live mode's cover (set by the live mirror). Everything under it is
+    /// meant to be gone, as the real icons are: a ghost (the fading copy of an
+    /// item Dimble hides) would stay above the cover and cross the mirror
+    /// that slides in (Smooth, a re-hide, ~100 ms, measured 2026-10-28).
+    var isLiveCover = false
+
+    /// A live cover is up over `rect` (global Cocoa points).
+    static func liveCover(over rect: NSRect) -> Bool {
+        registry.allObjects.contains { $0.isLiveCover && !$0.finished && $0.window.isVisible && $0.window.frame.intersects(rect) }
+    }
+
+    /// Shortens the cover from the right, in place: the picture stays where it
+    /// is and the window just ends sooner (a new window for a shorter cover
+    /// left a gap of three frames, and the layers in it had to move).
+    func clip(toMaxX x: CGFloat) {
+        guard !finished else { return }
+        var frame = window.frame
+        guard x < frame.maxX, x > frame.minX else { return }
+        frame.size.width = x - frame.minX
+        window.setFrame(frame, display: true)
+    }
+
+    /// Directly below another cover: the one above stays what is seen while
+    /// this one is already up beneath it (a hand-over with no gap).
+    func order(beneath other: ConcealGhostOverlay) {
+        guard !finished else { return }
+        window.order(.below, relativeTo: other.windowNumber)
+    }
+    var windowFrame: NSRect { window.frame }
+
+    /// Every click on the picture goes to `hook` (global Cocoa point).
+    func setClickHook(_ hook: ((NSPoint) -> Void)?) {
+        (window as? HeldBarPanel)?.clickHook = hook
+    }
+
+    /// A layer over the picture, in the picture's own coordinates.
+    func addLayer(_ layer: CALayer) {
+        guard let root = window.contentView?.layer else { return }
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        root.addSublayer(layer)
+        CATransaction.commit()
+    }
+
+    /// Out of the way (the real bar shows) or back over it, no animation.
+    func setShown(_ shown: Bool) {
+        guard !finished else { return }
+        if !shown { window.orderOut(nil); return }
+        orderBelowForeign()
+    }
+
+    /// The live cover's rule: directly below every foreign surface over its
+    /// strip (Sconce's notch glass and the like), found fresh each time (their
+    /// window numbers change when they redraw), the lowest of them when there
+    /// are several. Nothing foreign over the strip: in front. Returns the
+    /// surface it went below.
+    @discardableResult
+    func orderBelowForeign() -> (owner: String, id: CGWindowID)? {
+        guard !finished else { return nil }
+        let f = window.frame
+        let primaryMaxY = NSScreen.screens.first?.frame.maxY ?? 0
+        let cg = CGRect(x: f.minX, y: primaryMaxY - f.maxY, width: f.width, height: f.height)
+        let foreign = Self.foreignBandWindows(intersecting: cg, bandHeight: f.height)
+        if let lowest = foreign.last {
+            beneathID = lowest.id
+            window.order(.below, relativeTo: Int(lowest.id))
+            return lowest
+        }
+        beneathID = nil
+        window.orderFrontRegardless()
+        return nil
+    }
+
+    /// Every cover alive (the live mirror's, a reveal's strip, a held bar, a
+    /// finished picture), weakly: the live-mode rule keeps all of them below
+    /// the foreign surfaces, whoever made them.
+    private static let registry = NSHashTable<ConcealGhostOverlay>.weakObjects()
+    static func register(_ overlay: ConcealGhostOverlay) { registry.add(overlay); onNewCover?() }
+    /// Told whenever a cover is made: the live mirror checks the order at
+    /// once and again shortly after, not at its next idle tick.
+    static var onNewCover: (() -> Void)?
+    static var coverCount: Int { registry.allObjects.filter { !$0.finished }.count }
+
+    /// Puts every cover that sits above a foreign surface back below it;
+    /// says which it moved.
+    static func keepBelowForeign() -> [String] {
+        let covers = registry.allObjects.filter { !$0.finished }
+        guard !covers.isEmpty, let list = onScreenWindows() else { return [] }
+        var moved: [String] = []
+        for cover in covers {
+            guard let above = cover.foreignBelowMe(in: list) else { continue }
+            let now = cover.orderBelowForeign()
+            moved.append("#\(cover.id) was above \(above.owner) \(above.id), now below \(now.map { "\($0.owner) \($0.id)" } ?? "?")")
+        }
+        return moved
+    }
+
+    /// A foreign surface over the strip that has slipped below this cover
+    /// (a click on the cover orders it in front of its level), by the
+    /// window server's front-to-back `list`.
+    func foreignBelowMe(in list: [[String: Any]]) -> (owner: String, id: CGWindowID)? {
+        guard window.isVisible, !finished else { return nil }
+        let f = window.frame
+        let primaryMaxY = NSScreen.screens.first?.frame.maxY ?? 0
+        let cg = CGRect(x: f.minX, y: primaryMaxY - f.maxY, width: f.width, height: f.height)
+        let foreign = Self.foreignBandWindows(intersecting: cg, bandHeight: f.height, in: list)
+        guard !foreign.isEmpty else { return nil }
+        func index(_ id: CGWindowID) -> Int? {
+            list.firstIndex { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value == id }
+        }
+        guard let mine = index(CGWindowID(window.windowNumber)) else { return nil }
+        return foreign.first { (index($0.id) ?? -1) > mine }
     }
 
     /// One decrement per overlay, however it ends.
