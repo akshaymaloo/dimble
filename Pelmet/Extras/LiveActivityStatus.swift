@@ -34,7 +34,11 @@ final class LiveActivityStatus {
     private var recovering = false
     private var pending: [Entry] = []
     private var restarts = 0
-    /// Pelmet quitting takes the child with it (see FocusStatus).
+    /// When the stream last ended, until a new one is running: a restart
+    /// replays the log only from then (`recover(since:)`).
+    private var gapStart: Date?
+    /// Pelmet quitting takes the child with it (see FocusStatus); the
+    /// observer goes with `stop()`.
     private var termination: NSObjectProtocol?
     /// Wakes for the oldest activity's lifetime, or sooner to check the
     /// agent that announced them is still the one running.
@@ -50,13 +54,14 @@ final class LiveActivityStatus {
 
     func start() {
         stopped = false
+        gapStart = nil
         reapOrphans()
         if termination == nil {
             termination = NotificationCenter.default.addObserver(
                 forName: NSApplication.willTerminateNotification, object: nil, queue: .main
             ) { [weak self] _ in MainActor.assumeIsolated { self?.stop() } }
         }
-        recover()
+        recover(since: nil)
         openStream()
     }
 
@@ -67,6 +72,8 @@ final class LiveActivityStatus {
         (stream?.standardOutput as? Pipe)?.fileHandleForReading.readabilityHandler = nil
         stream?.terminate()
         stream = nil
+        if let termination { NotificationCenter.default.removeObserver(termination) }
+        termination = nil
     }
 
     /// Any `log stream` on our predicate re-parented to launchd is ours.
@@ -86,21 +93,32 @@ final class LiveActivityStatus {
     /// that has since gone announced (the Mac restarted, the agent died
     /// before its end lines). This Mac's log kept these lines ~21 hours
     /// (2026-10-27), so eight is always on record; reading them took 2.1s.
-    private func recover() {
+    /// With `since` (a stream that ended and is being reopened) only the
+    /// lines from then are read, folded into what is known: an end line the
+    /// gap swallowed is all the replay is for. It runs at background QoS:
+    /// the eight hours measured 2.7s, 0.7s of CPU and 379 MB at peak
+    /// (2026-10-28).
+    private func recover(since: Date?) {
         recovering = true
-        Task.detached(priority: .utility) { [weak self] in
-            let entries = FocusStatus.run(["show", "--last", "8h", "--style", "ndjson", "--predicate", Self.predicate])
+        let window = since.map { "\(min(8 * 60 * 60, Int(Date().timeIntervalSince($0)) + 5))s" } ?? "8h"
+        Task.detached(priority: .background) { [weak self] in
+            let entries = FocusStatus.run(["show", "--last", window, "--style", "ndjson", "--predicate", Self.predicate],
+                                          qualityOfService: .background)
                 .compactMap(Self.entry(in:))
-            var replayed = LiveActivities()
-            for entry in entries { replayed.read(entry.message, at: entry.date, agent: entry.agent) }
-            let dropped = replayed.prune(now: Date(), agent: Self.agentPID())
             await MainActor.run { [weak self] in
                 guard let self, !self.stopped else { return }
+                var replayed = since == nil ? LiveActivities() : self.activities
+                for entry in entries { replayed.read(entry.message, at: entry.date, agent: entry.agent) }
+                let dropped = replayed.prune(now: Date(), agent: Self.agentPID())
                 for entry in self.pending { replayed.read(entry.message, at: entry.date, agent: entry.agent) }
                 self.pending = []
                 self.recovering = false
-                Self.addDebugActivity(to: &replayed)
-                PelmetLog.log("liveactivity: boot \(Self.describe(replayed))\(dropped ? " (ended ones the log never closed dropped)" : "")\(entries.isEmpty ? ", nothing on record" : "")")
+                if since == nil {
+                    Self.addDebugActivity(to: &replayed)
+                    PelmetLog.log("liveactivity: boot \(Self.describe(replayed))\(dropped ? " (ended ones the log never closed dropped)" : "")\(entries.isEmpty ? ", nothing on record" : "")")
+                } else {
+                    PelmetLog.log("liveactivity: replayed the last \(window) after the stream ended — \(Self.describe(replayed))\(dropped ? " (ended ones the log never closed dropped)" : "")")
+                }
                 self.activities = replayed
             }
         }
@@ -186,23 +204,37 @@ final class LiveActivityStatus {
         do {
             try process.run()
             stream = process
+            gapStart = nil
         } catch {
+            // Retried like a stream that ended.
             PelmetLog.log("liveactivity: log stream failed — \(error.localizedDescription)")
+            streamEnded("could not start (\(error.localizedDescription))")
         }
     }
 
     /// logd restarts (or a kill) end the child; back off like FocusStatus.
-    /// The replay on the way back catches an end the gap swallowed.
+    /// The replay on the way back reads only the gap, to catch an end it
+    /// swallowed.
     private func streamEnded(_ why: String) {
         stream = nil
         guard !stopped else { return }
+        // A standard account: `log stream` is refused, and will be every
+        // time. Said once, not retried (the activities stay as the boot
+        // replay left them).
+        if why.contains("Must be admin") {
+            PelmetLog.log("liveactivity: log stream refused (\(why.prefix(120))) — not trying again")
+            return
+        }
+        // Where the replay on the way back starts: the first end of a run
+        // of failures, until a stream is running again.
+        if gapStart == nil { gapStart = Date() }
         restarts += 1
         let delay = min(60, 2 << min(restarts, 5))
         PelmetLog.log("liveactivity: log stream ended\(why.isEmpty ? "" : " (\(why.prefix(120)))"), retry in \(delay)s")
         Task { [weak self] in
             try? await Task.sleep(for: .seconds(delay))
             guard let self, !self.stopped, self.stream == nil else { return }
-            self.recover()
+            self.recover(since: self.gapStart)
             self.openStream()
         }
     }

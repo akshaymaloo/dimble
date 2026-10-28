@@ -195,8 +195,11 @@ final class FocusStatus {
         }
     }
 
-    nonisolated static func run(_ arguments: [String]) -> [String] {
+    /// `qualityOfService`: how the child is scheduled (a long replay of the
+    /// log runs at `.background`); unset it inherits the caller's.
+    nonisolated static func run(_ arguments: [String], qualityOfService: QualityOfService? = nil) -> [String] {
         let process = Process()
+        if let qualityOfService { process.qualityOfService = qualityOfService }
         if let tool = arguments.first, tool.hasPrefix("/") {
             process.executableURL = URL(fileURLWithPath: tool)
             process.arguments = Array(arguments.dropFirst())
