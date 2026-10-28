@@ -33,5 +33,23 @@ struct ShortcutKeyNameTests {
         #expect(ShortcutRecorder.keyName(keyCode: kVK_Space, chars: " ", romanKey: { _ in " " }) == "Space")
         #expect(ShortcutRecorder.keyName(keyCode: kVK_F5, chars: nil, romanKey: { _ in nil }) == "F5")
         #expect(ShortcutRecorder.keyName(keyCode: kVK_LeftArrow, chars: nil, romanKey: { _ in nil }) == "←")
+        #expect(ShortcutRecorder.keyName(keyCode: kVK_F19, chars: nil, romanKey: { _ in nil }) == "F19")
+    }
+}
+
+/// A bare key or shift alone would type into every app, so the recorder
+/// beeps. F8 for Notification Center beeped too (#103), but the function
+/// keys type nothing.
+@MainActor
+struct ShortcutBareKeyTests {
+    @Test func aBareLetterIsRefused() {
+        #expect(ShortcutRecorder.wouldType(keyCode: kVK_ANSI_A, modifiers: 0))
+        #expect(ShortcutRecorder.wouldType(keyCode: kVK_ANSI_A, modifiers: UInt32(shiftKey)))
+        #expect(!ShortcutRecorder.wouldType(keyCode: kVK_ANSI_A, modifiers: UInt32(optionKey)))
+    }
+
+    @Test func aFunctionKeyMayStandAlone() {
+        #expect(!ShortcutRecorder.wouldType(keyCode: kVK_F8, modifiers: 0))
+        #expect(!ShortcutRecorder.wouldType(keyCode: kVK_F19, modifiers: UInt32(shiftKey)))
     }
 }
