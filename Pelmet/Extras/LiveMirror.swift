@@ -5,10 +5,13 @@
 // MenuBarAgent takes the pill off the bar under any hide assertion, so live
 // mode holds none: the assertion goes (`engine.holdLift`), the icons it hid
 // come back onto the bar, and a picture of the concealed bar, taken just
-// before, covers [left limit, «) on every display. The pill's real frame is
+// before, covers [left limit, clock) on every display: with no assertion the
+// system extras (Sound, Battery, ...) come back on the right of the «, so
+// the « itself moves, and only a cover to the clock keeps the bar looking as
+// it did. The pill's real frame is
 // read over AX (MenuBarAgent, subrole AXLiveActivity) and filmed with an
 // SCStream at 2 fps, Pelmet's own windows left out, into a layer in the cover
-// just left of the «. A click on that layer is forwarded to the real pill as
+// just left of the « as it is drawn in the picture. A click on that layer is forwarded to the real pill as
 // an AX press. A click on the « lifts the cover (the real bar, hidden icons
 // and pill, shows) and a second one, or ten seconds, puts it back. When the
 // activity ends the assertion comes back under the cover, which lifts once
@@ -52,7 +55,7 @@ nonisolated enum PillProbe {
     }
 
     /// The compact text the pill shows: its static texts, two levels down.
-    static func text(of element: AXUIElement, depth: Int = 2) -> String {
+    static func text(of element: AXUIElement, depth: Int = 4) -> String {
         var parts: [String] = []
         for child in (attribute(element, kAXChildrenAttribute) as? [AXUIElement]) ?? [] {
             if (attribute(child, kAXRoleAttribute) as? String) == "AXStaticText" {
@@ -69,6 +72,26 @@ nonisolated enum PillProbe {
     static func read(_ element: AXUIElement) -> (frame: CGRect, text: String)? {
         guard let frame = frame(of: element), frame.width > 0 else { return nil }
         return (frame, text(of: element))
+    }
+
+    /// Frames of every element with this identifier in the agent's tree
+    /// (CG global): the clock, once per bar copy.
+    static func frames(ofIdentifier wanted: String) -> [CGRect] {
+        guard let agent = NSRunningApplication.runningApplications(withBundleIdentifier: PelmetBundle.agentID).first
+        else { return [] }
+        let app = AXUIElementCreateApplication(agent.processIdentifier)
+        AXUIElementSetMessagingTimeout(app, 0.6)
+        var found: [CGRect] = []
+        func walk(_ element: AXUIElement, _ depth: Int) {
+            if let id = attribute(element, kAXIdentifierAttribute) as? String, id == wanted {
+                if let frame = frame(of: element), frame.width > 0 { found.append(frame) }
+                return
+            }
+            guard depth > 0 else { return }
+            for child in (attribute(element, kAXChildrenAttribute) as? [AXUIElement]) ?? [] { walk(child, depth - 1) }
+        }
+        walk(app, 8)
+        return found
     }
 
     /// Every pill in the agent's tree.
@@ -232,6 +255,8 @@ final class LiveMirror {
         var misses = 0
         var coverMinX: CGFloat = 0
         var coverMaxX: CGFloat = 0
+        /// Where the cover is wanted to end: just short of the clock.
+        var wantRight: CGFloat = 0
         var mirrorGlobal: NSRect?
         var gotFrame = false
         var shown = 0
@@ -256,6 +281,7 @@ final class LiveMirror {
     private var liftedReturn: Task<Void, Never>?
     private var lastBlockedWhy = ""
     private var lastSummaryAt = Date()
+    private var tickCount = 0
     private var screenObserver: NSObjectProtocol?
 
     init(appState: AppState) { self.appState = appState }
@@ -342,6 +368,13 @@ final class LiveMirror {
         return chevron.minX + (side.screen.frame.maxX - home.frame.maxX)
     }
 
+    /// The cover's right end on `side`: just short of the clock, read now.
+    private func clockRight(for side: Side) async -> CGFloat? {
+        let frames = await Task.detached(priority: .userInitiated) { PillProbe.frames(ofIdentifier: "com.apple.menuextra.clock") }.value
+        guard let clock = frames.first(where: { side.bounds.contains(CGPoint(x: $0.midX, y: $0.midY)) }) else { return nil }
+        return clock.minX - 2 - ConcealGhostOverlay.capturePadding
+    }
+
     /// Where a cover may start: right of the notch, and no further left than
     /// what the hidden icons plus the pill can take.
     private func coverLeft(for side: Side, right: CGFloat) -> CGFloat {
@@ -420,8 +453,12 @@ final class LiveMirror {
         // 2. The picture of the concealed bar, each display from its left
         // limit to the «, and the cover over it.
         for side in sides {
-            let right = chevronMinX(chevron, on: side) - 1
-            let left = coverLeft(for: side, right: right)
+            let chevronRight = chevronMinX(chevron, on: side) - 1
+            let clock = await clockRight(for: side)
+            let right = clock ?? (chevronRight + 90)
+            side.wantRight = right
+            let left = coverLeft(for: side, right: chevronRight)
+            PelmetLog.log("livemirror: display \(side.id) cover wanted \(Int(left))..\(Int(right)) (chevron \(Int(chevronRight + 1)), clock \(clock.map { "\(Int($0 + 8))" } ?? "not found"))")
             let shift = side.screen.frame.maxX - primaryMaxX
             let rect = CGRect(x: left - shift, y: 0, width: right - left, height: 40)
             side.picture = await ConcealGhostOverlay.snapshotSet(of: rect, displays: [side.id], liveMirror: true).first
@@ -525,11 +562,10 @@ final class LiveMirror {
         side.misses = 0
         PelmetLog.log("livemirror: pill on display \(side.id) \(copy.name) frame \(Int(copy.frame.minX)),\(Int(copy.frame.minY)) \(Int(copy.frame.width))×\(Int(copy.frame.height)) text '\(copy.text)'")
         // Wider than the cover starts: the pill lies left of it.
-        if copy.frame.minX < side.coverMinX + 4, let chevron = lastChevron, let picture = side.picture {
-            let right = chevronMinX(chevron, on: side) - 1
+        if copy.frame.minX < side.coverMinX + 4, let picture = side.picture {
             let left = max(copy.frame.minX - 12, picture.windowFrame.minX + ConcealGhostOverlay.capturePadding)
             PelmetLog.log("livemirror: re-measure — pill left \(Int(copy.frame.minX)) is outside the cover \(Int(side.coverMinX))")
-            buildCover(side, left: left, right: right, why: "pill left of the cover")
+            buildCover(side, left: left, right: side.wantRight, why: "pill left of the cover")
             await excludeOwnWindows()
         }
         await retarget(side)
@@ -554,7 +590,8 @@ final class LiveMirror {
         let size = pill.size
         let window = overlay.windowFrame
         let cg = cocoa(pill)
-        let global = NSRect(x: side.coverMaxX - Self.gap - size.width, y: cg.minY, width: size.width, height: size.height)
+        let home = lastChevron.map { chevronMinX($0, on: side) } ?? side.coverMaxX
+        let global = NSRect(x: home - Self.gap - size.width, y: cg.minY, width: size.width, height: size.height)
         side.mirrorGlobal = global
         CATransaction.begin(); CATransaction.setDisableActions(true)
         side.mirror.contentsGravity = .resize
@@ -594,6 +631,13 @@ final class LiveMirror {
             PelmetLog.log("livemirror: click at \(Int(point.x)),\(Int(point.y)) on display \(side.id) — no mirror yet, swallowed")
             return
         }
+        if let chevron = lastChevron {
+            let minX = chevronMinX(chevron, on: side)
+            if point.x >= minX - 2, point.x <= minX + chevron.width + 2 {
+                toggleCover("click on the « in the picture")
+                return
+            }
+        }
         guard rect.insetBy(dx: -2, dy: -4).contains(point), let pill = side.pill else {
             PelmetLog.log("livemirror: click at \(Int(point.x)),\(Int(point.y)) on display \(side.id) — outside the mirror (\(Int(rect.minX))..\(Int(rect.maxX))), swallowed")
             return
@@ -628,16 +672,17 @@ final class LiveMirror {
 
     private func tick() async {
         guard let appState else { return }
-        // The « moved (the cluster shifted, a reflow): the cover's right end follows.
-        if let chevron = appState.chevronWindowFrame, let last = lastChevron,
-           abs(chevron.minX - last.minX) > 0.5 || abs(chevron.minY - last.minY) > 0.5 {
-            PelmetLog.log("livemirror: re-measure — chevron \(Int(last.minX)) → \(Int(chevron.minX))")
-            lastChevron = chevron
+        // The clock's left edge is the cover's right end: re-read every two
+        // seconds (the date grows a digit, the indicator comes and goes).
+        tickCount += 1
+        if tickCount % 8 == 0 {
             for side in sides {
-                let right = chevronMinX(chevron, on: side) - 1
-                buildCover(side, left: side.coverMinX, right: right, why: "chevron moved")
+                guard let right = await clockRight(for: side), abs(right - side.wantRight) > 0.5 else { continue }
+                PelmetLog.log("livemirror: re-measure — clock end \(Int(side.wantRight)) → \(Int(right)) on display \(side.id)")
+                side.wantRight = right
+                buildCover(side, left: side.coverMinX, right: right, why: "clock moved")
+                await excludeOwnWindows()
             }
-            await excludeOwnWindows()
         }
         for side in sides {
             guard let pill = side.pill else {
@@ -672,10 +717,9 @@ final class LiveMirror {
             if let old = side.pillFrame, abs(frame.minX - old.minX) > 0.5 || abs(frame.width - old.width) > 0.5 || abs(frame.minY - old.minY) > 0.5 {
                 PelmetLog.log("livemirror: re-measure — pill on display \(side.id) \(Int(old.minX))+\(Int(old.width)) → \(Int(frame.minX))+\(Int(frame.width))")
                 side.pillFrame = frame
-                if frame.minX < side.coverMinX + 4, let chevron = lastChevron, let picture = side.picture {
-                    let right = chevronMinX(chevron, on: side) - 1
+                if frame.minX < side.coverMinX + 4, let picture = side.picture {
                     let left = max(frame.minX - 12, picture.windowFrame.minX + ConcealGhostOverlay.capturePadding)
-                    buildCover(side, left: left, right: right, why: "pill grew left")
+                    buildCover(side, left: left, right: side.wantRight, why: "pill grew left")
                     await excludeOwnWindows()
                 }
                 await retarget(side)
