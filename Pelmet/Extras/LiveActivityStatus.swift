@@ -88,7 +88,7 @@ final class LiveActivityStatus {
     private func recover() {
         recovering = true
         Task.detached(priority: .utility) { [weak self] in
-            let entries = FocusStatus.run(["show", "--last", "8h", "--style", "ndjson", "--predicate", LiveActivities.predicate])
+            let entries = FocusStatus.run(["show", "--last", "8h", "--style", "ndjson", "--predicate", Self.predicate])
                 .compactMap(Self.entry(in:))
             var replayed = LiveActivities()
             for entry in entries { replayed.read(entry.message, at: entry.date, agent: entry.agent) }
@@ -121,7 +121,30 @@ final class LiveActivityStatus {
 
     /// The running MenuBarAgent's pid; nil when it isn't up.
     nonisolated private static func agentPID() -> Int32? {
-        NSRunningApplication.runningApplications(withBundleIdentifier: PelmetBundle.agentID).first?.processIdentifier
+        if debugHost != nil { return nil }  // the harness's activities were announced by another process
+        return NSRunningApplication.runningApplications(withBundleIdentifier: PelmetBundle.agentID).first?.processIdentifier
+    }
+
+    /// Debug: `defaults write app.fif7y.Pelmet pelmet.debug.pillHost local.pillharness`
+    /// makes the PillHarness test app a second source of pills: its start
+    /// and end lines (MenuBarAgent's wording, logged by process
+    /// "PillHarness") count as activities, and live mode reads its pills.
+    nonisolated static var debugHost: String? {
+        UserDefaults.standard.string(forKey: "pelmet.debug.pillHost").flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    /// With `pelmet.debug.pillHostOnly` the harness is the only source: the
+    /// real agent's activities and pills are left out, so a test has exactly
+    /// the pills it starts.
+    nonisolated static var debugHostOnly: Bool {
+        debugHost != nil && UserDefaults.standard.bool(forKey: "pelmet.debug.pillHostOnly")
+    }
+
+    nonisolated private static var predicate: String {
+        guard debugHost != nil else { return LiveActivities.predicate }
+        return LiveActivities.predicate.replacingOccurrences(
+            of: #"process == "MenuBarAgent""#,
+            with: debugHostOnly ? #"process == "PillHarness""# : #"(process == "MenuBarAgent" OR process == "PillHarness")"#)
     }
 
     // MARK: Live
@@ -129,7 +152,7 @@ final class LiveActivityStatus {
     private func openStream() {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/log")
-        process.arguments = ["stream", "--style", "ndjson", "--predicate", LiveActivities.predicate]
+        process.arguments = ["stream", "--style", "ndjson", "--predicate", Self.predicate]
         let pipe = Pipe()
         process.standardOutput = pipe
         let errors = Pipe()

@@ -199,6 +199,15 @@ nonisolated enum PillProbe {
     }
 
     /// The pill's children: texts, logos, the hit area. Nil when it is gone.
+    /// MenuBarAgent's AX application element, and the debug pill host's (the
+    /// harness, `pelmet.debug.pillHost`) when set: both show pills.
+    static func agentApps() -> [AXUIElement] {
+        var ids = LiveActivityStatus.debugHostOnly ? [] : [PelmetBundle.agentID]
+        if let host = LiveActivityStatus.debugHost { ids.append(host) }
+        return ids.compactMap { NSRunningApplication.runningApplications(withBundleIdentifier: $0).first }
+            .map { AXUIElementCreateApplication($0.processIdentifier) }
+    }
+
     /// MenuBarAgent's AX application element.
     static func agentApp() -> AXUIElement? {
         NSRunningApplication.runningApplications(withBundleIdentifier: PelmetBundle.agentID).first
@@ -214,8 +223,8 @@ nonisolated enum PillProbe {
     /// AXDescription is its pill's, "Sports"), and the agent's windows with
     /// their frames, a star on the one holding the live-activity group.
     static func cardProbe() -> (open: Bool, owners: [String], detail: String) {
-        guard let app = agentApp() else { return (false, [], "no agent") }
-        AXUIElementSetMessagingTimeout(app, 0.6)
+        let apps = agentApps()
+        guard !apps.isEmpty else { return (false, [], "no agent") }
         func owner(_ element: AXUIElement, _ depth: Int) -> String? {
             if (attribute(element, kAXSubroleAttribute) as? String) == "AXLiveActivity" {
                 return (attribute(element, kAXDescriptionAttribute) as? String) ?? ""
@@ -226,18 +235,22 @@ nonisolated enum PillProbe {
             }
             return nil
         }
-        var raw: AnyObject?
-        let error = AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &raw)
-        let windows = (raw as? [AXUIElement]) ?? []
         var owners: [String] = []
         var parts: [String] = []
-        for window in windows {
-            guard let frame = frame(of: window) else { parts.append("?"); continue }
-            let who = frame.minY >= 20 ? owner(window, 0) : nil
-            if let who { owners.append(who) }
-            parts.append("\(Int(frame.minX)),\(Int(frame.minY)) \(Int(frame.width))x\(Int(frame.height))\(who.map { "*\($0)" } ?? "")")
+        var status = "ok"
+        for app in apps {
+            AXUIElementSetMessagingTimeout(app, 0.6)
+            var raw: AnyObject?
+            let error = AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &raw)
+            if error != .success { status = "err \(error.rawValue)" }
+            for window in (raw as? [AXUIElement]) ?? [] {
+                guard let frame = frame(of: window) else { parts.append("?"); continue }
+                let who = frame.minY >= 20 ? owner(window, 0) : nil
+                if let who { owners.append(who) }
+                parts.append("\(Int(frame.minX)),\(Int(frame.minY)) \(Int(frame.width))x\(Int(frame.height))\(who.map { "*\($0)" } ?? "")")
+            }
         }
-        return (!owners.isEmpty, owners, "ax \(error == .success ? "ok" : "err \(error.rawValue)"), \(windows.count) window(s) [\(parts.joined(separator: "; "))]")
+        return (!owners.isEmpty, owners, "ax \(status), \(parts.count) window(s) [\(parts.joined(separator: "; "))]")
     }
 
     /// Presses the pill that sits in `bounds`, looked up fresh (the element
@@ -293,13 +306,12 @@ nonisolated enum PillProbe {
 
     /// Every pill in the agent's tree.
     static func copies() -> [PillCopy] {
-        guard let agent = NSRunningApplication.runningApplications(withBundleIdentifier: PelmetBundle.agentID).first
-        else { return [] }
-        let app = AXUIElementCreateApplication(agent.processIdentifier)
-        AXUIElementSetMessagingTimeout(app, 0.6)
         var found: [PillCopy] = []
-        // The pills are the bar windows' own children (app > window > item).
-        collect(app, depth: 3, into: &found)
+        for app in agentApps() {
+            AXUIElementSetMessagingTimeout(app, 0.6)
+            // The pills are the bar windows' own children (app > window > item).
+            collect(app, depth: 3, into: &found)
+        }
         return found
     }
 
