@@ -1371,19 +1371,49 @@ final class LiveMirror {
         }
     }
 
-    /// Covers are checked every second, every 50ms while a transition runs.
+    /// Covers are checked about every second (Mission Control every 0.4 s), every 50ms while a transition runs.
     private func startOrderKeeper() {
         guard orderKeeper == nil else { return }
         ConcealGhostOverlay.onNewCover = { [weak self] in self?.coverMade() }
         orderKeeper = Task { @MainActor [weak self] in
+            var rounds = 0
             while !Task.isCancelled {
                 guard let self else { return }
+                rounds += 1
                 let busy = ConcealGhostOverlay.coverCount > 1 || self.entering || self.exiting || self.handingOver
-                if ConcealGhostOverlay.coverCount > 0, !self.coverLifted || ConcealGhostOverlay.coverCount > 1 {
+                if self.isActive { self.watchMissionControl() }
+                if ConcealGhostOverlay.coverCount > 0, !self.missionControlUp, busy || rounds % 3 == 0 || !self.isActive,
+                   !self.coverLifted || ConcealGhostOverlay.coverCount > 1 {
                     self.enforceOrder(busy ? "transition" : "keeper")
                 }
-                try? await Task.sleep(for: .milliseconds(busy ? 50 : 1000))
+                try? await Task.sleep(for: .milliseconds(busy || self.missionControlUp ? 50 : (self.isActive ? 400 : 1000)))
             }
+        }
+    }
+
+    /// Mission Control is up while the window server shows its "Spaces Bar"
+    /// (or the Expose shield): the real bar is gone, so a cover over it
+    /// would float on top of the Spaces bar. The covers go out of the way
+    /// while it is up and come back the moment it is gone.
+    private var missionControlUp = false
+    private static func missionControlIsUp() -> Bool {
+        guard let list = ConcealGhostOverlay.onScreenWindows() else { return false }
+        return list.contains { w in
+            guard (w[kCGWindowOwnerName as String] as? String) == "WindowManager" else { return false }
+            let name = w[kCGWindowName as String] as? String
+            return name == "Spaces Bar" || name == "ExposeShieldWindow"
+        }
+    }
+
+    private func watchMissionControl() {
+        let up = Self.missionControlIsUp()
+        guard up != missionControlUp, !entering, !exiting, !handingOver else { return }
+        missionControlUp = up
+        PelmetLog.log("livemirror: Mission Control \(up ? "is up — the covers step aside" : "is gone — the covers are back")")
+        if up {
+            for side in sides { side.cover?.members.first?.setShown(false) }
+        } else if !coverLifted {
+            setCoversShown(true, why: "Mission Control gone")
         }
     }
 
