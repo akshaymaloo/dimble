@@ -88,6 +88,8 @@ final class TransitionCoordinator {
     /// Pictures of the last transition still on screen (cover lift, exit
     /// strip). See `awaitPreviousLift`.
     private var liftsInFlight = 0
+    /// A cover of a reveal or a re-hide is still up or on its way down.
+    var coversInFlight: Bool { liftsInFlight > 0 || liftEnding || liftCover != nil }
     /// What has the bar revealed under its cover: a picture pass or a quiet
     /// Apply. Set and cleared with the press hold it counts as, by
     /// `beginBarHold` / `endBarHold` only. See `awaitPicturePass`.
@@ -688,7 +690,9 @@ final class TransitionCoordinator {
             await awaitPreviousLift()
             await anchorTask?.value
             if anchored {
+                await appState.liveMirror.releaseForReveal()
                 await performAnchoredReveal(sections, lifting: lifting, trace: trace)
+                await appState.liveMirror.revealLanded()
                 return
             }
             let style = appState.settings.revealAnimation
@@ -780,12 +784,15 @@ final class TransitionCoordinator {
                 trace.mark("preattach")
             }
             PelmetLog.log("effect reveal \(sections) → engine (anim=\(style.rawValue), cover=\(cover != nil), finished=\(finished != nil)\(lifting ? ", lifting" : ""))")
+            // Live mode (spike): its hold ends here, in the reveal's own swap.
+            await appState.liveMirror.releaseForReveal()
             await engine.reveal(sections, liftingAssertion: lifting)
             trace.mark("engine")
             trace.note(await engine.lastConvergeTiming)
             let settled = await engine.snapshot()
             appState.updateSnapshot(settled)
             appState.recordDrawnOrder(settled, revealed: sections)
+            await appState.liveMirror.revealLanded()
             if let cover {
                 // Hold until the engine is swap-quiet (under rapid hover
                 // cycles the real swap can land AFTER the settle report)

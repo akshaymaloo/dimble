@@ -410,6 +410,13 @@ final class ConcealGhostOverlay {
     /// or the mirror itself. Everyone else's capture runs uncovered.
     static var liveModeBlocksCaptures = false
 
+    /// Windows of ordinary apps (layers below the Dock's): never part of a
+    /// picture of the bar that has to stay true for minutes.
+    static func ordinaryAppWindows(_ windows: [SCWindow]) -> [SCWindow] {
+        let me = ProcessInfo.processInfo.processIdentifier
+        return windows.filter { $0.windowLayer >= 0 && $0.windowLayer < 20 && $0.owningApplication?.processID != me }
+    }
+
     static func snapshotSet(
         of rect: CGRect?, excludingOwnWindows: Bool = false, ownWindows: [SCWindow]? = nil, primaryOnly: Bool = false,
         displays: Set<CGDirectDisplayID>? = nil, bare: Bool = false, liveMirror: Bool = false
@@ -510,8 +517,22 @@ final class ConcealGhostOverlay {
                     PelmetLog.log("ghost: capture leaves out \(foreign.map(\.owner).joined(separator: ", ")) (\(excluded.count) window(s))")
                 }
             }
+            if liveMirror {
+                // A cover that stays up for minutes must not hold a window's
+                // edge or the shadow it casts into the bar's last rows: the
+                // picture is the bar over the wallpaper, no window in it.
+                if content == nil {
+                    content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+                }
+                let ordinary = ordinaryAppWindows(content?.windows ?? []).filter { $0.frame.intersects(bounds) }
+                if !ordinary.isEmpty {
+                    excluded += ordinary
+                    PelmetLog.log("livemirror: picture leaves out \(ordinary.count) ordinary window(s) and every shadow")
+                }
+            }
             let filter = SCContentFilter(display: display, excludingWindows: excluded)
             let config = SCStreamConfiguration()
+            if liveMirror { config.ignoreShadowsDisplay = true }
             config.sourceRect = capture
             // The display's own scale — a hardcoded ×2 half-sized the strip
             // on 1× externals.
@@ -948,7 +969,46 @@ final class ConcealGhostOverlay {
     func setShown(_ shown: Bool) {
         guard !finished else { return }
         if !shown { window.orderOut(nil); return }
-        if let beneathID { window.order(.below, relativeTo: Int(beneathID)) } else { window.orderFrontRegardless() }
+        orderBelowForeign()
+    }
+
+    /// The live cover's rule: directly below every foreign surface over its
+    /// strip (Sconce's notch glass and the like), found fresh each time (their
+    /// window numbers change when they redraw), the lowest of them when there
+    /// are several. Nothing foreign over the strip: in front. Returns the
+    /// surface it went below.
+    @discardableResult
+    func orderBelowForeign() -> (owner: String, id: CGWindowID)? {
+        guard !finished else { return nil }
+        let f = window.frame
+        let primaryMaxY = NSScreen.screens.first?.frame.maxY ?? 0
+        let cg = CGRect(x: f.minX, y: primaryMaxY - f.maxY, width: f.width, height: f.height)
+        let foreign = Self.foreignBandWindows(intersecting: cg, bandHeight: f.height)
+        if let lowest = foreign.last {
+            beneathID = lowest.id
+            window.order(.below, relativeTo: Int(lowest.id))
+            return lowest
+        }
+        beneathID = nil
+        window.orderFrontRegardless()
+        return nil
+    }
+
+    /// A foreign surface over the strip that has slipped below this cover
+    /// (a click on the cover orders it in front of its level), by the
+    /// window server's front-to-back `list`.
+    func foreignBelowMe(in list: [[String: Any]]) -> (owner: String, id: CGWindowID)? {
+        guard window.isVisible, !finished else { return nil }
+        let f = window.frame
+        let primaryMaxY = NSScreen.screens.first?.frame.maxY ?? 0
+        let cg = CGRect(x: f.minX, y: primaryMaxY - f.maxY, width: f.width, height: f.height)
+        let foreign = Self.foreignBandWindows(intersecting: cg, bandHeight: f.height, in: list)
+        guard !foreign.isEmpty else { return nil }
+        func index(_ id: CGWindowID) -> Int? {
+            list.firstIndex { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value == id }
+        }
+        guard let mine = index(CGWindowID(window.windowNumber)) else { return nil }
+        return foreign.first { (index($0.id) ?? -1) > mine }
     }
 
     /// One decrement per overlay, however it ends.

@@ -274,6 +274,14 @@ public actor AgentBarEngine: MenuBarEngine {
         await converge()
     }
 
+    /// Live mode hands the bar to a normal reveal: the hold and the lift end
+    /// with no converge of their own; the reveal's converge is the one swap
+    /// (the assertion comes back with the sections' bundles allowed).
+    public func releaseLiftHold() {
+        keepsLift = false
+        endLift("live mode handed to a reveal")
+    }
+
     private func endLift(_ why: String) {
         guard lifted, !keepsLift else { return }
         lifted = false

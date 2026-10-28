@@ -224,6 +224,29 @@ nonisolated enum PillProbe {
     }
 
     /// The pill's children: texts, logos, the hit area. Nil when it is gone.
+    /// MenuBarAgent's AX application element.
+    static func agentApp() -> AXUIElement? {
+        NSRunningApplication.runningApplications(withBundleIdentifier: PelmetBundle.agentID).first
+            .map { AXUIElementCreateApplication($0.processIdentifier) }
+    }
+
+    /// Whether the expanded card is on screen: a MenuBarAgent window below
+    /// the bar (the bar's own sits at y 0) holding a live-activity group.
+    /// The card's window stays listed for the whole collapse (~0.8 s).
+    static func cardIsOpen() -> Bool {
+        guard let app = agentApp() else { return false }
+        func hasActivity(_ element: AXUIElement, _ depth: Int) -> Bool {
+            if (attribute(element, kAXSubroleAttribute) as? String) == "AXLiveActivity" { return true }
+            guard depth < 4 else { return false }
+            return ((attribute(element, kAXChildrenAttribute) as? [AXUIElement]) ?? []).contains { hasActivity($0, depth + 1) }
+        }
+        for window in (attribute(app, kAXWindowsAttribute) as? [AXUIElement]) ?? [] {
+            guard let frame = frame(of: window), frame.minY >= 20 else { continue }
+            if hasActivity(window, 0) { return true }
+        }
+        return false
+    }
+
     static func readTree(_ pill: AXUIElement) -> PillTree? {
         guard let frame = frame(of: pill), frame.width > 0 else { return nil }
         var nodes: [PillNode] = []
@@ -347,6 +370,23 @@ final class LiveMirror {
     private var lastSummaryAt = Date()
     private var tickCount = 0
     private var screenObserver: NSObjectProtocol?
+    private var spaceObserver: NSObjectProtocol?
+    private var themeObserver: NSObjectProtocol?
+
+    /// A reveal the live mirror handed the bar to (`beginHandOver`): the
+    /// pill and the mirror are away, the cover stays up until the reveal's
+    /// swap has landed (`revealLanded`), and live mode comes back by the
+    /// loop once the re-hide has rested.
+    private var handingOver = false
+    private var released = false
+    private var handOverWatchdog: Task<Void, Never>?
+    private var lastHoverNote = Date.distantPast
+
+    /// The last still of each display, kept across a reveal (not across the
+    /// end of live mode): reused when the pill's look is unchanged, so the
+    /// return to live mode takes no second capture.
+    private struct KeptStill { var look: PillTree.Look; var image: CGImage; var at: Date }
+    private var kept: [CGDirectDisplayID: KeptStill] = [:]
 
     init(appState: AppState) { self.appState = appState }
 
@@ -359,17 +399,155 @@ final class LiveMirror {
         if loop == nil { startLoop() }
     }
 
-    /// A reveal asked for while live mode has the bar. The « (and the item)
-    /// lift the cover; every other trigger waits for live mode to end.
+    /// A reveal asked for while live mode has the bar. The «, a hover and the
+    /// hotkey hand the bar to the normal reveal: the pill and the mirror go,
+    /// the cover stays up while the one swap lands, and live mode comes
+    /// back after the re-hide. A hover on the mirror itself is no reveal
+    /// (the pointer is on its way to a click). Every other trigger (Apply,
+    /// the editor, a policy) is held off while live mode has the bar.
     func intercepts(reveal reason: RevealReason) -> Bool {
         guard isActive else { return false }
+        if handingOver { return false }
         switch reason {
+        case .hover:
+            if pointerOnMirror() {
+                if Date().timeIntervalSince(lastHoverNote) > 2 {
+                    lastHoverNote = Date()
+                    PelmetLog.log("livemirror: hover on the mirror — no reveal, the pointer is on its way to a click")
+                }
+                return true
+            }
+            beginHandOver(reason)
+            return false
         case .statusItem, .click, .doubleClick, .hotkey:
-            toggleCover("\(reason)")
+            beginHandOver(reason)
+            return false
         default:
             PelmetLog.log("livemirror: reveal(\(reason)) blocked — live mode has the bar")
+            return true
         }
+    }
+
+    /// The Live Activities item's own click (the existing lift): in live
+    /// mode it only lifts the cover and puts it back.
+    func interceptsItemClick() -> Bool {
+        guard isActive, !handingOver else { return isActive }
+        toggleCover("item")
         return true
+    }
+
+    private func pointerOnMirror() -> Bool {
+        let point = NSEvent.mouseLocation
+        return sides.contains { side in
+            side.mirrorGlobal.map { !side.container.isHidden && $0.insetBy(dx: -6, dy: -6).contains(point) } ?? false
+        }
+    }
+
+    private func beginHandOver(_ reason: RevealReason) {
+        handingOver = true
+        released = false
+        liftedReturn?.cancel()
+        if coverLifted {
+            coverLifted = false
+            setCoversShown(true, why: "hand-over")
+        }
+        PelmetLog.log("livemirror: reveal(\(reason)) — the bar goes to the normal reveal, pill and mirror away, cover up")
+        for side in sides {
+            side.refresh?.cancel()
+            side.observer?.stop()
+            side.observer = nil
+            CATransaction.begin(); CATransaction.setDisableActions(true)
+            side.container.isHidden = true
+            CATransaction.commit()
+        }
+        let mouse: Bool = { switch reason { case .click, .doubleClick, .statusItem: true; default: false } }()
+        Task { @MainActor in await self.closeCard(why: "reveal(\(reason))", mouseDismisses: mouse) }
+        handOverWatchdog?.cancel()
+        handOverWatchdog = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(3))
+            guard let self, !Task.isCancelled, self.handingOver, !self.released else { return }
+            PelmetLog.log("livemirror: no reveal came for the hand-over — live mode carries on")
+            self.handingOver = false
+            for side in self.sides {
+                side.container.isHidden = false
+                self.startObserving(side)
+            }
+        }
+    }
+
+    /// The coordinator's reveal is about to take the engine: live mode's
+    /// hold ends with no swap of its own, so the reveal's is the only one.
+    func releaseForReveal() async {
+        guard handingOver, !released, let appState else { return }
+        released = true
+        handOverWatchdog?.cancel()
+        ConcealGhostOverlay.liveModeBlocksCaptures = false
+        await appState.engine.releaseLiftHold()
+        PelmetLog.log("livemirror: hold released — the reveal's assertion is the swap")
+    }
+
+    /// The reveal's swap has landed: the pill is gone for good, live mode
+    /// is over until the re-hide. The cover comes down once the bar rests
+    /// beneath it (under the reveal's own cover, which lifts after).
+    func revealLanded() async {
+        guard handingOver, released, let appState else { return }
+        let covers = sides.compactMap(\.cover)
+        for side in sides { side.observer?.stop(); side.observer = nil }
+        sides = []
+        isActive = false
+        handingOver = false
+        released = false
+        lastChevron = nil
+        appState.transitions.liveModeActive = false
+        PelmetLog.log("livemirror: reveal landed — live mode is off until the re-hide")
+        Task { @MainActor in
+            let started = Date()
+            await appState.waitUntilQuiesced(interval: 0.15, deadline: 2, poll: .milliseconds(30))
+            for cover in covers { cover.dismiss() }
+            PelmetLog.log("livemirror: hand-over cover down at \(Int(-started.timeIntervalSinceNow * 1000))ms")
+        }
+    }
+
+    // MARK: The card
+
+    /// The expanded card is closed by an AX press on the pill again (the
+    /// second press collapses it, ~0.8s), or by the click outside it. Cancel
+    /// actions are unsupported on the card, the pill and its window (error
+    /// -25206) and an Escape posted to MenuBarAgent's pid does nothing.
+    private func pressPill(_ why: String) {
+        guard let pill = sides.compactMap(\.pill).first else { return }
+        let started = Date()
+        Task.detached(priority: .userInitiated) {
+            let result = AXUIElementPerformAction(pill.element, kAXPressAction as CFString)
+            PelmetLog.log("livemirror: card — AX press on the pill (\(why)) → \(result == .success ? "success" : "error \(result.rawValue)") in \(Int(-started.timeIntervalSinceNow * 1000))ms")
+        }
+    }
+
+    private func cardIsOpen() async -> Bool {
+        await Task.detached(priority: .userInitiated) { PillProbe.cardIsOpen() }.value
+    }
+
+    /// Closes the card if it is open. `mouseDismisses`: a click started this,
+    /// and the click is already an outside interaction that collapses the
+    /// card; a press now would interrupt that collapse and leave it open.
+    private func closeCard(why: String, mouseDismisses: Bool) async {
+        guard await cardIsOpen() else { return }
+        let started = Date()
+        if mouseDismisses {
+            PelmetLog.log("livemirror: card open (\(why)) — the click closes it")
+        } else {
+            PelmetLog.log("livemirror: card open (\(why)) — closing it")
+            pressPill(why)
+        }
+        for _ in 0..<14 {
+            try? await Task.sleep(for: .milliseconds(100))
+            if !(await cardIsOpen()) {
+                PelmetLog.log("livemirror: card closed \(Int(-started.timeIntervalSinceNow * 1000))ms after (\(why))")
+                return
+            }
+        }
+        PelmetLog.log("livemirror: card still open 1.4s after (\(why))\(mouseDismisses ? " — pressing the pill" : "")")
+        if mouseDismisses { pressPill(why) }
     }
 
     private func startLoop() {
@@ -384,12 +562,22 @@ final class LiveMirror {
                 }
             }
         }
+        if spaceObserver == nil {
+            spaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
+                forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main
+            ) { [weak self] _ in Task { @MainActor in await self?.backdropMayHaveChanged("the Space changed") } }
+        }
+        if themeObserver == nil {
+            themeObserver = DistributedNotificationCenter.default().addObserver(
+                forName: Notification.Name("AppleInterfaceThemeChangedNotification"), object: nil, queue: .main
+            ) { [weak self] _ in Task { @MainActor in await self?.backdropMayHaveChanged("the appearance changed") } }
+        }
         loop = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
                 let suspended = UserDefaults.standard.bool(forKey: Self.suspendKey)
                 let desired = self.wanted && !suspended && Self.enabled
-                if self.entering || self.exiting {
+                if self.entering || self.exiting || self.handingOver {
                     // a step is running
                 } else if desired, !self.isActive {
                     if let why = await self.cannotEnter() {
@@ -415,6 +603,7 @@ final class LiveMirror {
         if appState.isTransitioning { return "a transition runs" }
         if appState.panelShowsReveal { return "the panel is up" }
         if appState.liftHoldReason != nil { return "a lift has the bar" }
+        if appState.transitions.coversInFlight { return "a cover is still up" }
         if appState.chevronWindowFrame == nil { return "no chevron window" }
         if !(await appState.engine.holdsAssertion) { return "no assertion held — the pill shows on its own" }
         return nil
@@ -464,6 +653,8 @@ final class LiveMirror {
         guard let appState, !isActive else { return }
         entering = true
         defer { entering = false }
+        // After a re-hide the bar may still be at its reflow.
+        await appState.waitUntilQuiesced(interval: 0.3, deadline: 2, poll: .milliseconds(30))
         let started = Date()
         func ms() -> Int { Int(-started.timeIntervalSinceNow * 1000) }
         guard var chevron = appState.chevronWindowFrame,
@@ -582,10 +773,10 @@ final class LiveMirror {
             guard let self, let side else { return }
             self.clicked(side, at: point)
         }
-        if coverLifted { overlay.setShown(false) }
         side.layerAttached = false
         layoutMirror(side)
         if why != "enter" { PelmetLog.log("livemirror: cover #\(overlay.id) on display \(side.id) \(Int(side.coverMinX))..\(Int(side.coverMaxX)) (\(why))") }
+        if coverLifted { overlay.setShown(false) } else { logOrder(overlay, why: "cover \(why)") }
         old?.dismiss()
         return true
     }
@@ -601,7 +792,8 @@ final class LiveMirror {
         var out: [SCWindow] = []
         for attempt in 0..<12 {
             let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-            out = content?.windows.filter { $0.owningApplication?.processID == me || foreign.contains($0.windowID) } ?? []
+            let ordinary = Set(ConcealGhostOverlay.ordinaryAppWindows(content?.windows ?? []).map(\.windowID))
+            out = content?.windows.filter { $0.owningApplication?.processID == me || foreign.contains($0.windowID) || ordinary.contains($0.windowID) } ?? []
             if wanted.isSubset(of: Set(out.map { Int($0.windowID) })) {
                 if attempt > 0 { PelmetLog.log("livemirror: cover windows listed after \(attempt) retry(ies)") }
                 break
@@ -617,6 +809,17 @@ final class LiveMirror {
     /// the image children changed, the texts redrawn when they did.
     private func apply(_ tree: PillTree, to side: Side, why: String) async {
         let look = tree.look
+        if side.look == nil, side.base.contents == nil, let still = kept[side.id] {
+            let age = Int(Date().timeIntervalSince(still.at))
+            if age < 900, look.change(from: still.look) == nil {
+                CATransaction.begin(); CATransaction.setDisableActions(true)
+                side.base.contents = still.image
+                side.base.contentsGravity = .resize
+                CATransaction.commit()
+                side.look = still.look
+                PelmetLog.log("livemirror: still reused — the look is unchanged since \(age)s, no capture")
+            }
+        }
         let reason: String?
         if let old = side.look, side.base.contents != nil { reason = look.change(from: old) }
         else { reason = "first (\(why))" }
@@ -645,6 +848,7 @@ final class LiveMirror {
         config.showsCursor = false
         config.pixelFormat = kCVPixelFormatType_32BGRA
         config.shouldBeOpaque = true
+        config.ignoreShadowsDisplay = true
         let image: CGImage
         do { image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config) }
         catch {
@@ -666,6 +870,7 @@ final class LiveMirror {
         side.base.contents = blanked
         side.base.contentsGravity = .resize
         CATransaction.commit()
+        kept[side.id] = KeptStill(look: tree.look, image: blanked, at: Date())
         PelmetLog.log("livemirror: snapshot #\(side.snapshots) — \(reason) [display \(side.id), \(image.width)×\(image.height)px, \(Int(-started.timeIntervalSinceNow * 1000))ms, \(excluded.count) window(s) left out]")
         return true
     }
@@ -859,12 +1064,78 @@ final class LiveMirror {
             return
         }
         let id = side.id
-        let at = Date()
-        PelmetLog.log("livemirror: click on the mirror (display \(id)) — pressing the real pill")
-        Task.detached(priority: .userInitiated) {
-            let result = AXUIElementPerformAction(pill.element, kAXPressAction as CFString)
-            PelmetLog.log("livemirror: AX press on display \(id) → \(result == .success ? "success" : "error \(result.rawValue)") in \(Int(-at.timeIntervalSinceNow * 1000))ms")
+        // The cover was ordered front by the click: back under Sconce at once.
+        DispatchQueue.main.async { [weak self] in self?.enforceOrder("click") }
+        Task { @MainActor in
+            let at = Date()
+            if await self.cardIsOpen() {
+                // The click is already an outside interaction for the card
+                // and collapses it; a press on top interrupts that.
+                PelmetLog.log("livemirror: click on the mirror (display \(id)) — the card is open, the click closes it (no press)")
+                await self.confirmCardClosed(from: at)
+                return
+            }
+            PelmetLog.log("livemirror: click on the mirror (display \(id)) — pressing the real pill")
+            self.pressPill("mirror click")
+            for _ in 0..<12 {
+                try? await Task.sleep(for: .milliseconds(100))
+                if await self.cardIsOpen() {
+                    PelmetLog.log("livemirror: card opened \(Int(-at.timeIntervalSinceNow * 1000))ms after the click")
+                    return
+                }
+            }
+            PelmetLog.log("livemirror: card did not open within 1.2s of the press")
         }
+    }
+
+    private func confirmCardClosed(from start: Date) async {
+        for _ in 0..<14 {
+            try? await Task.sleep(for: .milliseconds(100))
+            if !(await cardIsOpen()) {
+                PelmetLog.log("livemirror: card closed \(Int(-start.timeIntervalSinceNow * 1000))ms after the click")
+                return
+            }
+        }
+        PelmetLog.log("livemirror: card still open 1.4s after the click — pressing the pill")
+        pressPill("click fallback")
+    }
+
+    // MARK: Cover order
+
+    private func logOrder(_ overlay: ConcealGhostOverlay, why: String) {
+        let below = overlay.orderBelowForeign()
+        PelmetLog.log("livemirror: cover order — \(below.map { "below \($0.owner) \($0.id)" } ?? "in front, no foreign surface over the strip") (\(why))")
+    }
+
+    /// Every cover shown again ends directly below the foreign surfaces.
+    private func setCoversShown(_ shown: Bool, why: String) {
+        for side in sides {
+            guard let overlay = side.cover?.members.first else { continue }
+            overlay.setShown(shown)
+            if shown { logOrder(overlay, why: why) }
+        }
+    }
+
+    /// The window server's order, not ours: a foreign surface that sits
+    /// below a cover goes back above it.
+    private func enforceOrder(_ why: String) {
+        guard isActive, !coverLifted, let list = ConcealGhostOverlay.onScreenWindows() else { return }
+        for side in sides {
+            guard let overlay = side.cover?.members.first, let below = overlay.foreignBelowMe(in: list) else { continue }
+            let now = overlay.orderBelowForeign()
+            PelmetLog.log("livemirror: cover order — corrected, was above \(below.owner) \(below.id); now below \(now.map { "\($0.owner) \($0.id)" } ?? "?") (\(why))")
+        }
+    }
+
+    /// The backdrop under the cover can't be told from here without a
+    /// capture: the Space and the appearance changing are the signals. The
+    /// cover is retaken by leaving live mode and entering again, the still
+    /// kept: the picture must be of the concealed bar.
+    private func backdropMayHaveChanged(_ reason: String) async {
+        try? await Task.sleep(for: .milliseconds(600))
+        guard isActive, !handingOver, !entering, !exiting else { return }
+        PelmetLog.log("livemirror: cover retake — \(reason)")
+        await exit("cover retake", keepStills: true)
     }
 
     /// The « (or the item) asked for a reveal: the cover goes, the real bar
@@ -873,7 +1144,7 @@ final class LiveMirror {
         coverLifted.toggle()
         liftedReturn?.cancel()
         PelmetLog.log("livemirror: cover \(coverLifted ? "lifted — the real bar shows" : "back") (\(why))")
-        for side in sides { side.cover?.members.first?.setShown(!coverLifted) }
+        setCoversShown(!coverLifted, why: "cover back (\(why))")
         guard coverLifted else { return }
         liftedReturn = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(Self.liftedCoverReturn))
@@ -897,6 +1168,7 @@ final class LiveMirror {
                 buildCover(side, left: side.coverMinX, right: chevronMinX(chevron, on: side) - 1, why: "chevron moved")
             }
         }
+        enforceOrder("tick")
         for side in sides {
             if side.pill == nil || tickCount % Self.fallbackEvery == 0 {
                 if side.pill == nil {
@@ -928,16 +1200,22 @@ final class LiveMirror {
 
     // MARK: Exit
 
-    func exit(_ reason: String) async {
+    func exit(_ reason: String, keepStills: Bool = false) async {
         guard let appState, isActive, !exiting else { return }
         exiting = true
         defer { exiting = false }
         let started = Date()
         PelmetLog.log("livemirror: exit — \(reason)")
         liftedReturn?.cancel()
+        if !keepStills { kept = [:] }
+        // The card goes with the pill.
+        if await cardIsOpen() {
+            PelmetLog.log("livemirror: card open (exit) — closing it")
+            pressPill("exit")
+        }
         if coverLifted {
             coverLifted = false
-            for side in sides { side.cover?.members.first?.setShown(true) }
+            setCoversShown(true, why: "exit")
         }
         for side in sides {
             side.refresh?.cancel()

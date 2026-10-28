@@ -2038,7 +2038,7 @@ final class AppState {
     /// puts it back at once: the lift's state is read here, not asked of the
     /// engine, which is mid-converge for the whole reveal.
     func liftHideForLiveActivities() {
-        if liveMirror.intercepts(reveal: .statusItem) { return }
+        if liveMirror.interceptsItemClick() { return }
         let all: Set<PelmetCore.Section> = [.hidden, .alwaysHidden]
         if transitions.liftUp {
             PelmetLog.log("liveactivity: click with the bar lifted — concealing")
