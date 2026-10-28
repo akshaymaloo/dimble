@@ -109,10 +109,13 @@ nonisolated enum PillProbe {
     /// Every distinct pill on a display, left to right: macOS shows one pill
     /// per running activity, each with its own AX element (and a copy per bar).
     static func pills(in bounds: CGRect) -> [PillCopy] {
-        var seen = Set<String>()
         var out: [PillCopy] = []
         for copy in copies() where bounds.contains(CGPoint(x: copy.frame.midX, y: copy.frame.midY)) {
-            if seen.insert("\(copy.name)@\(Int(copy.frame.minX.rounded())),\(Int(copy.frame.minY.rounded()))").inserted { out.append(copy) }
+            // Each bar window holds its own element for the same pill, and
+            // while the capture indicator moves things the two can stand a
+            // few points apart: one description within 30 pt is one pill.
+            if out.contains(where: { $0.name == copy.name && abs($0.frame.minX - copy.frame.minX) < 30 }) { continue }
+            out.append(copy)
         }
         return out.sorted { $0.frame.minX < $1.frame.minX }
     }
