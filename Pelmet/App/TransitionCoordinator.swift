@@ -1639,8 +1639,13 @@ final class TransitionCoordinator {
         // The items read as gone the moment the conceal's swap lands, while
         // they still fade beneath: a trim now showed them mid-fade
         // (2026-10-29, Wi-Fi and battery flashed on the built-in as the
-        // LG's « closed).
-        if let ends = heldFadeEnds, ends > Date() {
+        // LG's « closed). Only what would uncover waits: a run that grows
+        // (the « moving right as they leave) covers more at once.
+        let grows = shownNow.flatMap { now in
+            heldShownRun.map { now.lowerBound <= $0.lowerBound && now.upperBound >= $0.upperBound }
+        } ?? false
+        let uncovers = (moved && !grows) || holed || !heldDisplays.isSubset(of: want)
+        if uncovers, let ends = heldFadeEnds, ends > Date() {
             PelmetLog.log("held: \(what) waits for the conceal's fade (\(Int(ends.timeIntervalSinceNow * 1000))ms) — \(why)")
             return
         }
