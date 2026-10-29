@@ -22737,6 +22737,64 @@
         }
       }
     },
+    "Their pills show next to the «, and hidden system icons come back.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ihre Kapseln erscheinen neben dem «, ausgeblendete Systemsymbole ebenso."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sus cápsulas aparecen junto al «, y vuelven los iconos del sistema ocultos."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leurs capsules s’affichent près du «, et les icônes système masquées aussi."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le capsule appaiono accanto al «, e tornano le icone di sistema nascoste."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "カプセルが « の横に表示され、隠したシステムアイコンも戻ります。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "캡슐이 « 옆에 표시되고, 숨긴 시스템 아이콘이 돌아옵니다."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As cápsulas aparecem ao lado do «, e os ícones ocultos do sistema voltam."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Капсулы видны рядом с «, а скрытые системные значки возвращаются."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "胶囊显示在 « 旁边，隐藏的系统图标也会重新出现。"
+          }
+        }
+      }
+    },
     "Then turn the original off in %@'s settings.": {
       "localizations": {
         "de": {
@@ -25401,64 +25459,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "备份期间"
-          }
-        }
-      }
-    },
-    "While one runs, its pill shows next to the « and the system icons Dimble hides come back.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Solange eine läuft, erscheint ihre Kapsel neben dem « und die Systemsymbole, die Dimble ausblendet, kommen zurück."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mientras hay una en curso, su cápsula aparece junto al « y vuelven los iconos del sistema que Dimble oculta."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pendant qu’une est en cours, sa capsule s’affiche à côté du « et les icônes système que Dimble masque reviennent."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mentre ne è in corso una, la sua capsula appare accanto al « e tornano le icone di sistema che Dimble nasconde."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "実行中は、そのカプセルが « の横に表示され、Dimble が隠しているシステムアイコンも戻ります。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "실시간 현황이 진행되는 동안 그 캡슐이 « 옆에 표시되고, Dimble이 숨긴 시스템 아이콘이 돌아옵니다."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Enquanto uma está em andamento, sua cápsula aparece ao lado do « e os ícones do sistema que o Dimble oculta voltam."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Пока она идёт, её капсула появляется рядом с «, а системные значки, которые скрывает Dimble, возвращаются."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "有实时活动进行时，它的胶囊会显示在 « 旁边，Dimble 隐藏的系统图标也会重新出现。"
           }
         }
       }

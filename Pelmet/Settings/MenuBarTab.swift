@@ -1144,7 +1144,7 @@ private struct PelmetItemsStrip: View {
         let recording = appState.screenRecordingGranted
         return SettingRow(
             title: "Show Live Activities",
-            caption: "While one runs, its pill shows next to the « and the system icons Dimble hides come back."
+            caption: "Their pills show next to the «, and hidden system icons come back."
         ) {
             SettingSwitch(isOn: Binding(
                 get: { recording && appState.settings.showLiveActivities },
