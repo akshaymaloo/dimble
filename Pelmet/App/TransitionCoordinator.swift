@@ -1566,6 +1566,7 @@ final class TransitionCoordinator {
     private func releaseHeldAfterConceal() {
         guard !held.isEmpty, let appState else { return }
         let liftAt = Date().addingTimeInterval(AppTiming.exitCoverHold)
+        heldFadeEnds = liftAt
         Task { @MainActor in
             await appState.waitUntilQuiesced(interval: 0.15, deadline: 2, poll: .milliseconds(30))
             let remaining = liftAt.timeIntervalSinceNow
@@ -1573,6 +1574,9 @@ final class TransitionCoordinator {
             await hold(appState.barsKeptConcealed)
         }
     }
+    /// Until then a conceal's fade runs beneath the held bars, and the
+    /// re-hold after it (`releaseHeldAfterConceal`) is the one that trims.
+    private var heldFadeEnds: Date?
 
     /// Live mode stands over the bars the anchor holds: its covers
     /// are pictures of the same bare glass, up before this is called, and
@@ -1631,7 +1635,16 @@ final class TransitionCoordinator {
         let moved = !stale && shownNow != heldShownRun
         let holed = !stale && !moved && (shownNow.map(heldHoles(in:)) ?? []) != heldShownHoles
         guard stale || moved || holed || want != heldDisplays else { return }
-        PelmetLog.log("held: \(stale ? "retake" : moved ? "trim" : holed ? "holes" : "re-hold") — \(why)")
+        let what = stale ? "retake" : moved ? "trim" : holed ? "holes" : "re-hold"
+        // The items read as gone the moment the conceal's swap lands, while
+        // they still fade beneath: a trim now showed them mid-fade
+        // (2026-10-29, Wi-Fi and battery flashed on the built-in as the
+        // LG's « closed).
+        if let ends = heldFadeEnds, ends > Date() {
+            PelmetLog.log("held: \(what) waits for the conceal's fade (\(Int(ends.timeIntervalSinceNow * 1000))ms) — \(why)")
+            return
+        }
+        PelmetLog.log("held: \(what) — \(why)")
         // One at a time: a burst of item moves is one hold, then one more
         // with what the burst left.
         guard refreshInFlight == nil else { refreshAgain = true; return }
@@ -1770,6 +1783,13 @@ final class TransitionCoordinator {
             }
             if !others.isEmpty { await engine.conceal(items: others) }
             trace.mark("engine")
+            // What went in fades beneath the held bars: they keep its run
+            // until the fade has run, then trim to what is left.
+            heldFadeEnds = Date().addingTimeInterval(AppTiming.exitCoverHold)
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(AppTiming.exitCoverHold))
+                self?.refreshHeld("the conceal's fade ran")
+            }
             appState.updateSnapshot(await engine.snapshot())
         }
         PelmetLog.log("effect conceal anchored — held \(heldDisplays.sorted())\(released.isEmpty ? "" : ", releasing \(released.map(\.rawValue).sorted())")")
