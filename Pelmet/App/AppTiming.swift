@@ -186,6 +186,9 @@ enum AppTiming {
     /// walks, so the app reads TCC directly; 2s keeps a flipped toggle in
     /// System Settings visible within a breath without a hot loop.
     static let accessibilityPoll: Duration = .seconds(2)
+    /// Screen Recording grant poll, only while live mode waits on it
+    /// (`ExtrasManager.syncLiveActivityWatcher`): same breath as above.
+    static let screenRecordingPoll: Duration = .seconds(2)
     /// Apply (docs/CORE-SETS.md): the pass borrows the pointer only after
     /// this much quiet, bounded so a restless pointer still gets the
     /// shielded drag rather than a pass that never starts.

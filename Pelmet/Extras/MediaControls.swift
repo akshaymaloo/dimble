@@ -107,6 +107,9 @@ final class ExtrasManager {
     /// Activities" setting): one watcher serves both.
     private var liveActivityStatus: LiveActivityStatus?
     private var lastLiveActivityActive = false
+    /// Live mode on without Screen Recording: the grant lands in System
+    /// Settings, where nothing tells Dimble, so it is read until it arrives.
+    private var grantWait: Task<Void, Never>?
     /// One clock per media item drawing the animated bars (see ExtraGlyphs).
     private var animators: [UUID: ExtraAnimator] = [:]
     /// Play/pause state the media glyph shows. Click intent drives it (players
@@ -1111,8 +1114,11 @@ final class ExtrasManager {
     /// The watcher lives for the item, or for live mode alone while it can
     /// start: a log stream and an eight-hour replay are not spent on a Mac
     /// where Screen Recording keeps live mode from ever entering. The grant
-    /// arriving (`screenRecordingChanged`) starts it.
+    /// arriving (`screenRecordingChanged`) starts it, and while live mode
+    /// waits on it the grant is re-read (`grantWait`), so one made with
+    /// Settings and onboarding closed lands too.
     private func syncLiveActivityWatcher() {
+        syncGrantWait()
         let hasItem = specs.values.contains { $0.kind == .liveActivity }
         let liveMode = appState?.settings.showLiveActivities == true && ScreenRecordingAccess.isGranted
         if hasItem || liveMode {
@@ -1132,6 +1138,24 @@ final class ExtrasManager {
         }
         // The item's edge tracking starts over when it goes, watcher or not.
         if !hasItem { lastLiveActivityActive = false }
+    }
+
+    /// The grant flips `AppState.screenRecordingGranted`, whose
+    /// `screenRecordingChanged` comes back here and ends the wait.
+    private func syncGrantWait() {
+        let waits = appState?.settings.showLiveActivities == true && appState?.screenRecordingGranted == false
+        if waits, grantWait == nil {
+            PelmetLog.log("live activities: live mode waits for Screen Recording, re-reading the grant")
+            grantWait = Task { [weak self] in
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: AppTiming.screenRecordingPoll)
+                    self?.appState?.refreshScreenRecording()
+                }
+            }
+        } else if !waits, let wait = grantWait {
+            wait.cancel()
+            grantWait = nil
+        }
     }
 
     /// Screen Recording was granted or lost (`AppState.refreshScreenRecording`).
