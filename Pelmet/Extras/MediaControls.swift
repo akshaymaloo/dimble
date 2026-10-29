@@ -189,6 +189,8 @@ final class ExtrasManager {
             return spec.resolvedShowRule != .whenActive || (cameraMicMonitor?.mediaRelevant ?? true)
         case .appLauncher:
             return spec.resolvedShowRule != .whenActive || Self.isRunning(spec)
+        case .timer:
+            return spec.resolvedShowRule != .whenActive || (pelmetTimer?.isActive ?? false)
         default:
             return true
         }
@@ -508,9 +510,11 @@ final class ExtrasManager {
             case .timer:
                 // Section-governed while idle; a counting (or ringing) timer
                 // is an indicator and stays in the bar whatever its section.
+                // "While a timer runs": gone while idle, wherever it sits
+                // (a Clock or Siri timer brings it).
                 let active = pelmetTimer?.isActive ?? false
                 let sectionVisible = visible
-                visible = visible || active
+                visible = (spec.resolvedShowRule == .whenActive ? false : visible) || active
                 updateTimerGlyph(item, spec: spec)
                 let itemID = Self.itemID(for: spec)
                 if active, !lastTimerActive {
@@ -627,8 +631,9 @@ final class ExtrasManager {
             switch spec.kind {
             case .airdrop, .shortcut, .userSwitching, .shortcutsMenu, .siri, .quickNote: break
             case .timer:
-                // Counting: already in the bar on its own.
-                guard !(pelmetTimer?.isActive ?? false) else { continue }
+                // Counting: already in the bar on its own. Idle under
+                // "While a timer runs": stays out.
+                guard !(pelmetTimer?.isActive ?? false), spec.resolvedShowRule == .always else { continue }
             case .focus, .timeMachine:
                 // Each rides its section whatever its rule; one already out
                 // on its rule was skipped above.
