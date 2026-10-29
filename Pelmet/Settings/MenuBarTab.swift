@@ -1138,21 +1138,29 @@ private struct PelmetItemsStrip: View {
 
     /// Live mode (`LiveMirror`): independent of the Live Activities item
     /// above, which only shows that one runs. It needs Screen Recording for
-    /// the picture it holds the bar under, so the line says so without it.
+    /// the picture it holds the bar under: without it the switch shows off
+    /// and can't be turned, the row says why, and the stored choice waits.
     private var liveActivities: some View {
-        SettingToggleRow(
+        let recording = appState.screenRecordingGranted
+        return SettingRow(
             title: "Show Live Activities",
-            caption: appState.screenRecordingGranted
-                ? "While one runs, its pill shows next to the « and the system icons Dimble hides come back."
-                : "While one runs, its pill shows next to the « and the system icons Dimble hides come back. Without Screen Recording, the pill stays hidden.",
-            isOn: Binding(
-                get: { appState.settings.showLiveActivities },
+            caption: "While one runs, its pill shows next to the « and the system icons Dimble hides come back."
+        ) {
+            SettingSwitch(isOn: Binding(
+                get: { recording && appState.settings.showLiveActivities },
                 set: {
                     appState.settings.showLiveActivities = $0
                     appState.settingsChanged()
                 }
-            )
-        )
+            ))
+            .disabled(!recording)
+        }
+        .detail {
+            if !recording {
+                ScreenRecordingNeeded(reason: "Dimble needs Screen Recording to show the pill.")
+            }
+        }
+        .screenRecordingHelp("Needs Screen Recording. Dimble draws the pill from a picture of the menu bar.", when: !recording)
         .pelmetCardSurface()
         .settingAnchor("liveActivities")
     }

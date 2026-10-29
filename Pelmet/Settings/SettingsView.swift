@@ -698,6 +698,38 @@ struct SettingSwitch: View {
     }
 }
 
+/// Under a setting Screen Recording keeps off: why, and the fix. While it
+/// shows, the grant is read every second (the Permissions card's poll), so
+/// the setting comes back on its own once it's granted in System Settings.
+struct ScreenRecordingNeeded: View {
+    @Environment(AppState.self) private var appState
+    let reason: LocalizedStringKey
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(reason)
+                .foregroundStyle(.secondary)
+            Button("Turn On Screen Recording") { ScreenRecordingAccess.request() }
+                .buttonStyle(.plain)
+                .foregroundStyle(PelmetAccent.accent)
+        }
+        .font(.caption)
+        .task {
+            while !Task.isCancelled {
+                appState.refreshScreenRecording()
+                try? await Task.sleep(for: .seconds(1))
+            }
+        }
+    }
+}
+
+extension View {
+    /// The tooltip of a setting Screen Recording keeps off.
+    @ViewBuilder func screenRecordingHelp(_ text: LocalizedStringKey, when needed: Bool) -> some View {
+        if needed { help(text) } else { self }
+    }
+}
+
 struct SettingToggleRow: View {
     let title: LocalizedStringKey
     var caption: LocalizedStringKey? = nil
@@ -960,7 +992,7 @@ private struct GeneralPane: View {
             if !recording {
                 SettingRow(
                     title: "Screen Recording",
-                    caption: "Off. Turn it on for smoother show and hide animations."
+                    caption: "Off. Turn it on for smoother show and hide animations and for Live Activities."
                 ) {
                     Button("Grant access") { ScreenRecordingAccess.request() }
                         .buttonStyle(.bordered)
@@ -1034,8 +1066,17 @@ private struct BehaviorPane: View {
     ]
 
     var body: some View {
+        // Every style plays over pictures of the bar: without Screen
+        // Recording macOS's own slide shows whichever is picked.
+        let recording = appState.screenRecordingGranted
         SettingsCard(title: "Animation") {
             AnimationShowcase(selection: binding(\.revealAnimation))
+                .disabled(!recording)
+                .opacity(recording ? 1 : 0.5)
+                .screenRecordingHelp("Needs Screen Recording. Dimble animates the icons over a picture of the menu bar.", when: !recording)
+            if !recording {
+                ScreenRecordingNeeded(reason: "Each style needs Screen Recording. Without it, macOS slides the icons its own way.")
+            }
         }
         .settingAnchor("animation")
 

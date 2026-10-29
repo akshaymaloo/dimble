@@ -125,7 +125,12 @@ enum AccessibilityAccess {
 /// must not get System Settings thrown at them on every reveal (issue #11 —
 /// it opened on each hover after the first prompt).
 enum ScreenRecordingAccess {
-    static var isGranted: Bool { CGPreflightScreenCaptureAccess() }
+    /// `-pelmet.debug.withoutScreenRecording YES` at launch plays a Mac
+    /// without the grant (Settings, live mode, the passes) and keeps the
+    /// real one.
+    static var isGranted: Bool {
+        CGPreflightScreenCaptureAccess() && !UserDefaults.standard.bool(forKey: "pelmet.debug.withoutScreenRecording")
+    }
 
     private static let promptedKey = "pelmet.screenRecordingPrompted"
     @MainActor private static var prompted: Bool {

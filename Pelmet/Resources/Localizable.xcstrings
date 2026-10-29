@@ -7773,6 +7773,64 @@
         }
       }
     },
+    "Dimble needs Screen Recording to show the pill.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dimble braucht die Bildschirmaufnahme, um die Kapsel zu zeigen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dimble necesita la grabación de pantalla para mostrar la cápsula."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dimble a besoin de l’enregistrement de l’écran pour afficher la capsule."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dimble ha bisogno della registrazione schermo per mostrare la capsula."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "カプセルを表示するには、Dimble に画面収録が必要です。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "캡슐을 표시하려면 Dimble에 화면 기록이 필요합니다."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Dimble precisa da gravação de tela para mostrar a cápsula."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Чтобы показать капсулу, Dimble нужна запись экрана."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dimble 需要录屏权限才能显示胶囊。"
+          }
+        }
+      }
+    },
     "Dimble stays a click away": {
       "localizations": {
         "de": {
@@ -8697,6 +8755,64 @@
           "stringUnit": {
             "state": "translated",
             "value": "将图标拖放到这里"
+          }
+        }
+      }
+    },
+    "Each style needs Screen Recording. Without it, macOS slides the icons its own way.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jeder Stil braucht die Bildschirmaufnahme. Ohne sie schiebt macOS die Symbole auf seine Art herein."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cada estilo necesita la grabación de pantalla. Sin ella, macOS desliza los iconos a su manera."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chaque style nécessite l’enregistrement de l’écran. Sans lui, macOS fait glisser les icônes à sa manière."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ogni stile richiede la registrazione schermo. Senza, macOS fa scorrere le icone a modo suo."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "どのスタイルにも画面収録が必要です。ない場合は、macOS 独自のスライドでアイコンが動きます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "모든 스타일에 화면 기록이 필요합니다. 없으면 macOS가 자체 방식으로 아이콘을 밀어 넣습니다."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cada estilo requer a gravação de tela. Sem ela, o macOS desliza os ícones do seu jeito."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Каждому стилю нужна запись экрана. Без неё macOS сдвигает значки по-своему."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每种样式都需要录屏权限。没有它时，macOS 会用自己的方式滑动图标。"
           }
         }
       }
@@ -13225,6 +13341,122 @@
         }
       }
     },
+    "Needs Screen Recording. Dimble animates the icons over a picture of the menu bar.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Braucht die Bildschirmaufnahme. Dimble animiert die Symbole über einem Bild der Menüleiste."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Necesita la grabación de pantalla. Dimble anima los iconos sobre una imagen de la barra de menús."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nécessite l’enregistrement de l’écran. Dimble anime les icônes par-dessus une image de la barre des menus."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Richiede la registrazione schermo. Dimble anima le icone sopra un’immagine della barra dei menu."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "画面収録が必要です。Dimble はメニューバーの画像の上でアイコンをアニメーションさせます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "화면 기록이 필요합니다. Dimble은 메뉴 막대 이미지 위에서 아이콘을 움직입니다."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Requer a gravação de tela. O Dimble anima os ícones sobre uma imagem da barra de menus."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нужна запись экрана. Dimble анимирует значки поверх снимка строки меню."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要录屏权限。Dimble 在菜单栏的画面上为图标制作动画。"
+          }
+        }
+      }
+    },
+    "Needs Screen Recording. Dimble draws the pill from a picture of the menu bar.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Braucht die Bildschirmaufnahme. Dimble zeichnet die Kapsel aus einem Bild der Menüleiste."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Necesita la grabación de pantalla. Dimble dibuja la cápsula a partir de una imagen de la barra de menús."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nécessite l’enregistrement de l’écran. Dimble dessine la capsule à partir d’une image de la barre des menus."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Richiede la registrazione schermo. Dimble disegna la capsula da un’immagine della barra dei menu."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "画面収録が必要です。Dimble はメニューバーの画像からカプセルを描画します。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "화면 기록이 필요합니다. Dimble은 메뉴 막대 이미지로 캡슐을 그립니다."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Requer a gravação de tela. O Dimble desenha a cápsula a partir de uma imagem da barra de menus."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нужна запись экрана. Dimble рисует капсулу по снимку строки меню."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要录屏权限。Dimble 会根据菜单栏的画面绘制胶囊。"
+          }
+        }
+      }
+    },
     "Never": {
       "localizations": {
         "de": {
@@ -14385,60 +14617,60 @@
         }
       }
     },
-    "Off. Turn it on for smoother show and hide animations.": {
+    "Off. Turn it on for smoother show and hide animations and for Live Activities.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aus. Schalte sie ein für weichere Ein- und Ausblendanimationen."
+            "value": "Aus. Schalte sie ein für weichere Ein- und Ausblendanimationen und für Live-Aktivitäten."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Desactivada. Actívala para animaciones más suaves al mostrar y ocultar."
+            "value": "Desactivada. Actívala para animaciones más suaves al mostrar y ocultar y para las Actividades en directo."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Désactivé. Activez-le pour des animations d’affichage et de masquage plus fluides."
+            "value": "Désactivé. Activez-le pour des animations d’affichage et de masquage plus fluides et pour les Activités en direct."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Disattivata. Attivala per animazioni più fluide quando mostri e nascondi."
+            "value": "Disattivata. Attivala per animazioni più fluide quando mostri e nascondi e per le Attività in tempo reale."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "オフです。オンにすると、表示・非表示のアニメーションがより滑らかになります。"
+            "value": "オフです。オンにすると、表示・非表示のアニメーションがより滑らかになり、ライブアクティビティも表示できます。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "꺼짐. 켜면 표시·숨김 애니메이션이 더 부드러워집니다."
+            "value": "꺼짐. 켜면 표시·숨김 애니메이션이 더 부드러워지고 실시간 현황도 표시됩니다."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Desativada. Ative para animações mais suaves ao mostrar e ocultar."
+            "value": "Desativada. Ative para animações mais suaves ao mostrar e ocultar e para as Atividades ao Vivo."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Выключено. Включите для более плавных анимаций показа и скрытия."
+            "value": "Выключено. Включите для более плавных анимаций показа и скрытия и для активностей Live."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "已关闭。开启后，显示和隐藏动画更流畅。"
+            "value": "已关闭。开启后，显示和隐藏动画更流畅，也能显示实时活动。"
           }
         }
       }
@@ -23375,6 +23607,64 @@
         }
       }
     },
+    "Turn On Screen Recording": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildschirmaufnahme einschalten"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activar la grabación de pantalla"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activer l’enregistrement de l’écran"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Attiva la registrazione schermo"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "画面収録をオンにする"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "화면 기록 켜기"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ativar a gravação de tela"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Включить запись экрана"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开启录屏权限"
+          }
+        }
+      }
+    },
     "Turn this icon off in %@'s settings. The launcher takes over from there.": {
       "localizations": {
         "de": {
@@ -25169,64 +25459,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "有实时活动进行时，它的胶囊会显示在 « 旁边，Dimble 隐藏的系统图标也会重新出现。"
-          }
-        }
-      }
-    },
-    "While one runs, its pill shows next to the « and the system icons Dimble hides come back. Without Screen Recording, the pill stays hidden.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Solange eine läuft, erscheint ihre Kapsel neben dem « und die Systemsymbole, die Dimble ausblendet, kommen zurück. Ohne Bildschirmaufnahme bleibt die Kapsel ausgeblendet."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mientras hay una en curso, su cápsula aparece junto al « y vuelven los iconos del sistema que Dimble oculta. Sin la grabación de pantalla, la cápsula sigue oculta."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pendant qu’une est en cours, sa capsule s’affiche à côté du « et les icônes système que Dimble masque reviennent. Sans l’enregistrement de l’écran, la capsule reste masquée."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mentre ne è in corso una, la sua capsula appare accanto al « e tornano le icone di sistema che Dimble nasconde. Senza la registrazione schermo, la capsula resta nascosta."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "実行中は、そのカプセルが « の横に表示され、Dimble が隠しているシステムアイコンも戻ります。画面収録がないと、カプセルは隠れたままです。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "실시간 현황이 진행되는 동안 그 캡슐이 « 옆에 표시되고, Dimble이 숨긴 시스템 아이콘이 돌아옵니다. 화면 기록이 없으면 캡슐은 숨겨진 채로 있습니다."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Enquanto uma está em andamento, sua cápsula aparece ao lado do « e os ícones do sistema que o Dimble oculta voltam. Sem a gravação de tela, a cápsula continua oculta."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Пока она идёт, её капсула появляется рядом с «, а системные значки, которые скрывает Dimble, возвращаются. Без записи экрана капсула остаётся скрытой."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "有实时活动进行时，它的胶囊会显示在 « 旁边，Dimble 隐藏的系统图标也会重新出现。没有录屏权限时，胶囊会保持隐藏。"
           }
         }
       }
