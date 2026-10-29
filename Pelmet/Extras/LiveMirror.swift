@@ -784,15 +784,16 @@ final class LiveMirror {
             }
             return true
         }
-        // Hidden asked for by a hover or the «: the bar is out already, only
-        // the covers hide it. They end at the Always Hidden icons instead of
-        // handing the bar to a reveal, whose assertion would take the timer,
-        // the extras and the pills off and reflow everything right of the «.
-        if sections == [.hidden], reason == .hover || reason == .statusItem, how != .toggleAll, !coverLifted {
+        // Hidden asked for by a hover, the « or a ⌘-drag: the bar is out
+        // already, only the covers hide it. They end at the Always Hidden
+        // icons instead of handing the bar to a reveal, whose assertion would
+        // take the timer, the extras and the pills off (mid-drag too) and
+        // reflow everything right of the «.
+        if sections == [.hidden], [.hover, .statusItem, .barDrag].contains(reason), how != .toggleAll, !coverLifted {
             // On a display that shows every icon Hidden is out already: a
-            // hover asks nothing, the « opens Always Hidden there (#96).
+            // hover or a drag asks nothing, the « opens Always Hidden there (#96).
             if appState?.pointerDisplayBehavior == .alwaysShowAll, hiddenOut == nil {
-                if reason == .hover { return true }
+                if reason != .statusItem { return true }
                 beginHandOver(reason)
                 return false
             }
@@ -2762,9 +2763,10 @@ final class LiveMirror {
         }
         for side in sides { side.cover?.keepUp(for: Self.coverSafety) }
         // Hidden out under live mode goes back once the pointer has been off
-        // the bar for the re-hide delay (the tick's quarter second at least).
+        // the bar for the re-hide delay (the tick's quarter second at least),
+        // with no button down (a ⌘-drag may pass below the bar).
         if let out = hiddenOut {
-            if Self.pointerInBar() {
+            if Self.pointerInBar() || NSEvent.pressedMouseButtons != 0 {
                 hiddenOut?.outSince = nil
             } else if let since = out.outSince {
                 if Date().timeIntervalSince(since) >= max(0.2, appState.settings.rehideDelay) { await hideHidden("the pointer left the bar") }
