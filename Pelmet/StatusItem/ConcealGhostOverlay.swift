@@ -321,6 +321,8 @@ final class ConcealGhostOverlay {
     /// The foreign surface this cover slipped in beneath, if any.
     private var beneathID: CGWindowID?
     private let imageView: NSImageView
+    /// A held bar's stationary twin (`watchMissionControl`).
+    private var twin: NSWindow?
     private var finished = false
     private var stoodDown = false
     /// Counted in `stripActive`: a transition's cover. A held bar
@@ -910,9 +912,8 @@ final class ConcealGhostOverlay {
             // Up for a whole reveal: on every Space of its display. Transient,
             // not stationary: a stationary one stayed in Mission Control, a
             // dark band over the Spaces bar (#108). The window server hides it
-            // with the bar; whether it's back before the bar on the way out
-            // (live mode's covers must be, LiveMirror.missionControlUp) is
-            // still to measure.
+            // with the bar, and its stationary twin covers its way back
+            // (`watchMissionControl`).
             panel.collectionBehavior = [.canJoinAllSpaces, .transient, .ignoresCycle]
             // A cut, not the window server's default: ordered in it grows ~5pt
             // and fades up over ~60ms, ordered out it shrinks 5pt and fades
@@ -949,8 +950,13 @@ final class ConcealGhostOverlay {
             window.orderFrontRegardless()
         }
         window.displayIfNeeded()
+        if holdsBar {
+            twin = Self.makeTwin(of: shot, frame: frame)
+            twin?.order(.below, relativeTo: window.windowNumber)
+        }
         if countsAsStrip { Self.activeStripCount += 1 }
         Self.register(self)
+        if holdsBar, Self.missionWatch == nil { Self.watchMissionControl(every: Self.watchRest) }
         PelmetLog.log("ghost: \(holdsBar ? "held bar" : "strip") #\(id) up \(Int(frame.width))×\(Int(frame.height)) @x=\(Int(frame.minX)) safety \(Int(safety * 1000))ms")
         // Safety: never leave a stale cover if the caller's task dies.
         // Strong self on purpose: a cover nobody held any more (#52, a
@@ -1011,6 +1017,7 @@ final class ConcealGhostOverlay {
         guard x < frame.maxX, x > frame.minX else { return }
         frame.size.width = x - frame.minX
         window.setFrame(frame, display: true)
+        twin?.setFrame(frame, display: false)
     }
 
     /// Directly below another cover: the one above stays what is seen while
@@ -1104,6 +1111,89 @@ final class ConcealGhostOverlay {
         return foreign.first { (index($0.id) ?? -1) > mine }
     }
 
+    // MARK: Mission Control
+
+    /// On its way out of Mission Control the window server brings the bar
+    /// back at once but fades a transient window in over ~280 ms: every
+    /// icon a held bar hides showed through it for ~150 ms (measured
+    /// 2026-10-28). Each held bar has a stationary twin of its picture,
+    /// invisible (a stationary window is what stayed over the Spaces bar),
+    /// that goes opaque the moment the held bar is listed on screen again
+    /// (the bar's first frame, measured) and clears once the fade is done.
+    /// Looked at every 100 ms while held bars are up, every 8 ms while one
+    /// is away.
+    private static var missionWatch: Timer?
+    private static var awayHeld: Set<Int> = []
+    private static let watchRest: TimeInterval = 0.1
+    private static let watchAway: TimeInterval = 0.008
+    private static let twinHold: TimeInterval = 0.4
+
+    private static func makeTwin(of shot: CGImage, frame: NSRect) -> NSWindow {
+        let twin = NSPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        twin.hidesOnDeactivate = false
+        twin.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
+        twin.animationBehavior = .none
+        twin.isOpaque = false
+        twin.backgroundColor = .clear
+        twin.level = .statusBar
+        twin.hasShadow = false
+        twin.ignoresMouseEvents = true
+        twin.alphaValue = 0
+        let view = NSImageView(image: NSImage(cgImage: shot, size: frame.size))
+        view.frame = NSRect(origin: .zero, size: frame.size)
+        let root = NSView(frame: NSRect(origin: .zero, size: frame.size))
+        root.addSubview(view)
+        twin.contentView = root
+        return twin
+    }
+
+    private func dropTwin() {
+        twin?.orderOut(nil)
+        twin = nil
+    }
+
+    private static func watchMissionControl(every interval: TimeInterval) {
+        missionWatch?.invalidate()
+        let timer = Timer(timeInterval: interval, repeats: true) { _ in
+            MainActor.assumeIsolated { checkHeldBars(interval) }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        missionWatch = timer
+    }
+
+    private static func checkHeldBars(_ interval: TimeInterval) {
+        let held = registry.allObjects.filter { $0.twin != nil && !$0.finished && $0.window.isVisible }
+        guard !held.isEmpty else {
+            missionWatch?.invalidate()
+            missionWatch = nil
+            awayHeld = []
+            return
+        }
+        awayHeld.formIntersection(held.map(\.id))
+        for cover in held {
+            if !cover.listedOnScreen {
+                if awayHeld.insert(cover.id).inserted { PelmetLog.log("ghost: held bar #\(cover.id) off screen (Mission Control or the like)") }
+            } else if awayHeld.remove(cover.id) != nil {
+                cover.showTwin()
+            }
+        }
+        let want = awayHeld.isEmpty ? watchRest : watchAway
+        if want != interval { watchMissionControl(every: want) }
+    }
+
+    private var listedOnScreen: Bool {
+        let info = (CGWindowListCopyWindowInfo([.optionIncludingWindow], CGWindowID(window.windowNumber)) as? [[String: Any]])?.first
+        return (info?[kCGWindowIsOnscreen as String] as? Bool) ?? false
+    }
+
+    private func showTwin() {
+        guard let twin, (imageView.layer?.opacity ?? 1) > 0.99 else { return }
+        twin.order(.below, relativeTo: window.windowNumber)
+        twin.alphaValue = 1
+        PelmetLog.log("ghost: held bar #\(id) back — its twin covers the window server's fade")
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.twinHold) { [weak self] in self?.twin?.alphaValue = 0 }
+    }
+
     /// One decrement per overlay, however it ends.
     private func standDown() {
         guard !stoodDown else { return }
@@ -1160,6 +1250,7 @@ final class ConcealGhostOverlay {
         guard !finished else { return }
         finished = true
         window.orderOut(nil)
+        dropTwin()
         standDown()
     }
 
@@ -1214,6 +1305,7 @@ final class ConcealGhostOverlay {
     ) {
         guard !finished else { return }
         finished = true
+        dropTwin()
         // A held bar on its way out is the bar beneath: clicks go through.
         window.ignoresMouseEvents = true
         if slide, let layer = imageView.layer {
