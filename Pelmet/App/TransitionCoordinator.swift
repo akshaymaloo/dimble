@@ -1879,6 +1879,8 @@ final class TransitionCoordinator {
     }
 
     private var precaptureTask: Task<Void, Never>?
+    /// Which precapture owns `precaptureInFlight`: only the latest clears it.
+    private var precaptureGeneration = 0
     private var revealedPrecaptureTask: Task<Void, Never>?
 
     /// The strip as it looks revealed and at rest — the Instant/Fade reveal
@@ -2057,17 +2059,19 @@ final class TransitionCoordinator {
     /// to clear, and the pointer is already on its way.
     private func scheduleRevealCoverPrecapture(afterConceal: Bool = true) {
         precaptureTask?.cancel()
+        precaptureGeneration &+= 1
+        let generation = precaptureGeneration
         precaptureInFlight = true
         precaptureTask = Task { @MainActor in
-            // Cancellation means a replacement owns this flag now.
-            defer { if !Task.isCancelled { precaptureInFlight = false } }
+            // A replaced capture leaves the flag to its replacement.
+            defer { if generation == precaptureGeneration { precaptureInFlight = false } }
             guard let appState, !Task.isCancelled else { return }
             await appState.waitUntilQuiesced(interval: 0.5, deadline: 3, poll: .milliseconds(afterConceal ? 200 : 30))
             // The agent's own conceal fade must not bake into the snapshot.
             if afterConceal { try? await Task.sleep(for: AppTiming.precaptureGhostClearance) }
             // Nor a lift's re-hide cover, up until the bar beneath has settled.
             let liftWait = Date().addingTimeInterval(AppTiming.liftCoverSafety)
-            while liftEnding, Date() < liftWait { try? await Task.sleep(for: .milliseconds(50)) }
+            while liftEnding, !Task.isCancelled, Date() < liftWait { try? await Task.sleep(for: .milliseconds(50)) }
             guard !Task.isCancelled, appState.currentRevealedSections.isEmpty else { return }
             guard !pressHoldsBar else {
                 PelmetLog.log("cover: item press holds the bar, precapture skipped")
