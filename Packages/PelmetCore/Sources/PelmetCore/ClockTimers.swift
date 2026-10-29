@@ -12,6 +12,11 @@
 //
 // States are Running, Paused and Stopped. A cancel stops with no firedDate,
 // a ring stops with one and no dismissedDate, a dismiss sets dismissedDate.
+// Not always: a ring answered from its banner 23 min later (08:55) never
+// got its dismissedDate, so the banner's answer counts too (usernoted logs
+// "Remove record from response action: <NotificationRecord
+// app:"com.apple.clock" ... req:"<TimerID>"", every dismissal that day),
+// and a new start ends any ring.
 // No end is logged in a fixed format (the trigger lines print a localized
 // date), so it's kept from the lines' own times: a start ends `duration`
 // later, a pause keeps what was left, a resume ends that much later. Off a
@@ -55,9 +60,15 @@ public struct ClockTimers: Equatable, Sendable {
     public mutating func read(_ message: String, at date: Date) -> Bool {
         let before = timers
         if let added = message.range(of: Self.added) {
-            for timer in Self.timers(in: message[added.upperBound...]) where timer.state == "Running" {
+            let started = Self.timers(in: message[added.upperBound...]).filter { $0.state == "Running" }
+            if !started.isEmpty { timers = timers.filter { $0.value != .rang } }
+            for timer in started {
                 timers[timer.id] = .running(ends: date.addingTimeInterval(timer.duration))
             }
+        } else if message.hasPrefix(Self.answered), message.contains(Self.clockApp),
+                  let req = message.range(of: #"req:""#) {
+            let id = String(message[req.upperBound...].prefix(36))
+            if timers[id] == .rang { timers[id] = nil }
         } else if message.contains(Self.updated), let now = message.range(of: Self.toTimers) {
             for timer in Self.timers(in: message[now.upperBound...]) { fold(timer, at: date) }
         }
@@ -87,10 +98,12 @@ public struct ClockTimers: Equatable, Sendable {
     static let added = "didAddTimers ("
     static let updated = "didUpdateTimers fromTimers:"
     static let toTimers = ") toTimers: ("
+    static let answered = "Remove record from response action: "
+    static let clockApp = #"app:"com.apple.clock""#
 
     /// The lines worth reading, for a `log` predicate.
     public static let predicate =
-        #"process == "mobiletimerd" AND subsystem == "com.apple.mobiletimer.logging" AND category == "Timers" AND (eventMessage CONTAINS "didAddTimers" OR eventMessage CONTAINS "didUpdateTimers")"#
+        #"(process == "mobiletimerd" AND subsystem == "com.apple.mobiletimer.logging" AND category == "Timers" AND (eventMessage CONTAINS "didAddTimers" OR eventMessage CONTAINS "didUpdateTimers")) OR (process == "usernoted" AND eventMessage BEGINSWITH "Remove record from response action: " AND eventMessage CONTAINS "com.apple.clock")"#
 
     struct Logged: Equatable {
         let id: String

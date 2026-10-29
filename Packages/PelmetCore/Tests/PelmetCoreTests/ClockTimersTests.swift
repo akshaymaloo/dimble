@@ -17,6 +17,10 @@ struct ClockTimersTests {
     /// The ring, verbatim.
     static let rang = "<MTTimerDurationManager: 0x782b0a4c80> didUpdateTimers fromTimers: (\n    \"<MTMutableTimer:0x782b2004d0 TimerID: 8F6CFB89-63D1-41E7-88F7-9181C0D61EB8, Title: , state:Running, duration:120, firedDate: (null), dismissedDate: (null), sound: <MTSound:0x782b24c5a0 toneID: system:Radial, mediaItemID: (null), vibeID: (null), volume: (null), siriContext: (null)>, timerContext: (null)>\"\n) toTimers: (\n    \"<MTMutableTimer:0x782b200690 TimerID: 8F6CFB89-63D1-41E7-88F7-9181C0D61EB8, Title: , state:Stopped, duration:120, firedDate: 2026-10-29 14:31:08 +0000, dismissedDate: (null), sound: <MTSound:0x782b24c5a0 toneID: system:Radial, mediaItemID: (null), vibeID: (null), volume: (null), siriContext: (null)>, timerContext: (null)>\"\n)"
 
+    /// usernoted on a banner answer, verbatim (a ring at 08:32 whose
+    /// mobiletimerd never logged a dismissedDate).
+    static let answered = "Remove record from response action: <NotificationRecord app:\"com.apple.clock\" ident:\"197F-8AE5\" req:\"8F6CFB89-63D1-41E7-88F7-9181C0D61EB8\" uuid:\"3191D916\" source:\"8BC0B5EA\" alertStyle:\"alert\" category:\"MTTimerCategory\" defaultActionURL:\"clock-timer:default\" dismissAfterDefaultAction:true <response action: contents actIdent:  foreground: true text: nil> >"
+
     /// A change from `from` to `to`, shaped like the logged ones.
     static func update(_ id: String = id, from: String, to: String, fired: String = "(null)", dismissed: String = "(null)") -> String {
         func timer(_ state: String, _ fired: String, _ dismissed: String) -> String {
@@ -52,6 +56,24 @@ struct ClockTimersTests {
                                    at: Self.t0.addingTimeInterval(126))
         #expect(dismissed)
         #expect(clock.current == nil)
+    }
+
+    @Test func aRingAnsweredFromItsBannerEndsIt() {
+        var clock = ClockTimers()
+        clock.read(Self.added, at: Self.t0)
+        clock.read(Self.rang, at: Self.t0.addingTimeInterval(120))
+        let answered = clock.read(Self.answered, at: Self.t0.addingTimeInterval(1500))
+        #expect(answered)
+        #expect(clock.current == nil)
+    }
+
+    @Test func aNewStartEndsAnOldRing() {
+        var clock = ClockTimers()
+        clock.read(Self.added, at: Self.t0)
+        clock.read(Self.rang, at: Self.t0.addingTimeInterval(120))
+        let other = "93DD29CC-038D-4109-8A1C-22C855019D8D"
+        clock.read(Self.added.replacingOccurrences(of: Self.id, with: other), at: Self.t0.addingTimeInterval(1500))
+        #expect(clock.current == .running(ends: Self.t0.addingTimeInterval(1620)))
     }
 
     @Test func aCancelEndsIt() {
