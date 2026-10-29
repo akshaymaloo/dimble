@@ -1,13 +1,15 @@
 // PelmetTimer.swift
-// Pelmet's own countdown. macOS's timer item is a Control Center Live
-// Activity: any assessment assertion hides it, and its state sits behind the
-// private `com.apple.private.mobiletimerd` entitlement (probed 2026-09-15),
-// so the only timer that can stay in a Pelmet-managed bar is one Pelmet runs
-// itself. Durations from the item's menu, a countdown in the bar, a sound
-// and a banner when it ends. The fire date persists so a relaunch keeps
-// counting.
+// Pelmet's own countdown, and the Clock app's. macOS's timer item is a
+// Control Center extra: any assessment assertion hides it, and its state
+// sits behind the private `com.apple.private.mobiletimerd` entitlement
+// (probed 2026-09-15). So the Timer item counts down one Pelmet runs itself
+// (durations from the item's menu, a sound and a banner when it ends, the
+// fire date persisted so a relaunch keeps counting), and while that one is
+// idle it shows the Clock app's timer, followed from the log
+// (ClockTimerStatus): Apple rings that one itself.
 
 import AppKit
+import PelmetCore
 import PelmetEngine
 import UserNotifications
 
@@ -40,10 +42,32 @@ final class PelmetTimer {
         restore()
     }
 
-    var isActive: Bool { state != .idle }
+    /// The Clock app's timer, from ClockTimerStatus.
+    var clock: ClockTimers.Phase? {
+        didSet {
+            guard clock != oldValue else { return }
+            if case .running = shown { armTick() }
+            onChange()
+        }
+    }
+
+    /// The Clock app's timer is what the item shows: Pelmet's own is idle.
+    var showsClock: Bool { state == .idle && clock != nil }
+
+    /// What the item shows: Pelmet's own countdown, else the Clock app's.
+    var shown: State {
+        guard state == .idle, let clock else { return state }
+        return switch clock {
+        case .running(let ends): .running(fireDate: ends)
+        case .paused(let left): .paused(remaining: left)
+        case .rang: .done
+        }
+    }
+
+    var isActive: Bool { shown != .idle }
 
     var remaining: TimeInterval? {
-        switch state {
+        switch shown {
         case .idle: nil
         case .running(let fireDate): max(0, fireDate.timeIntervalSinceNow)
         case .paused(let remaining): remaining
@@ -128,14 +152,19 @@ final class PelmetTimer {
     private var lastShown: String?
 
     private func tickFired() {
-        guard case .running(let fireDate) = state else { return }
-        if fireDate.timeIntervalSinceNow <= 0 {
+        if case .running(let fireDate) = state, fireDate.timeIntervalSinceNow <= 0 {
             fire()
             return
         }
-        let shown = display
-        if shown != lastShown {
-            lastShown = shown
+        // The Clock's timer ends on 0:00 until its ring line comes.
+        guard case .running = shown else {
+            tick?.invalidate()
+            tick = nil
+            return
+        }
+        let text = display
+        if text != lastShown {
+            lastShown = text
             onChange()
         }
     }

@@ -93,6 +93,8 @@ final class ExtrasManager {
     /// Pelmet's own countdown, alive while a timer item exists.
     private var pelmetTimer: PelmetTimer?
     private var lastTimerActive = false
+    /// The Clock app's timer, for the timer item to show while its own is idle.
+    private var clockTimerStatus: ClockTimerStatus?
     /// Time Machine's state, alive while a Time Machine item exists.
     private var timeMachine: TimeMachineBackup?
     private var lastBackupRunning = false
@@ -187,6 +189,8 @@ final class ExtrasManager {
             return spec.resolvedShowRule != .whenActive || (cameraMicMonitor?.mediaRelevant ?? true)
         case .appLauncher:
             return spec.resolvedShowRule != .whenActive || Self.isRunning(spec)
+        case .timer:
+            return spec.resolvedShowRule != .whenActive || (pelmetTimer?.isActive ?? false)
         default:
             return true
         }
@@ -326,10 +330,16 @@ final class ExtrasManager {
                 let timer = PelmetTimer()
                 timer.onChange = { [weak self] in self?.timerChanged() }
                 pelmetTimer = timer
+                let clock = ClockTimerStatus()
+                clock.onChange = { [weak self] in self?.pelmetTimer?.clock = self?.clockTimerStatus?.current }
+                clockTimerStatus = clock
+                clock.start()
             }
         } else if let timer = pelmetTimer {
             timer.cancel()
             pelmetTimer = nil
+            clockTimerStatus?.stop()
+            clockTimerStatus = nil
         }
         if newSpecs.contains(where: { $0.kind == .timeMachine }) {
             if timeMachine == nil {
@@ -500,9 +510,11 @@ final class ExtrasManager {
             case .timer:
                 // Section-governed while idle; a counting (or ringing) timer
                 // is an indicator and stays in the bar whatever its section.
+                // "While a timer runs": gone while idle, wherever it sits
+                // (a Clock or Siri timer brings it).
                 let active = pelmetTimer?.isActive ?? false
                 let sectionVisible = visible
-                visible = visible || active
+                visible = (spec.resolvedShowRule == .whenActive ? false : visible) || active
                 updateTimerGlyph(item, spec: spec)
                 let itemID = Self.itemID(for: spec)
                 if active, !lastTimerActive {
@@ -619,8 +631,9 @@ final class ExtrasManager {
             switch spec.kind {
             case .airdrop, .shortcut, .userSwitching, .shortcutsMenu, .siri, .quickNote: break
             case .timer:
-                // Counting: already in the bar on its own.
-                guard !(pelmetTimer?.isActive ?? false) else { continue }
+                // Counting: already in the bar on its own. Idle under
+                // "While a timer runs": stays out.
+                guard !(pelmetTimer?.isActive ?? false), spec.resolvedShowRule == .always else { continue }
             case .focus, .timeMachine:
                 // Each rides its section whatever its rule; one already out
                 // on its rule was skipped above.
@@ -1201,7 +1214,7 @@ final class ExtrasManager {
     private func updateTimerGlyph(_ item: NSStatusItem, spec: ExtraItemSpec) {
         guard let button = item.button else { return }
         let text = pelmetTimer?.display
-        let done = pelmetTimer?.state == .done
+        let done = pelmetTimer?.shown == .done
         setGlyph(item, id: spec.id, key: "timer:\(done)") {
             NSImage(systemSymbolName: done ? "bell.fill" : "timer", accessibilityDescription: spec.itemTitle)
         }
@@ -1356,7 +1369,8 @@ final class ExtrasManager {
         case .airdrop, .shortcut, .quickNote, .liveActivity:
             return .nothing
         case .timer:
-            return pelmetTimer?.state == .done && !rightClick ? .nothing : .onBar
+            guard let timer = pelmetTimer, !rightClick else { return .onBar }
+            return timer.state == .done || timer.showsClock ? .nothing : .onBar
         case .userSwitching, .shortcutsMenu, .timeMachine:
             return .onBar
         case .appLauncher:
@@ -1418,7 +1432,10 @@ final class ExtrasManager {
             }
         case .timer:
             guard let timer = pelmetTimer else { return }
-            if timer.state == .done, !rightClick {
+            if timer.showsClock, !rightClick {
+                // The Clock app pauses, cancels and dismisses its own timer.
+                NSWorkspace.shared.openApplication(at: URL(fileURLWithPath: "/System/Applications/Clock.app"), configuration: .init())
+            } else if timer.state == .done, !rightClick {
                 timer.dismiss()
             } else {
                 popUp(timerMenu(timer), on: statusItem.value)

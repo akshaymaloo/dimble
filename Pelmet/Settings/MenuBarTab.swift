@@ -996,8 +996,9 @@ private struct PelmetItemsStrip: View {
         )
     }
 
-    /// Media's "While playing" or "Always shows": an indicator like the
-    /// camera's, so it lives on its own row, not in Show when it matters.
+    /// Media's "While playing" or "Always shows" (the timer's "While a timer
+    /// runs"): an indicator like the camera's, so it lives on its own row,
+    /// not in Show when it matters.
     private func ruleBinding(_ kind: ExtraKind) -> Binding<ExtraShowRule> {
         Binding(
             get: { appState.settings.extraItems.first { $0.kind == kind }?.resolvedShowRule ?? kind.defaultShowRule },
@@ -1082,7 +1083,9 @@ private struct PelmetItemsStrip: View {
                 PelmetItemRow(
                     symbol: "timer", title: "Timer",
                     caption: "A countdown that stays in view and rings when it ends.",
-                    isOn: hasKind(.timer)
+                    isOn: hasKind(.timer),
+                    rule: ruleBinding(.timer),
+                    whileActive: "While a timer runs"
                 ) { toggleKind(.timer, on: $0) }
                 PelmetItemRow(
                     symbol: ShowWhenSubject.focus.symbol, title: ShowWhenSubject.focus.title,
@@ -1253,8 +1256,10 @@ private struct PelmetItemRow: View {
     /// Static or animated glyph (media controls only), offered once the
     /// item is on — the same in-row borderless menu the launcher rows use.
     var style: Binding<ExtraStyle>? = nil
-    /// While playing or always (media controls only), same menu, same moment.
+    /// While playing or always (media controls, and the timer with its own
+    /// words), same menu, same moment.
     var rule: Binding<ExtraShowRule>? = nil
+    var whileActive: LocalizedStringKey = "While playing"
     let onToggle: (Bool) -> Void
 
     var body: some View {
@@ -1264,7 +1269,7 @@ private struct PelmetItemRow: View {
             if isOn, let rule {
                 PelmetMenuPicker(
                     selection: rule,
-                    options: [(.whenActive, "While playing"), (.always, "Always shows")],
+                    options: [(.whenActive, whileActive), (.always, "Always shows")],
                     borderless: true
                 )
             }
