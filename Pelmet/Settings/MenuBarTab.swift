@@ -474,7 +474,9 @@ private struct ItemTile: View {
 
     /// This tile's "Show when it matters" rule, when it has one.
     private var showWhen: ShowWhenRule? {
-        ShowWhenSubject(item.id).map { ShowWhenRule(subject: $0, appState: appState) }
+        ShowWhenSubject(item.id).flatMap {
+            $0.offersRule(appState.settings.extraItems) ? ShowWhenRule(subject: $0, appState: appState) : nil
+        }
     }
 
     /// The inactive-icon hover card is what these tiles show; a click has
@@ -1010,6 +1012,20 @@ private struct PelmetItemsStrip: View {
         )
     }
 
+    /// Focus and Time Machine's own row: "While a Focus is on" (or "While
+    /// backing up") takes the idle icon off the bar, like the Timer's. The
+    /// card's Show when it matters rule is a separate choice it leaves alone.
+    private func onlyWhileActiveBinding(_ kind: ExtraKind) -> Binding<ExtraShowRule> {
+        Binding(
+            get: { appState.settings.extraItems.first { $0.kind == kind }?.isOnlyWhileActive == true ? .whenActive : .always },
+            set: { rule in
+                guard let index = appState.settings.extraItems.firstIndex(where: { $0.kind == kind }) else { return }
+                appState.settings.extraItems[index].onlyWhileActive = rule == .whenActive ? true : nil
+                appState.settingsChanged()
+            }
+        )
+    }
+
     private func toggleKind(_ kind: ExtraKind, on: Bool) {
         if on, !hasKind(kind) {
             appState.addExtra(ExtraItemSpec(kind: kind))
@@ -1090,12 +1106,16 @@ private struct PelmetItemsStrip: View {
                 PelmetItemRow(
                     symbol: ShowWhenSubject.focus.symbol, title: ShowWhenSubject.focus.title,
                     caption: "See which Focus is on and switch it in a click.",
-                    isOn: hasKind(.focus)
+                    isOn: hasKind(.focus),
+                    rule: onlyWhileActiveBinding(.focus),
+                    whileActive: "While a Focus is on"
                 ) { toggleKind(.focus, on: $0) }
                 PelmetItemRow(
                     symbol: ShowWhenSubject.timeMachine.symbol, title: ShowWhenSubject.timeMachine.title,
                     caption: "Your last backup at a glance, back up now. Replaces Apple's while it's on.",
-                    isOn: hasKind(.timeMachine)
+                    isOn: hasKind(.timeMachine),
+                    rule: onlyWhileActiveBinding(.timeMachine),
+                    whileActive: "While backing up"
                 ) { toggleKind(.timeMachine, on: $0) }
                 PelmetItemRow(
                     symbol: "", image: ExtraGlyph.airdrop, title: "AirDrop",
@@ -1256,8 +1276,8 @@ private struct PelmetItemRow: View {
     /// Static or animated glyph (media controls only), offered once the
     /// item is on — the same in-row borderless menu the launcher rows use.
     var style: Binding<ExtraStyle>? = nil
-    /// While playing or always (media controls, and the timer with its own
-    /// words), same menu, same moment.
+    /// While playing or always (media controls, and the timer, Focus and
+    /// Time Machine with their own words), same menu, same moment.
     var rule: Binding<ExtraShowRule>? = nil
     var whileActive: LocalizedStringKey = "While playing"
     let onToggle: (Bool) -> Void

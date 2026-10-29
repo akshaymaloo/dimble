@@ -66,6 +66,14 @@ enum ShowWhenSubject: CaseIterable, Hashable {
         }
     }
 
+    /// Whether the card and the editor tile offer this rule: Battery and
+    /// Wi-Fi always, a Pelmet item while it is on, unless its row shows it
+    /// only while active (it comes out on its own already).
+    func offersRule(_ items: [ExtraItemSpec]) -> Bool {
+        guard let kind else { return true }
+        return items.contains { $0.kind == kind && !$0.isOnlyWhileActive }
+    }
+
     /// The glyph search and the extras draw for the same icon.
     var symbol: String {
         switch self {
@@ -200,11 +208,8 @@ struct ShowWhenRule {
 struct ShowWhenCard: View {
     @Environment(AppState.self) private var appState
 
-    /// Battery and Wi-Fi always; a Pelmet item only while it is on.
     private var subjects: [ShowWhenSubject] {
-        ShowWhenSubject.allCases.filter { subject in
-            subject.kind.map { kind in appState.settings.extraItems.contains { $0.kind == kind } } ?? true
-        }
+        ShowWhenSubject.allCases.filter { $0.offersRule(appState.settings.extraItems) }
     }
 
     var body: some View {

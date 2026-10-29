@@ -25358,19 +25358,19 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mientras haya un modo de concentración activo"
+            "value": "Con Concentración activa"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tant qu’un mode de concentration est actif"
+            "value": "Concentration activée"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Finché una Full immersion è attiva"
+            "value": "Con Full immersion attiva"
           }
         },
         "ja": {
@@ -25388,13 +25388,13 @@
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Enquanto um Foco estiver ativo"
+            "value": "Com um Foco ativo"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Пока включено фокусирование"
+            "value": "При фокусировании"
           }
         },
         "zh-Hans": {
@@ -25416,7 +25416,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mientras corre un temporizador"
+            "value": "Durante un temporizador"
           }
         },
         "fr": {
@@ -25474,7 +25474,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Durante una copia de seguridad"
+            "value": "Durante una copia"
           }
         },
         "fr": {
@@ -25510,7 +25510,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Во время резервного копирования"
+            "value": "Во время копирования"
           }
         },
         "zh-Hans": {

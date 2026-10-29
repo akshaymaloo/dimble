@@ -191,6 +191,10 @@ final class ExtrasManager {
             return spec.resolvedShowRule != .whenActive || Self.isRunning(spec)
         case .timer:
             return spec.resolvedShowRule != .whenActive || (pelmetTimer?.isActive ?? false)
+        case .focus:
+            return !spec.isOnlyWhileActive || focusStatus?.active != nil
+        case .timeMachine:
+            return !spec.isOnlyWhileActive || (timeMachine?.status.running ?? false)
         default:
             return true
         }
@@ -232,8 +236,7 @@ final class ExtrasManager {
     }
 
     private func outOnItsRuleAlone(_ id: UUID, _ spec: ExtraItemSpec) -> Bool {
-        guard spec.kind.showsWhenItMatters, spec.resolvedShowRule == .whenActive,
-              !shownAlone.contains(id), let appState else { return false }
+        guard spec.comesOutWhileActive, !shownAlone.contains(id), let appState else { return false }
         let section = appState.settings.sectionModel.section(of: Self.itemID(for: spec))
         return section != .visible && !appState.revealedSectionsForExtras.contains(section)
     }
@@ -534,18 +537,20 @@ final class ExtrasManager {
                 updateTimeMachineGlyph(item, spec: spec)
                 let running = timeMachine?.status.running ?? false
                 // "When active": also out on the bar while a backup runs,
-                // from whatever section it sits in.
-                if spec.resolvedShowRule == .whenActive {
-                    visible = ruleVisibility(id, spec, active: running, sectionVisible: visible)
+                // from whatever section it sits in. "While backing up": gone
+                // while idle, like the Timer's "While a timer runs".
+                if spec.comesOutWhileActive {
+                    visible = ruleVisibility(id, spec, active: running, sectionVisible: spec.isOnlyWhileActive ? false : visible)
                 }
                 lastBackupRunning = running
             case .focus:
                 // The moon rides its section, idle it opens the Focus panel.
                 // "When active": also out on the bar while a Focus is on,
-                // from whatever section it sits in.
+                // from whatever section it sits in. "While a Focus is on":
+                // gone while idle, the way Apple's "When Active" is.
                 let active = focusStatus?.active != nil
-                if spec.resolvedShowRule == .whenActive {
-                    visible = ruleVisibility(id, spec, active: active, sectionVisible: visible)
+                if spec.comesOutWhileActive {
+                    visible = ruleVisibility(id, spec, active: active, sectionVisible: spec.isOnlyWhileActive ? false : visible)
                 }
                 updateFocusGlyph(item, spec: spec)
                 lastFocusActive = active
@@ -635,9 +640,10 @@ final class ExtrasManager {
                 // "While a timer runs": stays out.
                 guard !(pelmetTimer?.isActive ?? false), spec.resolvedShowRule == .always else { continue }
             case .focus, .timeMachine:
-                // Each rides its section whatever its rule; one already out
-                // on its rule was skipped above.
-                break
+                // Each rides its section under the card's rule; one already
+                // out on its rule was skipped above. Idle under "only while
+                // active": stays out.
+                guard !spec.isOnlyWhileActive else { continue }
             case .mediaControls:
                 // Audio-driven unless it always shows.
                 guard spec.resolvedShowRule == .always else { continue }
@@ -726,8 +732,8 @@ final class ExtrasManager {
     private func ruleForcesShow(_ spec: ExtraItemSpec) -> Bool {
         switch spec.kind {
         case .timer: return pelmetTimer?.isActive ?? false
-        case .focus: return spec.resolvedShowRule == .whenActive && focusStatus?.active != nil
-        case .timeMachine: return spec.resolvedShowRule == .whenActive && (timeMachine?.status.running ?? false)
+        case .focus: return spec.comesOutWhileActive && focusStatus?.active != nil
+        case .timeMachine: return spec.comesOutWhileActive && (timeMachine?.status.running ?? false)
         case .liveActivity: return !(liveActivityStatus?.active.isEmpty ?? true)
         default: return false
         }
@@ -1287,7 +1293,7 @@ final class ExtrasManager {
     private func timeMachineChanged() {
         let running = timeMachine?.status.running ?? false
         if running != lastBackupRunning,
-           specs.values.contains(where: { $0.kind == .timeMachine && $0.resolvedShowRule == .whenActive }) {
+           specs.values.contains(where: { $0.kind == .timeMachine && $0.comesOutWhileActive }) {
             applyCurrent()  // the visibility edge
             return
         }

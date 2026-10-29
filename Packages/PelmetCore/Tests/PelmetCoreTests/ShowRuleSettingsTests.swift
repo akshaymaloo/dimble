@@ -45,6 +45,30 @@ struct ShowRuleSettingsTests {
         #expect(partial.wifiOn && !partial.batteryOn)
     }
 
+    // The row's "While a Focus is on" takes the idle moon off the bar and
+    // still brings it out while on; the card's rule is kept apart, and a
+    // blob from before it decodes as "Always shows". Only Focus and Time
+    // Machine read it.
+    @Test func onlyWhileActiveRidesBesideTheCardRule() throws {
+        var focus = ExtraItemSpec(kind: .focus)
+        #expect(!focus.isOnlyWhileActive && !focus.comesOutWhileActive)
+        focus.onlyWhileActive = true
+        #expect(focus.isOnlyWhileActive && focus.comesOutWhileActive)
+        #expect(focus.resolvedShowRule == .always)
+
+        var card = ExtraItemSpec(kind: .timeMachine, showRule: .whenActive)
+        #expect(!card.isOnlyWhileActive && card.comesOutWhileActive)
+        card.onlyWhileActive = true
+        let back = try JSONDecoder().decode(ExtraItemSpec.self, from: JSONEncoder().encode(card))
+        #expect(back == card && back.isOnlyWhileActive && back.resolvedShowRule == .whenActive)
+
+        let legacy = #"{"id":"6F1B5C1E-0000-4000-8000-000000000001","kind":"focus"}"#
+        #expect(try JSONDecoder().decode(ExtraItemSpec.self, from: Data(legacy.utf8)).onlyWhileActive == nil)
+
+        let timer = ExtraItemSpec(kind: .timer, onlyWhileActive: true)
+        #expect(!timer.isOnlyWhileActive && !timer.comesOutWhileActive)
+    }
+
     // An upgrade keeps 0.3.1's Focus: out on the bar while a Focus is on,
     // from Hidden or Always Hidden. Visible and other kinds are left alone.
     @Test func focusMigrationKeepsItOutWhileActive() {

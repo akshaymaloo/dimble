@@ -283,6 +283,13 @@ public struct ExtraItemSpec: Codable, Equatable, Identifiable, Sendable {
     /// The activity-driven kinds (launchers, media controls, Time Machine,
     /// Focus); nil reads as the kind's default (`ExtraKind.defaultShowRule`).
     public var showRule: ExtraShowRule?
+    /// Focus and Time Machine's "While a Focus is on" / "While backing up"
+    /// on their Settings row, like the Timer's: off the bar while idle,
+    /// wherever they sit, and out on their own while active. `showRule` then
+    /// keeps the card's Show when it matters choice for when this is off. A
+    /// field of its own, not a third `ExtraShowRule`: an older build that
+    /// meets an unknown rule drops every Dimble item.
+    public var onlyWhileActive: Bool?
 
     public init(
         id: UUID = UUID(),
@@ -292,7 +299,8 @@ public struct ExtraItemSpec: Codable, Equatable, Identifiable, Sendable {
         bundleID: String? = nil,
         appName: String? = nil,
         showRule: ExtraShowRule? = nil,
-        style: ExtraStyle? = nil
+        style: ExtraStyle? = nil,
+        onlyWhileActive: Bool? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -302,9 +310,17 @@ public struct ExtraItemSpec: Codable, Equatable, Identifiable, Sendable {
         self.bundleID = bundleID
         self.appName = appName
         self.showRule = showRule
+        self.onlyWhileActive = onlyWhileActive
     }
 
     public var resolvedShowRule: ExtraShowRule { showRule ?? kind.defaultShowRule }
+    /// Off the bar while idle (Focus and Time Machine only).
+    public var isOnlyWhileActive: Bool { kind.showsWhenItMatters && onlyWhileActive == true }
+    /// Out on the bar on its own while active, whatever its section: the
+    /// card's rule, or the row's "only while active".
+    public var comesOutWhileActive: Bool {
+        kind.showsWhenItMatters && (isOnlyWhileActive || resolvedShowRule == .whenActive)
+    }
     public var resolvedStyle: ExtraStyle { style ?? .static }
 
     /// Stable ItemID title. Singleton kinds keep fixed titles (section
